@@ -417,7 +417,6 @@ function updateSupplierEmail(name, email){
   const map = getSupplierEmails();
   map[cleanName] = String(email || "").trim();
   saveSupplierEmails(map);
-  try{ cloudSaveNow(true); }catch(e){}
 }
 
 const SUPPLIER_ORDER_KEY = "supplier_order";
@@ -444,7 +443,7 @@ function normalizeSupplierOrder(list){
   saveSupplierOrder(merged);
   return merged;
 }
-async function moveSupplier(name, direction){
+function moveSupplier(name, direction){
   const order = normalizeSupplierOrder(getSupplierOptionsRaw());
   const clean = String(name || "").trim();
   const index = order.indexOf(clean);
@@ -455,32 +454,21 @@ async function moveSupplier(name, direction){
   order[index] = order[target];
   order[target] = tmp;
   saveSupplierOrder(order);
-  try{ await cloudSaveNow(true); }catch(e){}
   goSettings();
 }
 
-function ensureSupplierStoreInitialized(){
+function getSupplierOptionsRaw(){
   try{
     const raw = JSON.parse(localStorage.getItem(SUPPLIERS_KEY) || "[]");
     const list = Array.isArray(raw) ? raw.map(v => String(v || "").trim()).filter(Boolean) : [];
-    if(list.length) return list;
-    const seeded = DEFAULT_SUPPLIER_OPTIONS.slice();
-    localStorage.setItem(SUPPLIERS_KEY, JSON.stringify(seeded));
-    return seeded;
-  }catch(e){
-    const seeded = DEFAULT_SUPPLIER_OPTIONS.slice();
-    try{ localStorage.setItem(SUPPLIERS_KEY, JSON.stringify(seeded)); }catch(err){}
-    return seeded;
-  }
-}
-function getSupplierOptionsRaw(){
-  try{
-    const list = ensureSupplierStoreInitialized().slice();
+    const merged = [...DEFAULT_SUPPLIER_OPTIONS];
+    list.forEach(name => { if(!merged.includes(name)) merged.push(name); });
+    // also merge suppliers already present on custom products
     getCustomProducts().forEach(p => {
       const s = String((p && p.supplier) || "").trim();
-      if(s && !list.includes(s)) list.push(s);
+      if(s && !merged.includes(s)) merged.push(s);
     });
-    return list;
+    return merged;
   }catch(e){
     return DEFAULT_SUPPLIER_OPTIONS.slice();
   }
@@ -898,7 +886,6 @@ function updateSupplierColor(name, value){
   const map = getSupplierColors();
   map[name] = value || "#334155";
   localStorage.setItem(SUPPLIER_COLORS_KEY, JSON.stringify(map));
-  try{ cloudSaveNow(true); }catch(e){}
 }
 function getAppBg(){ return localStorage.getItem(APP_BG_KEY) || "#f4f6f9"; }
 function getCardBg(){ return localStorage.getItem(CARD_BG_KEY) || "#ffffff"; }
@@ -1021,6 +1008,8 @@ function openProductModal(){
   document.getElementById("newProductUnit").value = "U";
   document.getElementById("newProductPrice").value = "";
   document.getElementById("newProductColor").value = "blue";
+  document.getElementById("newProductProductColor").value = "";
+  document.getElementById("newProductSupplierRef").value = "";
   document.getElementById("newProductVisible").checked = true;
   if(modal) modal.classList.add("show");
 }
@@ -1028,12 +1017,14 @@ function closeProductModal(){
   const modal = document.getElementById("productModal");
   if(modal) modal.classList.remove("show");
 }
-function saveNewProduct(){
+async function saveNewProduct(){
   const name = (document.getElementById("newProductName").value || "").trim();
   const supplier = (document.getElementById("newProductSupplier").value || "").trim() || DEFAULT_SUPPLIER;
   const unit = document.getElementById("newProductUnit").value || "U";
   const price = (document.getElementById("newProductPrice").value || "").trim();
   const color = document.getElementById("newProductColor").value || "blue";
+  const productColor = (document.getElementById("newProductProductColor").value || "").trim();
+  const supplierRef = (document.getElementById("newProductSupplierRef").value || "").trim();
   const visible = !!document.getElementById("newProductVisible").checked;
 
   if(!name){
@@ -1050,11 +1041,14 @@ function saveNewProduct(){
     default_price: price,
     price: price,
     color: color,
+    product_color: productColor,
+    supplier_ref: supplierRef,
     visible: visible
   });
   localStorage.setItem(CUSTOM_PRODUCTS_KEY, JSON.stringify(list));
 
   syncCustomProductPricesToState();
+  try{ await cloudSaveNow(true); }catch(e){}
   closeProductModal();
   alert("Produit ajouté.");
 
@@ -1122,6 +1116,9 @@ function customProductToFamily(p){
   const name = String(p.name || "").trim();
   const supplier = String(p.supplier || DEFAULT_SUPPLIER).trim() || DEFAULT_SUPPLIER;
   const defaultPrice = p.default_price || p.price || "";
+  const productColor = String(p.product_color || "").trim();
+  const supplierRef = String(p.supplier_ref || "").trim();
+  const subtitle = [productColor, supplierRef].filter(Boolean).join(" • ");
   return {
     name: name,
     family_label: "Personnalisé",
@@ -1130,15 +1127,19 @@ function customProductToFamily(p){
     count: 1,
     items: [{
       variant: name,
-      color: unit,
+      color: subtitle || unit,
       label: name + "||" + unit,
       unit_override: unit,
-      default_price: defaultPrice
+      default_price: defaultPrice,
+      product_color: productColor,
+      supplier_ref: supplierRef
     }],
     is_custom: true,
     custom_id: p.id || name,
     default_price: defaultPrice,
-    supplier: supplier
+    supplier: supplier,
+    product_color: productColor,
+    supplier_ref: supplierRef
   };
 }
 
@@ -1227,7 +1228,7 @@ function getFamilies(){
 function getCustomProductsSettingsHtml(){
   const items = getCustomProducts();
   const rows = items.map((p, idx) => `
-      <div style="display:grid;grid-template-columns:1.6fr 1.1fr .7fr 1fr .9fr auto;gap:8px;align-items:center;margin-top:8px">
+      <div style="display:grid;grid-template-columns:1.35fr 1fr .65fr 1fr 1fr .9fr auto;gap:8px;align-items:center;margin-top:8px">
         <input class="search" style="height:44px;margin:0" placeholder="Nom du produit" value="${esc(p.name || "")}" onchange="updateCustomProduct(${idx}, 'name', this.value)">
         <select class="select-user" style="margin:0;height:44px" onchange="updateCustomProduct(${idx}, 'supplier', this.value)">
           ${getSupplierOptions().map(name => `<option value="${esc(name)}" ${(p.supplier || DEFAULT_SUPPLIER) === name ? "selected" : ""}>${esc(name)}</option>`).join("")}
@@ -1236,16 +1237,18 @@ function getCustomProductsSettingsHtml(){
           <option value="U" ${(p.unit || "U") === "U" ? "selected" : ""}>U</option>
           <option value="ML" ${(p.unit || "") === "ML" ? "selected" : ""}>ML</option>
         </select>
-        <div class="color-picker-row">
-        <select class="select-user" style="margin:0;height:44px;flex:1 1 150px" onchange="updateCustomProduct(${idx}, 'color', this.value)">
-          ${getColorOptionsHtml(p.color || "#334155")}
-        </select>
-        <input type="color" value="${esc(p.color || "#334155")}" onchange="updateCustomProduct(${idx}, 'color', this.value); goSettings()">
-      </div>
+        <input class="search" style="height:44px;margin:0" placeholder="Couleur produit" value="${esc(p.product_color || "")}" onchange="updateCustomProduct(${idx}, 'product_color', this.value)">
+        <input class="search" style="height:44px;margin:0" placeholder="Réf fournisseur" value="${esc(p.supplier_ref || "")}" onchange="updateCustomProduct(${idx}, 'supplier_ref', this.value)">
         <input class="search" style="height:44px;margin:0" inputmode="decimal" placeholder="Prix HT" value="${esc(p.default_price || p.price || "")}" onchange="updateCustomProduct(${idx}, 'default_price', this.value)">
         <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="deleteCustomProduct(${idx})">Supprimer</button>
       </div>
-      <div style="display:flex;gap:10px;align-items:center;margin:8px 0 2px 0">
+      <div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;margin:8px 0 2px 0">
+        <div class="color-picker-row">
+          <select class="select-user" style="margin:0;height:44px;flex:1 1 150px" onchange="updateCustomProduct(${idx}, 'color', this.value)">
+            ${getColorOptionsHtml(p.color || "#334155")}
+          </select>
+          <input type="color" value="${esc(p.color || "#334155")}" onchange="updateCustomProduct(${idx}, 'color', this.value); goSettings()">
+        </div>
         <label style="display:flex;align-items:center;gap:8px;font-weight:700">
           <input type="checkbox" ${p.visible !== false ? "checked" : ""} onchange="updateCustomProduct(${idx}, 'visible', this.checked)">
           Visible sur l’accueil
@@ -1261,7 +1264,7 @@ function getCustomProductsSettingsHtml(){
       <button class="btn neutral" onclick="saveProductsSettings()">Enregistrer les produits</button>
     </div>
     <div class="card" style="padding:12px;margin-top:6px">
-      <div class="note" style="margin-bottom:6px">Produit • Fournisseur • Unité • Couleur du produit • Prix HT</div>
+      <div class="note" style="margin-bottom:6px">Produit • Fournisseur • Unité • Couleur produit • Réf fournisseur • Prix HT • Couleur tuile</div>
       ${rows || '<div style="font-size:13px;color:#64748b;margin-top:8px">Aucun produit personnalisé pour l’instant.</div>'}
     </div>
   `;
@@ -1273,12 +1276,13 @@ function addCustomProductLegacy(){
   goHome();
   toggleDropboxPanel(true);
 }
-function updateCustomProduct(index, field, value){
+async function updateCustomProduct(index, field, value){
   const list = getCustomProducts();
   if(!list[index]) return;
   list[index][field] = value;
   if(field === "default_price"){ list[index].price = value; }
   saveCustomProducts(list);
+  try{ await cloudSaveNow(true); }catch(e){}
 }
 function deleteCustomProduct(index){
   const list = getCustomProducts();
@@ -1477,7 +1481,7 @@ function goSettings(){
     <div class="card">
       <p class="title">Fournisseurs</p>
       <div class="user-label">Ajouter un nouveau fournisseur</div>
-      <div class="note" style="margin-bottom:8px">Tous les fournisseurs sont maintenant dans une seule liste : tu peux les ajouter, les supprimer, changer leur couleur et leur ordre.</div>
+      <div class="note" style="margin-bottom:8px">Tu peux maintenant choisir une couleur d’affichage pour chaque fournisseur et personnaliser leur ordre.</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
         <input id="newSupplierInput" class="search" style="height:44px;flex:1 1 260px" placeholder="Nom du fournisseur">
         <button class="btn neutral" style="width:auto" onclick="addSupplier()">+ Ajouter</button>
