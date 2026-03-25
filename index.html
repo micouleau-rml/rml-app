@@ -1023,8 +1023,8 @@ async function saveNewProduct(){
   const unit = document.getElementById("newProductUnit").value || "U";
   const price = (document.getElementById("newProductPrice").value || "").trim();
   const color = document.getElementById("newProductColor").value || "blue";
-  const productColor = (document.getElementById("newProductProductColor").value || "").trim();
-  const supplierRef = (document.getElementById("newProductSupplierRef").value || "").trim();
+  const productColor = ((document.getElementById("newProductProductColor") && document.getElementById("newProductProductColor").value) || "").trim();
+  const supplierRef = ((document.getElementById("newProductSupplierRef") && document.getElementById("newProductSupplierRef").value) || "").trim();
   const visible = !!document.getElementById("newProductVisible").checked;
 
   if(!name){
@@ -2839,6 +2839,10 @@ async function saveOrderFile(){
         <option value="dark">Gris foncé</option>
         <option value="red">Rouge</option>
       </select>
+      <div class="user-label">Couleur produit</div>
+      <input id="newProductProductColor" class="search" style="height:44px" placeholder="Ex. Blanc, Anthracite, Sable">
+      <div class="user-label">Réf fournisseur</div>
+      <input id="newProductSupplierRef" class="search" style="height:44px" placeholder="Ex. GF3001">
       <label style="display:flex;align-items:center;gap:10px;font-weight:600">
         <input id="newProductVisible" type="checkbox" checked style="width:auto;height:auto">
         Produit visible sur l’accueil
