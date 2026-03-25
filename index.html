@@ -3033,7 +3033,11 @@ async function cloudLoadNow(silent){
     applyCloudStoragePayload(row.data);
 
     try{
-      if(typeof goHome === "function") goHome();
+      if(typeof goHome === "function"){
+        goHome();
+        setTimeout(function(){ try{ goHome(); }catch(e){} }, 80);
+        setTimeout(function(){ try{ goHome(); }catch(e){} }, 220);
+      }
     }catch(e){
       console.error(e);
     }
