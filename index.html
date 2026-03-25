@@ -147,6 +147,13 @@ th{background:#f8fafc}
 .settings-section{display:none}
 .settings-section.active{display:block}
 
+
+.home-sync-bar{display:flex;gap:10px;align-items:stretch;margin:10px 0 14px 0;flex-wrap:wrap}
+.home-sync-bar .btn{flex:1 1 220px;margin:0}
+.home-sync-save{background:#c62828!important;border-color:#c62828!important;color:#fff!important}
+.home-sync-load{background:#fff!important;border:2px solid var(--line)!important;color:var(--text)!important}
+.home-sync-note{font-size:12px;color:var(--muted);margin:4px 0 10px 0}
+
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1673,6 +1680,7 @@ function goHome(){
 </div>
     <div class="toolbar" style="margin-top:12px">
       <button class="btn neutral" onclick="goSettings()">⚙️ Réglage</button>
+${getHomeSyncHtml()}
       <button class="btn" style="background:#0a8454;color:#fff;border-color:#0a8454" onclick="goRecap()">Récapitulatif</button>
     </div>
     <div class="section-title">Fournisseurs</div>
@@ -2892,6 +2900,13 @@ async function saveOrderFile(){
 }
 .top-byline{margin-top:4px;font-size:16px;font-weight:600;letter-spacing:1px}
 @media (max-width:700px){.top h1{font-size:26px}.top-byline{font-size:14px}.top p{font-size:12px;max-width:330px}}
+
+.home-sync-bar{display:flex;gap:10px;align-items:stretch;margin:10px 0 14px 0;flex-wrap:wrap}
+.home-sync-bar .btn{flex:1 1 220px;margin:0}
+.home-sync-save{background:#c62828!important;border-color:#c62828!important;color:#fff!important}
+.home-sync-load{background:#fff!important;border:2px solid var(--line)!important;color:var(--text)!important}
+.home-sync-note{font-size:12px;color:var(--muted);margin:4px 0 10px 0}
+
 </style>
 <div id="commandPreviewModal" class="preview-overlay" onclick="if(event.target===this) closeCommandPreview()">
   <div class="preview-panel">
@@ -2923,6 +2938,20 @@ const SUPABASE_KEY = "sb_publishable_WE_zFh9O23cF7zEDie4L3w_JUsSb9ao";
 const CLOUD_SHARED_KEY = "RML-ALU-01";
 const CLOUD_TABLE = "rml-data";
 const sbCloud = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
+
+function getHomeSyncHtml(){
+  return `
+    <div class="card" style="padding:12px;margin-top:10px">
+      <div class="title" style="margin-bottom:8px">Sync cloud</div>
+      <div class="home-sync-bar">
+        <button class="btn home-sync-save" onclick="cloudSaveNow(false)">Sauvegarder maintenant</button>
+        <button class="btn home-sync-load" onclick="cloudLoadNow(false)">Recharger depuis le cloud</button>
+      </div>
+      <div class="home-sync-note">Sauvegarde cloud manuelle rapide depuis l’accueil.</div>
+    </div>
+  `;
+}
 
 function setCloudStatus(msg){
   const el = document.getElementById("cloudStatus");
