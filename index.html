@@ -2933,19 +2933,29 @@ function isLikelyEmbeddedViewer(){
 
 
 
-
 const SUPABASE_URL = "https://dbsibzcqhtecknpkkuxa.supabase.co";
 const SUPABASE_KEY = "sb_publishable_WE_zFh9O23cF7zEDie4L3w_JUsSb9ao";
 const CLOUD_SHARED_KEY = "RML-ALU-01";
 const CLOUD_TABLE = "rml-data";
 const sbCloud = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
+
+function getHomeSyncHtml(){
+  return `
+    <div class="card" style="padding:12px;margin-top:10px">
+      <div class="title" style="margin-bottom:8px">Sync cloud</div>
+      <div class="home-sync-bar">
+        <button class="btn home-sync-save" onclick="cloudSaveNow(false)">Sauvegarder maintenant</button>
+        <button class="btn home-sync-load" onclick="cloudLoadNow(false)">Recharger depuis le cloud</button>
+      </div>
+      <div class="home-sync-note">Sauvegarde cloud manuelle rapide depuis l’accueil.</div>
+    </div>
+  `;
+}
+
 function setCloudStatus(msg){
-  const text = msg || "";
   const el = document.getElementById("cloudStatus");
-  if(el) el.textContent = text;
-  const home = document.getElementById("homeCloudStatus");
-  if(home) home.textContent = text;
+  if(el) el.textContent = msg || "";
 }
 
 async function findSharedCloudRow(){
@@ -3021,25 +3031,8 @@ async function cloudLoadNow(silent){
     }
 
     applyCloudStoragePayload(row.data);
-
-    try{ state = loadStateFromStorage(); }catch(e){ console.error(e); }
-
-    try{
-      if(typeof startApp === "function"){
-        await startApp();
-        setTimeout(function(){ try{ startApp(); }catch(e){} }, 120);
-      }else if(typeof goHome === "function"){
-        goHome();
-      }
-    }catch(e){
-      console.error(e);
-      try{ if(typeof goHome === "function") goHome(); }catch(err){}
-    }
-
-    try{ updateUserDisplay(); }catch(e){}
-    try{ updateFloatingSaveBar(); }catch(e){}
-
-    if(!silent) setCloudStatus("Chargement cloud OK.");
+    if(!silent) setCloudStatus("Chargement cloud OK. Rechargement...");
+    setTimeout(function(){ location.reload(); }, 250);
   }catch(err){
     console.error(err);
     setCloudStatus("Erreur cloud : " + (err.message || err));
