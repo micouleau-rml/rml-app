@@ -2944,7 +2944,7 @@ function getHomeSyncHtml(){
   return `
     <div class="card" style="padding:12px;margin-top:10px">
       <div class="title" style="margin-bottom:8px">Sync cloud</div>
-      <div class="home-sync-bar">
+      <div class="home-sync-bar"><button class="btn" style="background:#0ea5e9;color:#fff" onclick="exportBackup()">Exporter sauvegarde</button>
         <button class="btn home-sync-save" onclick="cloudSaveNow(false)">Sauvegarder maintenant</button>
         <button class="btn home-sync-load" onclick="cloudLoadNow(false)">Recharger depuis le cloud</button>
       </div>
@@ -2996,6 +2996,17 @@ function applyCloudStoragePayload(payload){
 
 async function cloudSaveNow(silent){
   try{
+    const backup = {};
+    for(let i=0;i<localStorage.length;i++){
+      const k = localStorage.key(i);
+      if(k) backup[k] = localStorage.getItem(k);
+    }
+    localStorage.setItem("backup_before_cloud", JSON.stringify({
+      date:new Date().toISOString(),
+      data:backup
+    }));
+  }catch(e){}
+  try{
     if(!silent) setCloudStatus("Sauvegarde cloud en cours...");
     const payload = buildCloudStoragePayload();
     const row = await findSharedCloudRow();
@@ -3022,6 +3033,10 @@ async function cloudSaveNow(silent){
 }
 
 async function cloudLoadNow(silent){
+  if(!silent){
+    const ok = confirm("⚠️ Recharger depuis le cloud va écraser vos données locales. Continuer ?");
+    if(!ok) return;
+  }
   try{
     if(!silent) setCloudStatus("Chargement cloud en cours...");
     const row = await findSharedCloudRow();
@@ -3031,15 +3046,8 @@ async function cloudLoadNow(silent){
     }
 
     applyCloudStoragePayload(row.data);
-
-    try{
-      sessionStorage.setItem("after_cloud_reload", "1");
-    }catch(e){}
-
-    if(!silent) setCloudStatus("Chargement cloud OK.");
-
-    const cleanUrl = window.location.pathname + "?cloud=" + Date.now();
-    window.location.replace(cleanUrl);
+    if(!silent) setCloudStatus("Chargement cloud OK. Rechargement...");
+    setTimeout(function(){ location.reload(); }, 250);
   }catch(err){
     console.error(err);
     setCloudStatus("Erreur cloud : " + (err.message || err));
@@ -3049,18 +3057,6 @@ async function cloudLoadNow(silent){
 
 window.addEventListener("load", async function(){
   setCloudStatus("Cloud prêt.");
-  try{
-    const afterCloudReload = sessionStorage.getItem("after_cloud_reload");
-    if(afterCloudReload === "1"){
-      sessionStorage.removeItem("after_cloud_reload");
-      setTimeout(function(){
-        try{
-          if(typeof goHome === "function") goHome();
-          setCloudStatus("Chargement cloud OK.");
-        }catch(e){}
-      }, 250);
-    }
-  }catch(e){}
 });
 
 function getExportStorageKeys(){
@@ -3334,3 +3330,21 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 
 </body>
 </html>
+<script>
+function exportBackup(){
+  try{
+    const data = {};
+    for(let i=0;i<localStorage.length;i++){
+      const k = localStorage.key(i);
+      if(k) data[k] = localStorage.getItem(k);
+    }
+    const blob = new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "backup_rml.json";
+    a.click();
+  }catch(e){
+    alert("Erreur export");
+  }
+}
+</script>
