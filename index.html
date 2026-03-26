@@ -3033,13 +3033,20 @@ async function cloudLoadNow(silent){
     applyCloudStoragePayload(row.data);
 
     try{
-      if(typeof goHome === "function"){
-        goHome();
-        setTimeout(function(){ try{ goHome(); }catch(e){} }, 80);
-        setTimeout(function(){ try{ goHome(); }catch(e){} }, 220);
-      }
+      state = loadStateFromStorage();
+      hydrateStateShape();
+      const metaBackup = loadMetaBackup();
+      orderUser = localStorage.getItem("order_user") || metaBackup.orderUser || "";
+      orderMessage = localStorage.getItem("order_message") || metaBackup.orderMessage || "";
+      applyHeaderBg(getHeaderBg());
+      refreshHeaderBranding();
+      migrateUnits();
+      updateUserDisplay();
+      updateFloatingSaveBar();
+      goHome();
     }catch(e){
       console.error(e);
+      try{ goHome(); }catch(err){}
     }
 
     if(!silent) setCloudStatus("Chargement cloud OK.");
