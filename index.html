@@ -2948,14 +2948,17 @@ function getHomeSyncHtml(){
         <button class="btn home-sync-save" onclick="cloudSaveNow(false)">Sauvegarder maintenant</button>
         <button class="btn home-sync-load" onclick="cloudLoadNow(false)">Recharger depuis le cloud</button>
       </div>
-      <div class="home-sync-note">Sauvegarde cloud manuelle rapide depuis l’accueil.</div>
+      <div id="homeCloudStatus" class="home-sync-note">Cloud prêt.</div>
     </div>
   `;
 }
 
 function setCloudStatus(msg){
+  const text = msg || "";
   const el = document.getElementById("cloudStatus");
-  if(el) el.textContent = msg || "";
+  if(el) el.textContent = text;
+  const home = document.getElementById("homeCloudStatus");
+  if(home) home.textContent = text;
 }
 
 async function findSharedCloudRow(){
@@ -3034,20 +3037,24 @@ async function cloudLoadNow(silent){
 
     try{
       state = loadStateFromStorage();
-      hydrateStateShape();
-      const metaBackup = loadMetaBackup();
-      orderUser = localStorage.getItem("order_user") || metaBackup.orderUser || "";
-      orderMessage = localStorage.getItem("order_message") || metaBackup.orderMessage || "";
-      applyHeaderBg(getHeaderBg());
-      refreshHeaderBranding();
-      migrateUnits();
-      updateUserDisplay();
-      updateFloatingSaveBar();
-      goHome();
     }catch(e){
       console.error(e);
-      try{ goHome(); }catch(err){}
     }
+
+    try{
+      if(typeof startApp === "function"){
+        await startApp();
+        setTimeout(function(){ try{ startApp(); }catch(e){} }, 120);
+      }else if(typeof goHome === "function"){
+        goHome();
+      }
+    }catch(e){
+      console.error(e);
+      try{ if(typeof goHome === "function") goHome(); }catch(err){}
+    }
+
+    try{ updateUserDisplay(); }catch(e){}
+    try{ updateFloatingSaveBar(); }catch(e){}
 
     if(!silent) setCloudStatus("Chargement cloud OK.");
   }catch(err){
