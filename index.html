@@ -3046,17 +3046,27 @@ async function cloudLoadNow(silent){
     }
 
     applyCloudStoragePayload(row.data);
-    if(!silent) setCloudStatus("Chargement cloud OK. Rechargement...");
+    const stamp = new Date().toLocaleString();
+    try{ localStorage.setItem("cloud_last_load_at", stamp); }catch(e){}
+    if(!silent) setCloudStatus("🔄 Rechargement cloud réussi (" + stamp + ")");
     setTimeout(function(){ location.reload(); }, 250);
   }catch(err){
     console.error(err);
-    setCloudStatus("Erreur cloud : " + (err.message || err));
+    setCloudStatus("❌ Erreur cloud : " + (err.message || err));
     if(!silent) alert("Erreur chargement cloud : " + (err.message || err));
   }
 }
 
 window.addEventListener("load", async function(){
-  setCloudStatus("Cloud prêt.");
+  const lastSave = localStorage.getItem("cloud_last_save_at") || "";
+  const lastLoad = localStorage.getItem("cloud_last_load_at") || "";
+  if(lastSave){
+    setCloudStatus("Dernière sauvegarde cloud : " + lastSave);
+  }else if(lastLoad){
+    setCloudStatus("Dernier rechargement cloud : " + lastLoad);
+  }else{
+    setCloudStatus("Cloud prêt.");
+  }
 });
 
 function getExportStorageKeys(){
