@@ -3031,15 +3031,8 @@ async function cloudLoadNow(silent){
     }
 
     applyCloudStoragePayload(row.data);
-
-    try{
-      sessionStorage.setItem("after_cloud_reload", "1");
-    }catch(e){}
-
-    if(!silent) setCloudStatus("Chargement cloud OK.");
-
-    const cleanUrl = window.location.pathname + "?cloud=" + Date.now();
-    window.location.replace(cleanUrl);
+    if(!silent) setCloudStatus("Chargement cloud OK. Rechargement...");
+    setTimeout(function(){ location.reload(); }, 250);
   }catch(err){
     console.error(err);
     setCloudStatus("Erreur cloud : " + (err.message || err));
@@ -3049,18 +3042,6 @@ async function cloudLoadNow(silent){
 
 window.addEventListener("load", async function(){
   setCloudStatus("Cloud prêt.");
-  try{
-    const afterCloudReload = sessionStorage.getItem("after_cloud_reload");
-    if(afterCloudReload === "1"){
-      sessionStorage.removeItem("after_cloud_reload");
-      setTimeout(function(){
-        try{
-          if(typeof goHome === "function") goHome();
-          setCloudStatus("Chargement cloud OK.");
-        }catch(e){}
-      }, 250);
-    }
-  }catch(e){}
 });
 
 function getExportStorageKeys(){
