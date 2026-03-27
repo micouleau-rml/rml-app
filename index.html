@@ -1004,6 +1004,63 @@ function onHeaderLogoSelected(input){
 }
 
 
+
+function getProductsBySupplier(){
+  const grouped = {};
+  getCustomProducts().forEach(p => {
+    const supplier = String((p && p.supplier) || DEFAULT_SUPPLIER).trim() || DEFAULT_SUPPLIER;
+    if(!grouped[supplier]) grouped[supplier] = [];
+    grouped[supplier].push(p);
+  });
+  return grouped;
+}
+
+function renderProductsGroupedSettings(){
+  const grouped = getProductsBySupplier();
+  const suppliers = getSupplierOptions();
+  const sections = suppliers.map(name => {
+    const items = grouped[name] || [];
+    const body = items.length ? items.map(p => `
+      <div style="padding:8px 10px;border:1px solid var(--line);border-radius:12px;margin-top:8px;background:#fff">
+        <div style="font-weight:700">${esc(p.name || "")}</div>
+        <div style="font-size:12px;color:#64748b;margin-top:4px">${esc(p.product_color || "")}${p.product_color && p.supplier_ref ? " • " : ""}${esc(p.supplier_ref || "")}</div>
+      </div>
+    `).join("") : '<div style="font-size:13px;color:#64748b;margin-top:8px">Aucun produit dans ce fournisseur.</div>';
+    return `
+      <details style="border:1px solid var(--line);border-radius:14px;padding:10px 12px;background:#f8fafc;margin-top:10px">
+        <summary style="cursor:pointer;font-weight:800">${esc(name)} <span style="color:#64748b;font-weight:600">(${items.length})</span></summary>
+        <div style="margin-top:8px">${body}</div>
+      </details>
+    `;
+  }).join("");
+  return `
+    <div class="user-label" style="margin-top:14px">Classement par fournisseur</div>
+    <div style="font-size:13px;color:#475569;margin-bottom:6px">Les produits personnalisés sont regroupés par fournisseur.</div>
+    ${sections}
+  `;
+}
+
+function filterNewProductFamiliesBySupplier(){
+  try{
+    const supplier = (document.getElementById("newProductSupplier") || {}).value || "";
+    const familyInput = document.getElementById("newProductFamily");
+    if(!familyInput) return;
+    const grouped = getProductsBySupplier();
+    const items = (grouped[supplier] || []).map(p => String(p.name || "").trim()).filter(Boolean);
+    familyInput.setAttribute("list", supplier ? "supplierProductSuggestions" : "");
+    let dl = document.getElementById("supplierProductSuggestions");
+    if(!dl){
+      dl = document.createElement("datalist");
+      dl.id = "supplierProductSuggestions";
+      document.body.appendChild(dl);
+    }
+    dl.innerHTML = items.map(v => `<option value="${esc(v)}"></option>`).join("");
+  }catch(e){
+    console.error(e);
+  }
+}
+
+
 function openProductModal(){
   const modal = document.getElementById("productModal");
   document.getElementById("newProductName").value = "";
@@ -1274,6 +1331,7 @@ function getCustomProductsSettingsHtml(){
       <div class="note" style="margin-bottom:6px">Produit • Fournisseur • Unité • Couleur produit • Réf fournisseur • Prix HT • Couleur tuile</div>
       ${rows || '<div style="font-size:13px;color:#64748b;margin-top:8px">Aucun produit personnalisé pour l’instant.</div>'}
     </div>
+    ${renderProductsGroupedSettings()}
   `;
 }
 function addCustomProductLegacy(){
