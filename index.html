@@ -1005,61 +1005,35 @@ function onHeaderLogoSelected(input){
 
 
 
-function getProductsBySupplier(){
-  const grouped = {};
-  getCustomProducts().forEach(p => {
-    const supplier = String((p && p.supplier) || DEFAULT_SUPPLIER).trim() || DEFAULT_SUPPLIER;
-    if(!grouped[supplier]) grouped[supplier] = [];
-    grouped[supplier].push(p);
-  });
-  return grouped;
-}
+function renderSuppliersWithProducts(){
+  const suppliers = JSON.parse(localStorage.getItem("commande_fournisseur_suppliers_v1")||"[]");
+  const products = JSON.parse(localStorage.getItem("commande_fournisseur_custom_products_v1")||"[]");
 
-function renderProductsGroupedSettings(){
-  const grouped = getProductsBySupplier();
-  const suppliers = getSupplierOptions();
-  const sections = suppliers.map(name => {
-    const items = grouped[name] || [];
-    const body = items.length ? items.map(p => `
-      <div style="padding:8px 10px;border:1px solid var(--line);border-radius:12px;margin-top:8px;background:#fff">
-        <div style="font-weight:700">${esc(p.name || "")}</div>
-        <div style="font-size:12px;color:#64748b;margin-top:4px">${esc(p.product_color || "")}${p.product_color && p.supplier_ref ? " • " : ""}${esc(p.supplier_ref || "")}</div>
+  return suppliers.map(s=>{
+    const list = products.filter(p=>p.supplier===s);
+    const items = list.map(p=>`
+      <div style="padding:6px 10px;margin-top:6px;border:1px solid var(--line);border-radius:10px;background:#fff">
+        ${p.name || ""} ${p.product_color?'- '+p.product_color:''} ${p.supplier_ref?'- '+p.supplier_ref:''}
       </div>
-    `).join("") : '<div style="font-size:13px;color:#64748b;margin-top:8px">Aucun produit dans ce fournisseur.</div>';
+    `).join("") || "<div style='font-size:12px;color:#64748b;margin-top:6px'>Aucun produit</div>";
+
     return `
-      <details style="border:1px solid var(--line);border-radius:14px;padding:10px 12px;background:#f8fafc;margin-top:10px">
-        <summary style="cursor:pointer;font-weight:800">${esc(name)} <span style="color:#64748b;font-weight:600">(${items.length})</span></summary>
-        <div style="margin-top:8px">${body}</div>
-      </details>
+      <div style="margin-top:12px;padding:10px;border:1px solid var(--line);border-radius:14px;background:#f8fafc">
+        <div style="font-weight:800">${s}</div>
+        <button class="btn neutral" style="margin-top:6px" onclick="openProductModalForSupplier('${s}')">+ Ajouter produit</button>
+        ${items}
+      </div>
     `;
   }).join("");
-  return `
-    <div class="user-label" style="margin-top:14px">Classement par fournisseur</div>
-    <div style="font-size:13px;color:#475569;margin-bottom:6px">Les produits personnalisés sont regroupés par fournisseur.</div>
-    ${sections}
-  `;
 }
 
-function filterNewProductFamiliesBySupplier(){
-  try{
-    const supplier = (document.getElementById("newProductSupplier") || {}).value || "";
-    const familyInput = document.getElementById("newProductFamily");
-    if(!familyInput) return;
-    const grouped = getProductsBySupplier();
-    const items = (grouped[supplier] || []).map(p => String(p.name || "").trim()).filter(Boolean);
-    familyInput.setAttribute("list", supplier ? "supplierProductSuggestions" : "");
-    let dl = document.getElementById("supplierProductSuggestions");
-    if(!dl){
-      dl = document.createElement("datalist");
-      dl.id = "supplierProductSuggestions";
-      document.body.appendChild(dl);
-    }
-    dl.innerHTML = items.map(v => `<option value="${esc(v)}"></option>`).join("");
-  }catch(e){
-    console.error(e);
-  }
+function openProductModalForSupplier(supplier){
+  openProductModal();
+  setTimeout(()=>{
+    const el=document.getElementById("newProductSupplier");
+    if(el) el.value=supplier;
+  },50);
 }
-
 
 function openProductModal(){
   const modal = document.getElementById("productModal");
@@ -1322,7 +1296,7 @@ function getCustomProductsSettingsHtml(){
 
   return `
     <div class="user-label" style="margin-top:12px">Produits personnalisés</div>
-    <div style="font-size:13px;color:#475569;margin-bottom:8px">Une seule fenêtre pour gérer tous vos produits personnalisés.</div>
+    <div style="font-size:13px;color:#475569;margin-bottom:8px">Une seule fenêtre pour gérer tous vos produits personnalisés.<div>${renderSuppliersWithProducts()}</div></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
       <button class="btn neutral" onclick="openProductModal()">+ Nouveau produit</button>
       <button class="btn neutral" onclick="saveProductsSettings()">Enregistrer les produits</button>
@@ -1331,7 +1305,6 @@ function getCustomProductsSettingsHtml(){
       <div class="note" style="margin-bottom:6px">Produit • Fournisseur • Unité • Couleur produit • Réf fournisseur • Prix HT • Couleur tuile</div>
       ${rows || '<div style="font-size:13px;color:#64748b;margin-top:8px">Aucun produit personnalisé pour l’instant.</div>'}
     </div>
-    ${renderProductsGroupedSettings()}
   `;
 }
 function addCustomProductLegacy(){
@@ -3002,7 +2975,7 @@ function getHomeSyncHtml(){
   return `
     <div class="card" style="padding:12px;margin-top:10px">
       <div class="title" style="margin-bottom:8px">Sync cloud</div>
-      <div class="home-sync-bar"><button class="btn" style="background:#0ea5e9;color:#fff" onclick="exportBackup()">Exporter sauvegarde</button>
+      <div class="home-sync-bar">
         <button class="btn home-sync-save" onclick="cloudSaveNow(false)">Sauvegarder maintenant</button>
         <button class="btn home-sync-load" onclick="cloudLoadNow(false)">Recharger depuis le cloud</button>
       </div>
@@ -3054,17 +3027,6 @@ function applyCloudStoragePayload(payload){
 
 async function cloudSaveNow(silent){
   try{
-    const backup = {};
-    for(let i=0;i<localStorage.length;i++){
-      const k = localStorage.key(i);
-      if(k) backup[k] = localStorage.getItem(k);
-    }
-    localStorage.setItem("backup_before_cloud", JSON.stringify({
-      date:new Date().toISOString(),
-      data:backup
-    }));
-  }catch(e){}
-  try{
     if(!silent) setCloudStatus("Sauvegarde cloud en cours...");
     const payload = buildCloudStoragePayload();
     const row = await findSharedCloudRow();
@@ -3091,10 +3053,6 @@ async function cloudSaveNow(silent){
 }
 
 async function cloudLoadNow(silent){
-  if(!silent){
-    const ok = confirm("⚠️ Recharger depuis le cloud va écraser vos données locales. Continuer ?");
-    if(!ok) return;
-  }
   try{
     if(!silent) setCloudStatus("Chargement cloud en cours...");
     const row = await findSharedCloudRow();
@@ -3104,27 +3062,17 @@ async function cloudLoadNow(silent){
     }
 
     applyCloudStoragePayload(row.data);
-    const stamp = new Date().toLocaleString();
-    try{ localStorage.setItem("cloud_last_load_at", stamp); }catch(e){}
-    if(!silent) setCloudStatus("🔄 Rechargement cloud réussi (" + stamp + ")");
+    if(!silent) setCloudStatus("Chargement cloud OK. Rechargement...");
     setTimeout(function(){ location.reload(); }, 250);
   }catch(err){
     console.error(err);
-    setCloudStatus("❌ Erreur cloud : " + (err.message || err));
+    setCloudStatus("Erreur cloud : " + (err.message || err));
     if(!silent) alert("Erreur chargement cloud : " + (err.message || err));
   }
 }
 
 window.addEventListener("load", async function(){
-  const lastSave = localStorage.getItem("cloud_last_save_at") || "";
-  const lastLoad = localStorage.getItem("cloud_last_load_at") || "";
-  if(lastSave){
-    setCloudStatus("Dernière sauvegarde cloud : " + lastSave);
-  }else if(lastLoad){
-    setCloudStatus("Dernier rechargement cloud : " + lastLoad);
-  }else{
-    setCloudStatus("Cloud prêt.");
-  }
+  setCloudStatus("Cloud prêt.");
 });
 
 function getExportStorageKeys(){
@@ -3398,21 +3346,3 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 
 </body>
 </html>
-<script>
-function exportBackup(){
-  try{
-    const data = {};
-    for(let i=0;i<localStorage.length;i++){
-      const k = localStorage.key(i);
-      if(k) data[k] = localStorage.getItem(k);
-    }
-    const blob = new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "backup_rml.json";
-    a.click();
-  }catch(e){
-    alert("Erreur export");
-  }
-}
-</script>
