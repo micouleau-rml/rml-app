@@ -1142,7 +1142,7 @@ function getSupplierAccordionHtml(name){
   const productsOpen = isSupplierInnerOpen(name, "produits");
   const safeDeleteButton = DEFAULT_SUPPLIER_OPTIONS.includes(name)
     ? '<div class="note" style="display:flex;align-items:center;padding:0 6px">Fournisseur de base</div>'
-    : '<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="event.stopPropagation();deleteSupplier(\'' + safeName + '\')">Supprimer</button>';
+    : '<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="event.stopPropagation();confirmDeleteSupplierByName(\'' + safeName + '\')">Supprimer</button>';
 
   let bodyHtml = '';
   if(open){
