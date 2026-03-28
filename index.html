@@ -17,7 +17,7 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,B
 .top-text{min-width:0;text-align:center}
 .top h1{margin:0;font-size:30px;font-weight:900;letter-spacing:2px;line-height:1.1}
 .top p{margin:10px auto 0;color:var(--header-text);opacity:.82;font-size:13px;line-height:1.4;max-width:520px}
-.wrap{max-width:1080px;margin:0 auto;padding:14px}
+.wrap{max-width:1080px;margin:0 auto;padding:14px 14px 180px 14px}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
 .btn{display:block;width:100%;border:none;border-radius:999px;padding:16px 18px;background:#fff;border:1px solid var(--line);box-shadow:0 2px 10px rgba(0,0,0,.05);text-align:left;font-size:16px;font-weight:800;color:var(--text)}
 .btn small{display:block;margin-top:4px;font-size:12px;font-weight:600;color:rgba(255,255,255,.92)}
@@ -153,6 +153,16 @@ th{background:#f8fafc}
 
 .sync-card{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .sync-status{margin-top:8px;color:#627182;font-size:13px}
+
+.supplier-accordion-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;cursor:pointer}
+.supplier-accordion-toggle{font-weight:900;font-size:22px;line-height:1}
+.supplier-accordion-body{margin-top:10px}
+
+
+.supplier-sub-head{display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid var(--line);border-radius:14px;background:#fff}
+.supplier-sub-body{margin-top:8px}
+.supplier-sub-toggle{font-weight:900;font-size:18px;line-height:1}
+
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -892,6 +902,287 @@ function onHeaderLogoSelected(input){
 }
 
 
+
+function getCustomProductsForSupplier(supplierName){
+  const target = String(supplierName || "").trim();
+  return getCustomProducts().filter(p => String((p && p.supplier) || DEFAULT_SUPPLIER).trim() === target);
+}
+function getCustomProductIndexById(productId){
+  const list = getCustomProducts();
+  return list.findIndex(p => String((p && p.id) || "") === String(productId || ""));
+}
+function updateCustomProductById(productId, field, value){
+  const idx = getCustomProductIndexById(productId);
+  if(idx < 0) return;
+  updateCustomProduct(idx, field, value);
+}
+function deleteCustomProductById(productId){
+  const idx = getCustomProductIndexById(productId);
+  if(idx < 0) return;
+  deleteCustomProduct(idx);
+  goSettings();
+  setSettingsSection('fournisseurs');
+}
+function openProductModalForSupplier(supplierName){
+  openProductModal();
+  const el = document.getElementById("newProductSupplier");
+  if(el) el.value = supplierName || DEFAULT_SUPPLIER;
+}
+
+function getFamilySupplierName(fam){
+  const direct = String((fam && fam.supplier) || "").trim();
+  if(direct) return direct;
+  const txt = ((fam && fam.name) || "") + " " + ((fam && fam.family_label) || "");
+  const upper = txt.toUpperCase();
+  if(upper.includes("GUTTERKEL")) return "Gutterkel";
+  if(upper.includes("GUTTI")) return "Gutti";
+  if(upper.includes("SODIFAB")) return "Sodifab";
+  return "Gutterfrance";
+}
+function getBuiltInSupplierProducts(name){
+  const supplierName = String(name || "").trim();
+  const list = [];
+  try{
+    (DATA.families || []).forEach(fam => {
+      if(getFamilySupplierName(fam) !== supplierName) return;
+      (fam.items || []).forEach((it, idx) => {
+        const variant = String((it && it.variant) || (it && it.label) || "").trim();
+        if(!variant) return;
+        const productColor = String((it && it.color) || "").trim();
+        const unit = (typeof getItemUnit === "function" ? getItemUnit(fam, it) : "") || fam.unit_default || "U";
+        const supplierRef = typeof getSupplierRef === "function" ? getSupplierRef(productColor, "") : "";
+        list.push({
+          id: "builtin_" + (fam.name || "fam") + "_" + idx + "_" + variant,
+          builtin: true,
+          supplier: supplierName,
+          family_name: fam.name || "",
+          family_label: fam.family_label || "",
+          name: variant,
+          unit: unit,
+          default_price: it.default_price || fam.default_price || "",
+          price: it.default_price || fam.default_price || "",
+          color: fam.family_color || "#334155",
+          product_color: productColor,
+          supplier_ref: supplierRef,
+          visible: false
+        });
+      });
+    });
+  }catch(e){}
+  return list;
+}
+function migrateBuiltInSupplierProducts(name){
+  const supplierName = String(name || "").trim();
+  const builtins = getBuiltInSupplierProducts(supplierName);
+  if(!builtins.length){
+    alert("Aucun produit catalogue à migrer pour ce fournisseur.");
+    return;
+  }
+  const ok = confirm("Importer " + builtins.length + " produit(s) catalogue dans la fiche " + supplierName + " ?\n\nIls seront ajoutés dans la fiche fournisseur, sans s'afficher en double sur l'accueil.");
+  if(!ok) return;
+
+  const list = getCustomProducts();
+  let added = 0;
+
+  builtins.forEach(p => {
+    const exists = list.some(x =>
+      String((x && x.supplier) || "").trim() === supplierName &&
+      String((x && x.name) || "").trim() === String(p.name || "").trim() &&
+      String((x && x.product_color) || "").trim() === String(p.product_color || "").trim()
+    );
+    if(!exists){
+      list.push({
+        id: "mig_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,8),
+        supplier: supplierName,
+        name: p.name,
+        unit: p.unit || "U",
+        default_price: p.default_price || "",
+        price: p.price || "",
+        color: p.color || "#334155",
+        product_color: p.product_color || "",
+        supplier_ref: p.supplier_ref || "",
+        family_name: p.family_name || "",
+        family_label: p.family_label || "",
+        visible: false,
+        from_catalog: true
+      });
+      added++;
+    }
+  });
+
+  saveCustomProducts(list);
+  try{ if(typeof syncCustomProductPricesToState === "function") syncCustomProductPricesToState(); }catch(e){}
+  alert(added + " produit(s) importé(s) dans " + supplierName + ".");
+  goSettings();
+  setSettingsSection('fournisseurs');
+}
+
+
+function getSupplierProductsSettingsHtml(name){
+  const products = getCustomProductsForSupplier(name);
+  const safeName = String(name).replace(/'/g, "\\'");
+  const builtinsCount = getBuiltInSupplierProducts(name).length;
+  const showMigrate = name === "Gutterfrance" && builtinsCount > 0;
+
+  const rows = products.map(p => `
+      <div class="card" style="padding:10px;margin:8px 0 0 0;background:#f8fafc">
+        <div style="display:grid;grid-template-columns:1.25fr .7fr .9fr 1fr auto;gap:8px;align-items:center">
+          <input class="search" style="height:44px;margin:0" placeholder="Nom du produit" value="${esc(p.name || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'name', this.value)">
+          <select class="select-user" style="margin:0;height:44px" onchange="updateCustomProductById('${esc(p.id || "")}', 'unit', this.value)">
+            <option value="U" ${(p.unit || "U") === "U" ? "selected" : ""}>U</option>
+            <option value="ML" ${(p.unit || "") === "ML" ? "selected" : ""}>ML</option>
+          </select>
+          <input class="search" style="height:44px;margin:0" placeholder="Produit / couleur" value="${esc(p.product_color || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'product_color', this.value)">
+          <input class="search" style="height:44px;margin:0" inputmode="decimal" placeholder="Prix HT" value="${esc(p.default_price || p.price || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'default_price', this.value)">
+          <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="deleteCustomProductById('${esc(p.id || "")}')">Supprimer</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center;margin-top:8px">
+          <input class="search" style="height:44px;margin:0" placeholder="Réf fournisseur" value="${esc(p.supplier_ref || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'supplier_ref', this.value)">
+          <input class="search" style="height:44px;margin:0" placeholder="Famille d'origine" value="${esc(p.family_name || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'family_name', this.value)">
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;margin:8px 0 2px 0;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:8px;font-weight:700">
+            <input type="checkbox" ${p.visible !== false ? "checked" : ""} onchange="updateCustomProductById('${esc(p.id || "")}', 'visible', this.checked)">
+            Visible sur l’accueil
+          </label>
+          ${p.from_catalog ? '<div class="note">Importé du catalogue</div>' : ''}
+        </div>
+      </div>
+    `).join("");
+
+  return `
+    <div style="margin-top:10px">
+      <div class="note" style="margin-bottom:8px">Produits du fournisseur</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="openProductModalForSupplier('${safeName}')">+ Ajouter un produit</button>
+        ${showMigrate ? `<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="migrateBuiltInSupplierProducts('${safeName}')">Importer le catalogue Gutterfrance (${builtinsCount})</button>` : ''}
+      </div>
+      ${rows || '<div class="note">Aucun produit enregistré pour ce fournisseur.</div>'}
+    </div>
+  `;
+}
+
+
+function getSupplierOpenMap(){
+  try{
+    return JSON.parse(localStorage.getItem("rml_supplier_open_map_v1") || "{}") || {};
+  }catch(e){
+    return {};
+  }
+}
+function isSupplierOpen(name){
+  const map = getSupplierOpenMap();
+  if(Object.prototype.hasOwnProperty.call(map, name)) return !!map[name];
+  return false;
+}
+function setSupplierOpen(name, isOpen){
+  const map = getSupplierOpenMap();
+  map[name] = !!isOpen;
+  try{ localStorage.setItem("rml_supplier_open_map_v1", JSON.stringify(map)); }catch(e){}
+}
+function toggleSupplierCard(name){
+  setSupplierOpen(name, !isSupplierOpen(name));
+  goSettings();
+  setSettingsSection('fournisseurs');
+}
+
+function getSupplierInnerOpenMap(){
+  try{
+    return JSON.parse(localStorage.getItem("rml_supplier_inner_open_map_v1") || "{}") || {};
+  }catch(e){
+    return {};
+  }
+}
+function getSupplierInnerKey(name, section){
+  return String(name || "") + "||" + String(section || "");
+}
+function isSupplierInnerOpen(name, section){
+  const map = getSupplierInnerOpenMap();
+  const key = getSupplierInnerKey(name, section);
+  if(Object.prototype.hasOwnProperty.call(map, key)) return !!map[key];
+  return section === "infos";
+}
+function setSupplierInnerOpen(name, section, isOpen){
+  const map = getSupplierInnerOpenMap();
+  map[getSupplierInnerKey(name, section)] = !!isOpen;
+  try{ localStorage.setItem("rml_supplier_inner_open_map_v1", JSON.stringify(map)); }catch(e){}
+}
+function toggleSupplierInner(name, section){
+  setSupplierInnerOpen(name, section, !isSupplierInnerOpen(name, section));
+  if(typeof goSettings === "function"){
+    goSettings();
+    setSettingsSection('fournisseurs');
+  }
+}
+
+
+function getSupplierAccordionHtml(name){
+  const safeName = String(name || "").replace(/'/g, "\\'");
+  const productsCount = getCustomProductsForSupplier(name).length;
+  const open = isSupplierOpen(name);
+  const infosOpen = isSupplierInnerOpen(name, "infos");
+  const productsOpen = isSupplierInnerOpen(name, "produits");
+  const safeDeleteButton = DEFAULT_SUPPLIER_OPTIONS.includes(name)
+    ? '<div class="note" style="display:flex;align-items:center;padding:0 6px">Fournisseur de base</div>'
+    : '<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="event.stopPropagation();deleteSupplier(\'' + safeName + '\')">Supprimer</button>';
+
+  let bodyHtml = '';
+  if(open){
+    let infosBody = '';
+    if(infosOpen){
+      infosBody = ''
+        + '<div class="supplier-sub-body">'
+        +   '<div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">'
+        +     '<div style="display:flex;gap:8px;flex-wrap:wrap">'
+        +       '<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="event.stopPropagation();moveSupplier(\'' + safeName + '\', -1)">▲ Monter</button>'
+        +       '<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="event.stopPropagation();moveSupplier(\'' + safeName + '\', 1)">▼ Descendre</button>'
+        +       safeDeleteButton
+        +     '</div>'
+        +   '</div>'
+        +   '<input class="search" data-supplier-email-input="' + esc(name) + '" style="height:44px;margin:0 0 10px 0" placeholder="Mail du fournisseur" value="' + esc(getSupplierEmail(name)) + '" oninput="updateSupplierEmail(\'' + safeName + '\', this.value)" onchange="updateSupplierEmail(\'' + safeName + '\', this.value)">'
+        +   '<div class="color-picker-row" style="justify-content:flex-start">'
+        +     '<select class="select-user" style="margin:0;height:44px;flex:1 1 140px" onchange="updateSupplierColor(\'' + safeName + '\', this.value); goSettings(); setSettingsSection(\'fournisseurs\')">'
+        +       getColorOptionsHtml(getSupplierColor(name, "#334155"))
+        +     '</select>'
+        +     '<input type="color" value="' + esc(getSupplierColor(name, "#334155")) + '" onchange="updateSupplierColor(\'' + safeName + '\', this.value); goSettings(); setSettingsSection(\'fournisseurs\')">'
+        +   '</div>'
+        + '</div>';
+    }
+
+    let productsBody = '';
+    if(productsOpen){
+      productsBody = '<div class="supplier-sub-body">' + getSupplierProductsSettingsHtml(name) + '</div>';
+    }
+
+    bodyHtml = ''
+      + '<div class="supplier-accordion-body">'
+      +   '<div class="supplier-sub-head" onclick="event.stopPropagation();toggleSupplierInner(\'' + safeName + '\', \'infos\')">'
+      +     '<div style="font-weight:800">Infos fournisseur</div>'
+      +     '<div class="supplier-sub-toggle">' + (infosOpen ? '−' : '+') + '</div>'
+      +   '</div>'
+      +   infosBody
+      +   '<div class="supplier-sub-head" style="margin-top:10px" onclick="event.stopPropagation();toggleSupplierInner(\'' + safeName + '\', \'produits\')">'
+      +     '<div style="font-weight:800">Produits</div>'
+      +     '<div class="supplier-sub-toggle">' + (productsOpen ? '−' : '+') + '</div>'
+      +   '</div>'
+      +   productsBody
+      + '</div>';
+  }
+
+  return ''
+    + '<div class="card" style="padding:10px;margin:0">'
+    +   '<div class="supplier-accordion-head" onclick="toggleSupplierCard(\'' + safeName + '\')">'
+    +     '<div style="font-weight:800;font-size:18px">' + esc(name) + '</div>'
+    +     '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
+    +       '<div class="note">' + productsCount + ' produit(s)</div>'
+    +       '<div class="supplier-accordion-toggle">' + (open ? '−' : '+') + '</div>'
+    +     '</div>'
+    +   '</div>'
+    +   bodyHtml
+    + '</div>';
+}
+
+
 function openProductModal(){
   const modal = document.getElementById("productModal");
   document.getElementById("newProductName").value = "";
@@ -945,10 +1236,7 @@ function saveNewProduct(){
   if(typeof renderFamilies === "function") renderFamilies();
   if(typeof refreshHome === "function") refreshHome();
   if(typeof refreshAll === "function") refreshAll();
-  if(typeof goSettings === "function"){
-    goSettings();
-    setSettingsSection('fournisseurs');
-  }
+  if(typeof goSettings === "function") goSettings();
 }
 
 function getCustomProducts(){
@@ -964,162 +1252,6 @@ function saveCustomProducts(list){
     localStorage.setItem(CUSTOM_PRODUCTS_KEY, JSON.stringify(Array.isArray(list) ? list : []));
   }catch(e){}
 }
-
-function getCustomProductsForSupplier(name){
-  const target = String(name || "").trim();
-  return getCustomProducts().filter(p => String((p && p.supplier) || DEFAULT_SUPPLIER).trim() === target);
-}
-function getCustomProductIndexById(productId){
-  const list = getCustomProducts();
-  return list.findIndex(p => String((p && p.id) || "") === String(productId || ""));
-}
-function updateCustomProductById(productId, field, value){
-  const idx = getCustomProductIndexById(productId);
-  if(idx < 0) return;
-  updateCustomProduct(idx, field, value);
-}
-function deleteCustomProductById(productId){
-  const idx = getCustomProductIndexById(productId);
-  if(idx < 0) return;
-  deleteCustomProduct(idx);
-  goSettings();
-  setSettingsSection('fournisseurs');
-}
-function openProductModalForSupplier(supplierName){
-  openProductModal();
-  const el = document.getElementById("newProductSupplier");
-  if(el) el.value = supplierName || DEFAULT_SUPPLIER;
-}
-function getFamilySupplierName(fam){
-  const direct = String((fam && fam.supplier) || "").trim();
-  if(direct) return direct;
-  const txt = ((fam && fam.name) || "") + " " + ((fam && fam.family_label) || "");
-  const upper = txt.toUpperCase();
-  if(upper.includes("GUTTERKEL")) return "Gutterkel";
-  if(upper.includes("GUTTI")) return "Gutti";
-  if(upper.includes("SODIFAB")) return "Sodifab";
-  return "Gutterfrance";
-}
-function getBuiltInSupplierProducts(name){
-  const supplierName = String(name || "").trim();
-  const list = [];
-  try{
-    (DATA.families || []).forEach(fam => {
-      if(getFamilySupplierName(fam) !== supplierName) return;
-      (fam.items || []).forEach((it, idx) => {
-        const variant = String((it && it.variant) || (it && it.label) || "").trim();
-        if(!variant) return;
-        const productColor = String((it && it.color) || "").trim();
-        const unit = (getItemUnit(fam, it) || fam.unit_default || "U");
-        const supplierRef = getSupplierRef(productColor, "");
-        list.push({
-          id: "builtin_" + fam.name + "_" + idx + "_" + variant,
-          builtin: true,
-          supplier: supplierName,
-          family_name: fam.name || "",
-          family_label: fam.family_label || "",
-          name: variant,
-          unit: unit,
-          default_price: it.default_price || fam.default_price || "",
-          price: it.default_price || fam.default_price || "",
-          color: fam.family_color || "#334155",
-          product_color: productColor,
-          supplier_ref: supplierRef,
-          visible: false
-        });
-      });
-    });
-  }catch(e){}
-  return list;
-}
-function migrateBuiltInSupplierProducts(name){
-  const supplierName = String(name || "").trim();
-  const builtins = getBuiltInSupplierProducts(supplierName);
-  if(!builtins.length){
-    alert("Aucun produit catalogue à migrer pour ce fournisseur.");
-    return;
-  }
-  const ok = confirm("Importer " + builtins.length + " produit(s) catalogue dans la fiche " + supplierName + " ?\n\nIls seront ajoutés comme produits de réglage, sans s'afficher en double sur l'accueil.");
-  if(!ok) return;
-  const list = getCustomProducts();
-  let added = 0;
-  builtins.forEach(p => {
-    const exists = list.some(x =>
-      String((x && x.supplier) || "").trim() === supplierName &&
-      String((x && x.name) || "").trim() === String(p.name || "").trim() &&
-      String((x && x.product_color) || "").trim() === String(p.product_color || "").trim()
-    );
-    if(!exists){
-      list.push({
-        id: "mig_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,8),
-        supplier: supplierName,
-        name: p.name,
-        unit: p.unit || "U",
-        default_price: p.default_price || "",
-        price: p.price || "",
-        color: p.color || "#334155",
-        product_color: p.product_color || "",
-        supplier_ref: p.supplier_ref || "",
-        family_name: p.family_name || "",
-        family_label: p.family_label || "",
-        visible: false,
-        from_catalog: true
-      });
-      added++;
-    }
-  });
-  saveCustomProducts(list);
-  syncCustomProductPricesToState();
-  alert(added + " produit(s) importé(s) dans " + supplierName + ".");
-  goSettings();
-  setSettingsSection('fournisseurs');
-}
-function getSupplierProductsSettingsHtml(name){
-  const products = getCustomProductsForSupplier(name);
-  const safeName = String(name).replace(/'/g, "\\'");
-  const builtinsCount = getBuiltInSupplierProducts(name).length;
-  const migrateButton = name === "Gutterfrance"
-    ? '<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="migrateBuiltInSupplierProducts(\\'' + safeName + '\\')">Importer le catalogue Gutterfrance (' + builtinsCount + ')</button>'
-    : '';
-
-  const rows = products.map(p => `
-      <div class="card" style="padding:10px;margin:8px 0 0 0;background:#f8fafc">
-        <div style="display:grid;grid-template-columns:1.3fr .7fr .9fr 1fr auto;gap:8px;align-items:center">
-          <input class="search" style="height:44px;margin:0" placeholder="Nom du produit" value="${esc(p.name || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'name', this.value)">
-          <select class="select-user" style="margin:0;height:44px" onchange="updateCustomProductById('${esc(p.id || "")}', 'unit', this.value)">
-            <option value="U" ${(p.unit || "U") === "U" ? "selected" : ""}>U</option>
-            <option value="ML" ${(p.unit || "") === "ML" ? "selected" : ""}>ML</option>
-          </select>
-          <input class="search" style="height:44px;margin:0" placeholder="Produit / couleur" value="${esc(p.product_color || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'product_color', this.value)">
-          <input class="search" style="height:44px;margin:0" placeholder="Prix HT" value="${esc(p.default_price || p.price || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'default_price', this.value)">
-          <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="deleteCustomProductById('${esc(p.id || "")}')">Supprimer</button>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center;margin-top:8px">
-          <input class="search" style="height:44px;margin:0" placeholder="Réf fournisseur" value="${esc(p.supplier_ref || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'supplier_ref', this.value)">
-          <input class="search" style="height:44px;margin:0" placeholder="Famille d'origine" value="${esc(p.family_name || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'family_name', this.value)">
-        </div>
-        <div style="display:flex;gap:10px;align-items:center;margin:8px 0 2px 0;flex-wrap:wrap">
-          <label style="display:flex;align-items:center;gap:8px;font-weight:700">
-            <input type="checkbox" ${p.visible !== false ? "checked" : ""} onchange="updateCustomProductById('${esc(p.id || "")}', 'visible', this.checked)">
-            Visible sur l’accueil
-          </label>
-          ${p.from_catalog ? '<div class="note">Importé du catalogue</div>' : ''}
-        </div>
-      </div>
-    `).join("");
-
-  return `
-    <div style="margin-top:10px">
-      <div class="note" style="margin-bottom:8px">Produits du fournisseur</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-        <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="openProductModalForSupplier('${safeName}')">+ Ajouter un produit</button>
-        ${migrateButton}
-      </div>
-      ${rows || '<div class="note">Aucun produit enregistré pour ce fournisseur.</div>'}
-    </div>
-  `;
-}
-
 function saveProductsSettings(){
   try{
     const items = getCustomProducts().map(p => ({
@@ -1418,6 +1550,11 @@ function setSettingsSection(section){
     btn.style.transform = active ? "scale(1.02)" : "scale(1)";
     btn.style.fontWeight = active ? "900" : "800";
   });
+  if(section === "sync"){
+    setTimeout(function(){
+      try{ loadCloudHistoryIntoPanel(); }catch(e){}
+    }, 80);
+  }
 }
 
 function goSettings(){
@@ -1517,67 +1654,18 @@ function goSettings(){
     <div class="card">
       <p class="title">Fournisseurs</p>
       <div class="user-label">Ajouter un nouveau fournisseur</div>
-      <div class="note" style="margin-bottom:8px">Les produits sont maintenant gérés directement dans chaque fournisseur. Pour Gutterfrance, tu peux importer le catalogue existant dans sa fiche.</div>
+      <div class="note" style="margin-bottom:8px">Chaque fournisseur contient maintenant directement ses produits. L’onglet Produits séparé a été supprimé.</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
         <input id="newSupplierInput" class="search" style="height:44px;flex:1 1 260px" placeholder="Nom du fournisseur">
         <button class="btn neutral" style="width:auto" onclick="addSupplier()">+ Ajouter</button>
         <button class="btn neutral" style="width:auto" onclick="saveSuppliersSettings()">Enregistrer</button>
       </div>
       <div style="display:grid;gap:8px">
-        ${getSupplierOptions().map(name => `
-          <div class="card" style="padding:10px;margin:0">
-            <div style="display:grid;grid-template-columns:1fr;gap:10px;align-items:center">
-              <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
-                <div style="font-weight:800">${esc(name)}</div>
-                <div style="display:flex;gap:8px;flex-wrap:wrap">
-                  <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="moveSupplier('${String(name).replace(/'/g,"\'")}', -1)">▲ Monter</button>
-                  <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="moveSupplier('${String(name).replace(/'/g,"\'")}', 1)">▼ Descendre</button>
-                  ${DEFAULT_SUPPLIER_OPTIONS.includes(name) ? '<div class="note" style="display:flex;align-items:center;padding:0 6px">Fournisseur de base</div>' : `<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="deleteSupplier('${String(name).replace(/'/g,"\'")}')">Supprimer</button>`}
-                </div>
-              </div>
-              <input class="search" data-supplier-email-input="${esc(name)}" style="height:44px;margin:0" placeholder="Mail du fournisseur" value="${esc(getSupplierEmail(name))}" oninput="updateSupplierEmail('${String(name).replace(/'/g,"\'")}', this.value)" onchange="updateSupplierEmail('${String(name).replace(/'/g,"\'")}', this.value)">
-              <div class="color-picker-row" style="justify-content:flex-start">
-                <select class="select-user" style="margin:0;height:44px;flex:1 1 140px" onchange="updateSupplierColor('${String(name).replace(/'/g,"\'")}', this.value); goSettings(); setSettingsSection('fournisseurs')">
-                  ${getColorOptionsHtml(getSupplierColor(name, "#334155"))}
-                </select>
-                <input type="color" value="${esc(getSupplierColor(name, "#334155"))}" onchange="updateSupplierColor('${String(name).replace(/'/g,"\'")}', this.value); goSettings(); setSettingsSection('fournisseurs')">
-              </div>
-              ${getSupplierProductsSettingsHtml(name)}
-            </div>
-          </div>`).join("")}
+        ${getSupplierOptions().map(name => getSupplierAccordionHtml(name)).join("")}
       </div>
     </div>
     </div>
 
-    <div class="settings-section" data-settings-section="sodifab">
-    <div class="card">
-      <p class="title">Familles SODIFAB</p>
-      <div class="note" style="margin-bottom:10px">Catalogue SODIFAB préchargé à partir du tarif fourni. Tu peux renommer ou masquer chaque famille.</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-        <button class="btn neutral" style="width:auto" onclick="restoreSodifabFamilies()">Réinitialiser les familles SODIFAB</button>
-      </div>
-      <div style="display:grid;gap:8px">
-        ${DATA.families.filter(f => (f.supplier || "").toLowerCase() === "sodifab").map(f => {
-          const original = String(f.name || "").trim();
-          const ov = getBaseFamilyOverrides()[original] || {};
-          const displayName = String(ov.name || original);
-          const visible = ov.visible !== false;
-          return `
-            <div class="card" style="padding:10px;margin:0">
-              <div style="display:grid;grid-template-columns:1.6fr auto auto;gap:10px;align-items:center">
-                <input class="search" style="height:44px;margin:0" value="${esc(displayName)}" onchange="updateBaseFamilyName('${String(original).replace(/'/g,"\'")}', this.value)">
-                <label style="display:flex;align-items:center;gap:8px;font-weight:700">
-                  <input type="checkbox" ${visible ? "checked" : ""} onchange="updateBaseFamilyVisible('${String(original).replace(/'/g,"\'")}', this.checked); goSettings();">
-                  Visible
-                </label>
-                <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="hideBaseFamily('${String(original).replace(/'/g,"\'")}')">Masquer</button>
-              </div>
-              <div class="note" style="margin-top:8px">${esc(f.family_label)} • ${f.items.length} produits</div>
-            </div>`;
-        }).join("")}
-      </div>
-    </div>
-    </div>
     <div class="settings-section" data-settings-section="sync">
     <div class="card">
       <p class="title">Synchronisation cloud</p>
@@ -1587,6 +1675,14 @@ function goSettings(){
         <button class="btn neutral" style="width:auto" onclick="loadCloudNow()">Recharger depuis le cloud</button>
       </div>
       <div id="syncStatus" class="sync-status">Prêt.</div>
+      <div class="card" style="margin-top:12px;background:#f8fafc">
+        <p class="title">Historique des sauvegardes</p>
+        <p class="note">Les 5 dernières sauvegardes cloud. Tu peux restaurer une version précédente si besoin.</p>
+        <div id="cloudHistoryList" style="margin-top:10px"><div class="note">Aucune sauvegarde d’historique disponible.</div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+          <button class="btn neutral" style="width:auto" onclick="loadCloudHistoryIntoPanel()">Actualiser l’historique</button>
+        </div>
+      </div>
     </div>
     </div>
 
@@ -2902,11 +2998,15 @@ const SUPABASE_URL = "https://dbsibzcqhtecknpkkuxa.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_WE_zFh9O23cF7zEDie4L3w_JUsSb9ao";
 const CLOUD_ROW_ID_KEY = "rml_cloud_row_id";
 const CLOUD_TABLE = "rml-data";
+const CLOUD_HISTORY_TABLE = "rml-data-history";
 const supabaseCloud = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY) : null;
 
 function setSyncStatus(message){
+  const text = message || "";
   const el = document.getElementById("syncStatus");
-  if(el) el.textContent = message || "";
+  if(el) el.textContent = text;
+  const home = document.getElementById("homeSyncStatus");
+  if(home) home.textContent = text;
 }
 
 async function ensureCloudRow(){
@@ -2948,8 +3048,106 @@ function applyCloudPayload(payload){
   });
 }
 
+async function saveCloudHistoryEntry(payload, note){
+  if(!supabaseCloud) return;
+  try{
+    await supabaseCloud.from(CLOUD_HISTORY_TABLE).insert([{
+      data: payload,
+      note: note || "Sauvegarde manuelle",
+      created_at: new Date().toISOString()
+    }]);
+  }catch(err){
+    console.error("Historique cloud indisponible:", err);
+  }
+}
+
+async function loadCloudHistoryIntoPanel(){
+  const host = document.getElementById("cloudHistoryList");
+  if(!host || !supabaseCloud) return;
+  host.innerHTML = '<div class="note">Chargement...</div>';
+
+  try{
+    const { data, error } = await supabaseCloud
+      .from(CLOUD_HISTORY_TABLE)
+      .select("id, created_at, note, data")
+      .order("created_at", { ascending: false })
+      .limit(5);
+
+    if(error) throw error;
+
+    const rows = data || [];
+    if(!rows.length){
+      host.innerHTML = '<div class="note">Aucune sauvegarde d’historique disponible.</div>';
+      return;
+    }
+
+    host.innerHTML = rows.map(row => {
+      const dt = row.created_at ? new Date(row.created_at).toLocaleString() : "";
+      let productsCount = 0;
+      try{
+        const storage = row.data && row.data.storage ? row.data.storage : {};
+        const raw = storage["commande_fournisseur_custom_products_v1"] || "[]";
+        productsCount = JSON.parse(raw).length || 0;
+      }catch(e){}
+      return `
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)">
+          <div>
+            <div style="font-weight:800">${dt}</div>
+            <div class="note">${productsCount} produit(s) • ${row.note || "Sauvegarde cloud"}</div>
+          </div>
+          <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="restoreCloudHistoryVersion('${row.id}')">Restaurer</button>
+        </div>
+      `;
+    }).join("");
+  }catch(err){
+    console.error(err);
+    host.innerHTML = '<div class="note" style="color:#b91c1c">Historique indisponible. Vérifie la table Supabase rml-data-history.</div>';
+  }
+}
+
+async function restoreCloudHistoryVersion(id){
+  const ok = confirm("⚠️ Restaurer cette sauvegarde va écraser les données locales actuelles. Continuer ?");
+  if(!ok) return;
+  try{
+    setSyncStatus("Restauration en cours...");
+    const { data, error } = await supabaseCloud
+      .from(CLOUD_HISTORY_TABLE)
+      .select("data")
+      .eq("id", id)
+      .single();
+
+    if(error) throw error;
+    if(!data || !data.data) throw new Error("Sauvegarde introuvable.");
+
+    applyCloudPayload(data.data);
+    const stamp = new Date().toLocaleString();
+    try{ localStorage.setItem("cloud_last_load_at", stamp); }catch(e){}
+    setSyncStatus("✅ Sauvegarde restaurée (" + stamp + ")");
+    setTimeout(() => location.reload(), 250);
+  }catch(err){
+    console.error(err);
+    setSyncStatus("Erreur restauration cloud : " + (err.message || err));
+    alert("Erreur restauration cloud : " + (err.message || err));
+  }
+}
+
 async function saveCloudNow(){
   try{
+    const ok = confirm("☁️ Sauvegarder dans le cloud ?");
+    if(!ok) return;
+
+    try{
+      const backup = {};
+      for(let i=0;i<localStorage.length;i++){
+        const k = localStorage.key(i);
+        if(k) backup[k] = localStorage.getItem(k);
+      }
+      localStorage.setItem("backup_before_cloud", JSON.stringify({
+        date:new Date().toISOString(),
+        data:backup
+      }));
+    }catch(e){}
+
     setSyncStatus("Sauvegarde cloud en cours...");
     if(typeof flushAllInputsToState === "function") flushAllInputsToState();
     const rowId = await ensureCloudRow();
@@ -2959,7 +3157,12 @@ async function saveCloudNow(){
       .update({ data: payload, updated_at: new Date().toISOString() })
       .eq("id", rowId);
     if(error) throw error;
-    setSyncStatus("Sauvegarde cloud OK.");
+
+    await saveCloudHistoryEntry(payload, "Sauvegarde manuelle");
+    const stamp = new Date().toLocaleString();
+    try{ localStorage.setItem("cloud_last_save_at", stamp); }catch(e){}
+    setSyncStatus("✅ Sauvegarde cloud réussie (" + stamp + ")");
+    try{ await loadCloudHistoryIntoPanel(); }catch(e){}
   }catch(err){
     console.error(err);
     setSyncStatus("Erreur sauvegarde cloud : " + (err.message || err));
@@ -2969,6 +3172,9 @@ async function saveCloudNow(){
 
 async function loadCloudNow(){
   try{
+    const ok = confirm("⚠️ Recharger depuis le cloud va écraser les données locales. Continuer ?");
+    if(!ok) return;
+
     setSyncStatus("Chargement cloud en cours...");
     const rowId = localStorage.getItem(CLOUD_ROW_ID_KEY);
     if(!rowId){
@@ -2986,7 +3192,9 @@ async function loadCloudNow(){
       return;
     }
     applyCloudPayload(data.data);
-    setSyncStatus("Chargement cloud OK. Rechargement...");
+    const stamp = new Date().toLocaleString();
+    try{ localStorage.setItem("cloud_last_load_at", stamp); }catch(e){}
+    setSyncStatus("🔄 Rechargement cloud réussi (" + stamp + ")");
     setTimeout(() => location.reload(), 250);
   }catch(err){
     console.error(err);
@@ -2997,8 +3205,18 @@ async function loadCloudNow(){
 
 window.addEventListener("load", function(){
   setTimeout(function(){
-    const rowId = localStorage.getItem(CLOUD_ROW_ID_KEY);
-    if(rowId) setSyncStatus("Cloud connecté.");
+    const lastSave = localStorage.getItem("cloud_last_save_at") || "";
+    const lastLoad = localStorage.getItem("cloud_last_load_at") || "";
+    if(lastSave){
+      setSyncStatus("Dernière sauvegarde cloud : " + lastSave);
+    }else if(lastLoad){
+      setSyncStatus("Dernier rechargement cloud : " + lastLoad);
+    }else{
+      const rowId = localStorage.getItem(CLOUD_ROW_ID_KEY);
+      if(rowId) setSyncStatus("Cloud connecté.");
+      else setSyncStatus("Cloud prêt.");
+    }
+    try{ loadCloudHistoryIntoPanel(); }catch(e){}
   }, 300);
 });
 
