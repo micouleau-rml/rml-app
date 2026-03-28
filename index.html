@@ -916,6 +916,24 @@ function updateCustomProductById(productId, field, value){
   if(idx < 0) return;
   updateCustomProduct(idx, field, value);
 }
+
+function confirmDeleteProductById(productId){
+  const ok = confirm("Supprimer ce produit ?");
+  if(!ok) return;
+  deleteCustomProductById(productId);
+}
+function confirmDeleteSupplierByName(name){
+  const supplierName = String(name || "").trim();
+  if(!supplierName) return;
+  const count = getCustomProductsForSupplier(supplierName).length;
+  const msg = count > 0
+    ? "Supprimer le fournisseur \"" + supplierName + "\" et ses " + count + " produit(s) ?"
+    : "Supprimer le fournisseur \"" + supplierName + "\" ?";
+  const ok = confirm(msg);
+  if(!ok) return;
+  deleteSupplier(supplierName);
+}
+
 function deleteCustomProductById(productId){
   const idx = getCustomProductIndexById(productId);
   if(idx < 0) return;
@@ -1034,7 +1052,7 @@ function getSupplierProductsSettingsHtml(name){
           </select>
           <input class="search" style="height:44px;margin:0" placeholder="Produit / couleur" value="${esc(p.product_color || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'product_color', this.value)">
           <input class="search" style="height:44px;margin:0" inputmode="decimal" placeholder="Prix HT" value="${esc(p.default_price || p.price || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'default_price', this.value)">
-          <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="deleteCustomProductById('${esc(p.id || "")}')">Supprimer</button>
+          <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="confirmDeleteProductById('${esc(p.id || "")}')">Supprimer</button>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center;margin-top:8px">
           <input class="search" style="height:44px;margin:0" placeholder="Réf fournisseur" value="${esc(p.supplier_ref || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'supplier_ref', this.value)">
