@@ -951,7 +951,7 @@ function getSupplierProductsSettingsHtml(name){
 
   return `
     <div style="margin-top:10px">
-      <div class="note" style="margin-bottom:8px">Produits du fournisseur</div>
+      <div class="note" style="margin-bottom:8px">Produits du fournisseur (bloc repliable)</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
         <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="openProductModalForSupplier('${safeName}')">+ Ajouter un produit</button>
       </div>
@@ -1009,7 +1009,7 @@ function getSupplierAccordionHtml(name){
               ${actionHtml}
             </div>
           </div>
-          <input class="search" data-supplier-email-input="${esc(name)}" style="height:44px;margin:0" placeholder="Mail du fournisseur" value="${esc(getSupplierEmail(name))}" oninput="updateSupplierEmail('${safeName}', this.value)" onchange="updateSupplierEmail('${safeName}', this.value)">
+          <input class="search" data-supplier-email-input="${esc(name)}" style="height:44px;margin:0" placeholder="Infos fournisseur (bloc repliable)" value="${esc(getSupplierEmail(name))}" oninput="updateSupplierEmail('${safeName}', this.value)" onchange="updateSupplierEmail('${safeName}', this.value)">
           <div class="color-picker-row" style="justify-content:flex-start">
             <select class="select-user" style="margin:0;height:44px;flex:1 1 140px" onchange="updateSupplierColor('${safeName}', this.value); goSettings(); setSettingsSection('fournisseurs')">
               ${getColorOptionsHtml(getSupplierColor(name, "#334155"))}
