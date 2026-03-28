@@ -2996,6 +2996,7 @@ const SUPABASE_URL = "https://dbsibzcqhtecknpkkuxa.supabase.co";
 const SUPABASE_KEY = "sb_publishable_WE_zFh9O23cF7zEDie4L3w_JUsSb9ao";
 const CLOUD_SHARED_KEY = "RML-ALU-01";
 const CLOUD_TABLE = "rml-data";
+const CLOUD_HISTORY_TABLE = "rml-data-history";
 const sbCloud = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
 
@@ -3010,6 +3011,26 @@ function getHomeSyncHtml(){
       <div class="home-sync-note">Sauvegarde cloud manuelle rapide depuis l’accueil.</div>
     </div>
   `;
+}
+
+
+async function loadCloudHistory(){
+  const res = await sbCloud.from(CLOUD_HISTORY_TABLE).select("id,data,created_at").order("created_at",{ascending:false}).limit(5);
+  const list = res.data || [];
+  document.getElementById("cloudHistoryList").innerHTML = list.map(r=>{
+    const d = new Date(r.created_at).toLocaleString();
+    return `<div style="margin-top:6px">
+      ${d}
+      <button onclick="restoreCloudVersion('${r.id}')">Restaurer</button>
+    </div>`;
+  }).join("");
+}
+
+async function restoreCloudVersion(id){
+  if(!confirm("Restaurer cette version ?")) return;
+  const res = await sbCloud.from(CLOUD_HISTORY_TABLE).select("data").eq("id",id).single();
+  applyCloudStoragePayload(res.data.data);
+  location.reload();
 }
 
 function setCloudStatus(msg){
@@ -3070,7 +3091,8 @@ async function cloudSaveNow(silent){
     const payload = buildCloudStoragePayload();
     const row = await findSharedCloudRow();
 
-    if(row && row.id){
+    try{await sbCloud.from(CLOUD_HISTORY_TABLE).insert([{ data: payload }]);}catch(e){}
+if(row && row.id){
       const updateRes = await sbCloud
         .from(CLOUD_TABLE)
         .update({ data: payload, updated_at: new Date().toISOString() })
@@ -3397,7 +3419,14 @@ window.addEventListener('afterprint', function(){
 document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCommandPreview(); });
 </script>
 
+
+<div style="position:fixed;right:10px;bottom:80px;width:250px;background:#fff;border:1px solid #ddd;padding:10px">
+<div>Historique</div>
+<div id="cloudHistoryList"></div>
+<button onclick="loadCloudHistory()">Voir</button>
+</div>
 </body>
+
 </html>
 <script>
 function exportBackup(){
