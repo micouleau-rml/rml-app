@@ -933,19 +933,24 @@ function getSupplierProductsSettingsHtml(name){
   const safeName = String(name).replace(/'/g, "\\'");
   const rows = products.map(p => `
       <div class="card" style="padding:10px;margin:8px 0 0 0;background:#f8fafc">
-        <div style="display:grid;grid-template-columns:1.4fr .8fr .9fr .9fr auto;gap:8px;align-items:center">
+        <div style="display:grid;grid-template-columns:1.2fr .8fr .8fr .7fr .8fr auto;gap:8px;align-items:center">
           <input class="search" style="height:44px;margin:0" placeholder="Nom du produit" value="${esc(p.name || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'name', this.value)">
+          <input class="search" style="height:44px;margin:0" placeholder="Produit / couleur" value="${esc(p.product_color || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'product_color', this.value)">
+          <input class="search" style="height:44px;margin:0" placeholder="Réf fournisseur" value="${esc(p.supplier_ref || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'supplier_ref', this.value)">
           <select class="select-user" style="margin:0;height:44px" onchange="updateCustomProductById('${esc(p.id || "")}', 'unit', this.value)">
             <option value="U" ${(p.unit || "U") === "U" ? "selected" : ""}>U</option>
             <option value="ML" ${(p.unit || "") === "ML" ? "selected" : ""}>ML</option>
           </select>
-          <select class="select-user" style="margin:0;height:44px" onchange="updateCustomProductById('${esc(p.id || "")}', 'color', this.value); goSettings(); setSettingsSection('fournisseurs')">
-            ${getColorOptionsHtml(p.color || "#334155")}
-          </select>
           <input class="search" style="height:44px;margin:0" inputmode="decimal" placeholder="Prix HT" value="${esc(p.default_price || p.price || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'default_price', this.value)">
           <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="deleteCustomProductById('${esc(p.id || "")}')">Supprimer</button>
         </div>
-        <div style="display:flex;gap:10px;align-items:center;margin:8px 0 2px 0;flex-wrap:wrap">
+        <div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;margin-top:8px">
+          <div class="color-picker-row" style="justify-content:flex-start">
+            <div class="note">Couleur du bandeau famille</div>
+            <select class="select-user" style="margin:0;height:44px;flex:1 1 140px" onchange="updateCustomProductById('${esc(p.id || "")}', 'color', this.value); goSettings(); setSettingsSection('fournisseurs')">
+              ${getColorOptionsHtml(p.color || "#334155")}
+            </select>
+          </div>
           <label style="display:flex;align-items:center;gap:8px;font-weight:700">
             <input type="checkbox" ${p.visible !== false ? "checked" : ""} onchange="updateCustomProductById('${esc(p.id || "")}', 'visible', this.checked)">
             Visible sur l’accueil
@@ -1093,6 +1098,8 @@ function openProductModal(){
     supplierSelect.innerHTML = getSupplierOptions().map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join("");
     supplierSelect.value = DEFAULT_SUPPLIER;
   }
+  document.getElementById("newProductDisplayColor").value = "";
+  document.getElementById("newProductSupplierRef").value = "";
   document.getElementById("newProductUnit").value = "U";
   document.getElementById("newProductPrice").value = "";
   document.getElementById("newProductColor").value = "blue";
@@ -1106,6 +1113,8 @@ function closeProductModal(){
 function saveNewProduct(){
   const name = (document.getElementById("newProductName").value || "").trim();
   const supplier = (document.getElementById("newProductSupplier").value || "").trim() || DEFAULT_SUPPLIER;
+  const productColor = (document.getElementById("newProductDisplayColor").value || "").trim();
+  const supplierRef = (document.getElementById("newProductSupplierRef").value || "").trim();
   const unit = document.getElementById("newProductUnit").value || "U";
   const price = (document.getElementById("newProductPrice").value || "").trim();
   const color = document.getElementById("newProductColor").value || "blue";
@@ -1121,6 +1130,8 @@ function saveNewProduct(){
     id: String(Date.now()) + String(Math.floor(Math.random()*1000)),
     name: name,
     supplier: supplier,
+    product_color: productColor,
+    supplier_ref: supplierRef,
     unit: unit,
     default_price: price,
     price: price,
@@ -1197,6 +1208,8 @@ function customProductToFamily(p){
   const name = String(p.name || "").trim();
   const supplier = String(p.supplier || DEFAULT_SUPPLIER).trim() || DEFAULT_SUPPLIER;
   const defaultPrice = p.default_price || p.price || "";
+  const productColor = String(p.product_color || "").trim();
+  const supplierRef = String(p.supplier_ref || "").trim();
   return {
     name: name,
     family_label: "Personnalisé",
@@ -1205,10 +1218,12 @@ function customProductToFamily(p){
     count: 1,
     items: [{
       variant: name,
-      color: unit,
-      label: name + "||" + unit,
+      color: productColor || unit,
+      label: [name, productColor || unit, supplierRef].filter(Boolean).join("||"),
       unit_override: unit,
-      default_price: defaultPrice
+      default_price: defaultPrice,
+      supplier_ref: supplierRef,
+      product_color: productColor || unit
     }],
     is_custom: true,
     custom_id: p.id || name,
@@ -1758,12 +1773,13 @@ function renderItems(){
     const itemUnit = getItemUnit(fam, it);
     const entry = getEntry(key, itemUnit);
     const displayUnit = itemUnit;
-    const supplierRef = getSupplierRef(it.color, entry.ref || "");
+    const supplierRef = (fam.is_custom && it.supplier_ref) ? it.supplier_ref : getSupplierRef(it.color, entry.ref || "");
+    const displayProduct = it.product_color || it.color;
     return `<div class="card">
       <p class="title">${esc(it.variant)}</p>
-      <p class="meta">Produit : ${esc(it.color)}${supplierRef ? " • Réf fournisseur : " + esc(supplierRef) : ""}${isRouleaux ? " • pas de 10 MLs" : ""}</p>
+      <p class="meta">Produit : ${esc(displayProduct)}${supplierRef ? " • Réf fournisseur : " + esc(supplierRef) : ""}${isRouleaux ? " • pas de 10 MLs" : ""}</p>
       <div class="row">
-        <div class="pill">${esc(it.color)}</div>
+        <div class="pill">${esc(displayProduct)}</div>
         ${supplierRef ? `<div class="pill" style="min-width:112px">${esc(supplierRef)}</div>` : ""}
       </div>
       <div class="row">
@@ -2804,8 +2820,12 @@ async function saveOrderFile(){
       <button class="btn neutral" type="button" onclick="closeProductModal()">Fermer</button>
     </div>
     <div class="product-card-body">
-      <div class="user-label">Nom du produit</div>
-      <input id="newProductName" class="search" style="height:44px" placeholder="Ex. Bobine alu 0,7">
+      <div class="user-label">Nom du produit / désignation</div>
+      <input id="newProductName" class="search" style="height:44px" placeholder="Ex. ROULEAU GF300">
+      <div class="user-label">Produit / couleur affichée</div>
+      <input id="newProductDisplayColor" class="search" style="height:44px" placeholder="Ex. BLANC">
+      <div class="user-label">Réf fournisseur</div>
+      <input id="newProductSupplierRef" class="search" style="height:44px" placeholder="Ex. GF3001">
       <div class="user-label">Fournisseur</div>
       <select id="newProductSupplier" class="search" style="height:44px"></select>
       <div class="user-label">Unité</div>
@@ -2815,7 +2835,7 @@ async function saveOrderFile(){
       </select>
       <div class="user-label">Prix HT par défaut</div>
       <input id="newProductPrice" class="search" style="height:44px" inputmode="decimal" placeholder="Ex. 35">
-      <div class="user-label">Couleur du bouton</div>
+      <div class="user-label">Couleur du bandeau famille</div>
       <select id="newProductColor" class="search" style="height:44px">
         <option value="blue">Bleu</option>
         <option value="green">Vert</option>
