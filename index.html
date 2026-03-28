@@ -1114,6 +1114,7 @@ async function saveNewProduct(){
   alert("Produit ajouté.");
 
   if(typeof renderSettings === "function") renderSettings();
+  try{ if(section === "sync" && typeof loadCloudHistoryIntoPanel === "function") setTimeout(function(){ loadCloudHistoryIntoPanel(); }, 80); }catch(e){}
   if(typeof renderHome === "function") renderHome();
   if(typeof renderFamilies === "function") renderFamilies();
   if(typeof refreshHome === "function") refreshHome();
@@ -3018,27 +3019,23 @@ async function loadCloudHistoryIntoPanel(){
   const host = document.getElementById("cloudHistoryList");
   if(!host) return;
   host.innerHTML = '<div style="font-size:12px;color:#64748b">Chargement...</div>';
-
   try{
     const res = await sbCloud
       .from(CLOUD_HISTORY_TABLE)
-      .select("id,created_at,note,data")
+      .select("id, created_at, note, data")
       .order("created_at", { ascending: false })
       .limit(5);
-
     if(res.error) throw res.error;
-
     const rows = res.data || [];
     if(!rows.length){
       host.innerHTML = '<div style="font-size:12px;color:#64748b">Aucune sauvegarde d’historique disponible.</div>';
       return;
     }
-
     host.innerHTML = rows.map(row => {
       const dt = row.created_at ? new Date(row.created_at).toLocaleString() : "";
-      const storage = row.data && row.data.storage ? row.data.storage : {};
       let productsCount = 0;
       try{
+        const storage = row.data && row.data.storage ? row.data.storage : {};
         const raw = storage["commande_fournisseur_custom_products_v1"] || storage["rml_custom_products"] || "[]";
         productsCount = JSON.parse(raw).length || 0;
       }catch(e){}
@@ -3046,7 +3043,7 @@ async function loadCloudHistoryIntoPanel(){
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)">
           <div>
             <div style="font-weight:700;font-size:13px">${dt}</div>
-            <div style="font-size:12px;color:#64748b">${productsCount} produit(s) • ${(row.note || "Sauvegarde cloud")}</div>
+            <div style="font-size:12px;color:#64748b">${productsCount} produit(s) • ${row.note || "Sauvegarde cloud"}</div>
           </div>
           <button class="btn neutral small" onclick="restoreCloudHistoryVersion('${row.id}')">Restaurer</button>
         </div>
@@ -3061,7 +3058,6 @@ async function loadCloudHistoryIntoPanel(){
 async function restoreCloudHistoryVersion(id){
   const ok = confirm("⚠️ Restaurer cette sauvegarde va écraser les données locales actuelles. Continuer ?");
   if(!ok) return;
-
   try{
     setCloudStatus("Restauration en cours...");
     const res = await sbCloud
@@ -3069,10 +3065,8 @@ async function restoreCloudHistoryVersion(id){
       .select("data")
       .eq("id", id)
       .single();
-
     if(res.error) throw res.error;
     if(!res.data || !res.data.data) throw new Error("Sauvegarde introuvable.");
-
     applyCloudStoragePayload(res.data.data);
     const stamp = new Date().toLocaleString();
     try{ localStorage.setItem("cloud_last_load_at", stamp); }catch(e){}
@@ -3199,7 +3193,7 @@ window.addEventListener("load", async function(){
   }else{
     setCloudStatus("Cloud prêt.");
   }
-  try{ if(typeof loadCloudHistoryIntoPanel === "function") await loadCloudHistoryIntoPanel(); }catch(e){}
+  try{ await loadCloudHistoryIntoPanel(); }catch(e){}
 });
 
 function getExportStorageKeys(){
