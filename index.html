@@ -917,6 +917,22 @@ function updateCustomProductById(productId, field, value){
   updateCustomProduct(idx, field, value);
 }
 
+
+function duplicateCustomProductById(productId){
+  const idx = getCustomProductIndexById(productId);
+  if(idx < 0) return;
+  const list = getCustomProducts();
+  const source = list[idx] || {};
+  const copy = JSON.parse(JSON.stringify(source));
+  copy.id = "dup_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,8);
+  copy.name = String(copy.name || "") + " copie";
+  list.push(copy);
+  saveCustomProducts(list);
+  try{ if(typeof syncCustomProductPricesToState === "function") syncCustomProductPricesToState(); }catch(e){}
+  goSettings();
+  setSettingsSection('fournisseurs');
+}
+
 function confirmDeleteProductById(productId){
   const ok = confirm("Supprimer ce produit ?");
   if(!ok) return;
@@ -1052,7 +1068,10 @@ function getSupplierProductsSettingsHtml(name){
           </select>
           <input class="search" style="height:44px;margin:0" placeholder="Produit / couleur" value="${esc(p.product_color || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'product_color', this.value)">
           <input class="search" style="height:44px;margin:0" inputmode="decimal" placeholder="Prix HT" value="${esc(p.default_price || p.price || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'default_price', this.value)">
-          <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="confirmDeleteProductById('${esc(p.id || "")}')">Supprimer</button>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="duplicateCustomProductById('${esc(p.id || "")}')">Dupliquer</button>
+            <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="confirmDeleteProductById('${esc(p.id || "")}')">Supprimer</button>
+          </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center;margin-top:8px">
           <input class="search" style="height:44px;margin:0" placeholder="Réf fournisseur" value="${esc(p.supplier_ref || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'supplier_ref', this.value)">
