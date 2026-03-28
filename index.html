@@ -153,6 +153,11 @@ th{background:#f8fafc}
 
 .sync-card{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .sync-status{margin-top:8px;color:#627182;font-size:13px}
+
+.supplier-accordion-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;cursor:pointer}
+.supplier-accordion-toggle{font-weight:800;font-size:20px;line-height:1}
+.supplier-accordion-body{margin-top:10px}
+
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -920,6 +925,30 @@ function openProductModalForSupplier(supplierName){
     el.value = supplierName || DEFAULT_SUPPLIER;
   }
 }
+
+function getSupplierOpenMap(){
+  try{
+    return JSON.parse(localStorage.getItem("rml_supplier_open_map_v1") || "{}") || {};
+  }catch(e){ return {}; }
+}
+function isSupplierOpen(name){
+  const map = getSupplierOpenMap();
+  if(Object.prototype.hasOwnProperty.call(map, name)) return !!map[name];
+  return false;
+}
+function setSupplierOpen(name, isOpen){
+  const map = getSupplierOpenMap();
+  map[name] = !!isOpen;
+  try{ localStorage.setItem("rml_supplier_open_map_v1", JSON.stringify(map)); }catch(e){}
+}
+function toggleSupplierCard(name){
+  setSupplierOpen(name, !isSupplierOpen(name));
+  if(typeof goSettings === "function"){
+    goSettings();
+    setSettingsSection('fournisseurs');
+  }
+}
+
 function getSupplierProductsSettingsHtml(name){
   const products = getCustomProductsForSupplier(name);
   const safeName = String(name).replace(/'/g, "\\'");
@@ -1180,279 +1209,35 @@ function getCustomProductsSettingsHtml(){
       <div style="display:grid;grid-template-columns:1.6fr 1.1fr .7fr 1fr .9fr auto;gap:8px;align-items:center;margin-top:8px">
         <input class="search" style="height:44px;margin:0" placeholder="Nom du produit" value="${esc(p.name || "")}" onchange="updateCustomProduct(${idx}, 'name', this.value)">
         <select class="select-user" style="margin:0;height:44px" onchange="updateCustomProduct(${idx}, 'supplier', this.value)">
-          ${getSupplierOptions().map(name => `<option value="${esc(name)}" ${(p.supplier || DEFAULT_SUPPLIER) === name ? "selected" : ""}>${esc(name)}</option>`).join("")}
-        </select>
-        <select class="select-user" style="margin:0;height:44px" onchange="updateCustomProduct(${idx}, 'unit', this.value)">
-          <option value="U" ${(p.unit || "U") === "U" ? "selected" : ""}>U</option>
-          <option value="ML" ${(p.unit || "") === "ML" ? "selected" : ""}>ML</option>
-        </select>
-        <div class="color-picker-row">
-        <select class="select-user" style="margin:0;height:44px;flex:1 1 150px" onchange="updateCustomProduct(${idx}, 'color', this.value)">
-          ${getColorOptionsHtml(p.color || "#334155")}
-        </select>
-        <input type="color" value="${esc(p.color || "#334155")}" onchange="updateCustomProduct(${idx}, 'color', this.value); goSettings()">
-      </div>
-        <input class="search" style="height:44px;margin:0" inputmode="decimal" placeholder="Prix HT" value="${esc(p.default_price || p.price || "")}" onchange="updateCustomProduct(${idx}, 'default_price', this.value)">
-        <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="deleteCustomProduct(${idx})">Supprimer</button>
-      </div>
-      <div style="display:flex;gap:10px;align-items:center;margin:8px 0 2px 0">
-        <label style="display:flex;align-items:center;gap:8px;font-weight:700">
-          <input type="checkbox" ${p.visible !== false ? "checked" : ""} onchange="updateCustomProduct(${idx}, 'visible', this.checked)">
-          Visible sur l’accueil
-        </label>
-      </div>
-    `).join("");
-
-  return `
-    <div class="user-label" style="margin-top:12px">Produits personnalisés</div>
-    <div style="font-size:13px;color:#475569;margin-bottom:8px">Une seule fenêtre pour gérer tous vos produits personnalisés.</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-      <button class="btn neutral" onclick="openProductModal()">+ Nouveau produit</button>
-      <button class="btn neutral" onclick="saveProductsSettings()">Enregistrer les produits</button>
-    </div>
-    <div class="card" style="padding:12px;margin-top:6px">
-      <div class="note" style="margin-bottom:6px">Produit • Fournisseur • Unité • Couleur du produit • Prix HT</div>
-      ${rows || '<div style="font-size:13px;color:#64748b;margin-top:8px">Aucun produit personnalisé pour l’instant.</div>'}
-    </div>
-  `;
-}
-function addCustomProductLegacy(){
-  const list = getCustomProducts();
-  list.push({ id: String(Date.now()) + String(Math.floor(Math.random()*1000)), name: "", unit: "U", color: "#334155", default_price: "" });
-  saveCustomProducts(list);
-  goHome();
-  toggleDropboxPanel(true);
-}
-function updateCustomProduct(index, field, value){
-  const list = getCustomProducts();
-  if(!list[index]) return;
-  list[index][field] = value;
-  if(field === "default_price"){ list[index].price = value; }
-  saveCustomProducts(list);
-}
-function deleteCustomProduct(index){
-  const list = getCustomProducts();
-  list.splice(index, 1);
-  saveCustomProducts(list);
-  goHome();
-  toggleDropboxPanel(true);
-}
-
-function getPdfHeaderRgb(){
-  const color = (getHeaderBg() || "#ffffff").toLowerCase();
-  const map = {
-    "#ffffff":[255,255,255],
-    "#1d4ed8":[29,78,216],
-    "#0a8454":[10,132,84],
-    "#334155":[51,65,85],
-    "#7f1d1d":[127,29,29],
-    "#9aa0a6":[154,160,166],
-    "#b7bcc2":[183,188,194]
-  };
-  return map[color] || [31,78,121];
-}
-
-function getPdfHeaderTextRgb(){
-  const color = (getHeaderBg() || "#ffffff").toLowerCase();
-  if(color === "#ffffff" || color === "#9aa0a6") return [24,33,43];
-  return [255,255,255];
-}
-
-function syncCustomProductPricesToState(){
-  try{
-    const products = getCustomProducts();
-    products.forEach(p => {
-      const name = String((p && p.name) || "").trim();
-      if(!name) return;
-      const unit = ((p.unit || "U").toUpperCase() === "ML") ? "ML" : "U";
-      const key = keyOf(name, name + "||" + unit);
-      if(!state[key]) state[key] = { qty:"", unit:unit, price:"", ref:"" };
-      if((!state[key].price && state[key].price !== 0) || String(state[key].price).trim() === ""){
-        state[key].price = p.default_price || p.price || "";
-      }
-      state[key].unit = unit;
-    });
-    save();
-  }catch(e){}
-}
-
-function syncVisibleInputs(){
-  try{
-    flushAllInputsToState();
-  }catch(e){}
-}
-
-function setUser(name){
-  orderUser = name || "";
-  if(orderUser) localStorage.setItem("order_user", orderUser);
-  else localStorage.removeItem("order_user");
-  updateUserDisplay();
-  updateFloatingSaveBar();
-}
-
-function updateUserDisplay(){
-  const el = document.getElementById("currentUser");
-  if(!el) return;
-  if(orderUser){
-    el.innerHTML = "<strong>Commande passée par :</strong> " + orderUser;
-  }else{
-    el.innerHTML = "Aucune personne sélectionnée";
-  }
-}
-
-
-function setSettingsMode(active){
-  const bottomBar = document.getElementById("bottomBar");
-  const floatingBar = document.querySelector(".floating-save-bar");
-  if(bottomBar) bottomBar.classList.toggle("hidden-ui", !!active);
-  if(floatingBar) floatingBar.classList.toggle("hidden-ui", !!active);
-}
-
-const SETTINGS_SECTION_KEY = "settings_section";
-
-function getSettingsSection(){
-  const value = localStorage.getItem(SETTINGS_SECTION_KEY) || "entete";
-  return value === "produits" ? "fournisseurs" : value;
-}
-function setSettingsSection(section){
-  try{ localStorage.setItem(SETTINGS_SECTION_KEY, section || "entete"); }catch(e){}
-  const settings = document.getElementById("settings");
-  if(!settings) return;
-  settings.querySelectorAll("[data-settings-section]").forEach(el => {
-    el.classList.toggle("active", el.getAttribute("data-settings-section") === section);
-  });
-  settings.querySelectorAll("[data-settings-btn]").forEach(btn => {
-    const active = btn.getAttribute("data-settings-btn") === section;
-    btn.style.opacity = active ? "1" : ".8";
-    btn.style.transform = active ? "scale(1.02)" : "scale(1)";
-    btn.style.fontWeight = active ? "900" : "800";
-  });
-}
-
-function goSettings(){
-  setSettingsMode(true);
-  document.getElementById("home").classList.add("hidden");
-  document.getElementById("supplier")?.classList.add("hidden");
-  document.getElementById("family").classList.add("hidden");
-  document.getElementById("recap").classList.add("hidden");
-  document.getElementById("history")?.classList.add("hidden");
-  document.getElementById("pdfhistory")?.classList.add("hidden");
-  const settings = document.getElementById("settings");
-  if(!settings) return;
-
-  const colorButtons = getColorPresetButtons("setHeaderBg");
-  const appBgButtons = getColorPresetButtons("setAppBg");
-  const cardBgButtons = getColorPresetButtons("setCardBg");
-  const btnAccentButtons = getColorPresetButtons("setBtnAccent");
-
-  settings.innerHTML = `
-    <div class="toolbar">
-      <button class="btn neutral" onclick="goHome()">← Fermer les réglages</button>
-    </div>
-
-    <div class="settings-cats">
-      <button class="btn neutral" data-settings-btn="entete" onclick="setSettingsSection('entete')">Entête</button>
-      <button class="btn neutral" data-settings-btn="apparence" onclick="setSettingsSection('apparence')">Apparence</button>
-      <button class="btn neutral" data-settings-btn="prix" onclick="setSettingsSection('prix')">Prix</button>
-      <button class="btn neutral" data-settings-btn="fournisseurs" onclick="setSettingsSection('fournisseurs')">Fournisseurs</button>
-      <button class="btn neutral" data-settings-btn="sodifab" onclick="setSettingsSection('sodifab')">SODIFAB</button>
-      <button class="btn neutral" data-settings-btn="sync" onclick="setSettingsSection('sync')">Sync cloud</button>
-      <button class="btn neutral" data-settings-btn="sauvegarde" onclick="setSettingsSection('sauvegarde')">Sauvegarde</button>
-    </div>
-
-    <div class="settings-section" data-settings-section="entete">
-    <div class="card">
-      <p class="title">Entête du document</p>
-      <div class="user-label" style="margin-top:12px">Nom de la société</div>
-      <input id="companyNameInput" class="search" style="height:44px" placeholder="Nom de la société" value="${esc(getCompanyName())}">
-      <div class="user-label" style="margin-top:12px">Adresse</div>
-      <input id="companyAddressInput" class="search" style="height:44px" placeholder="Adresse" value="${esc(getCompanyAddress())}">
-      <div class="user-label" style="margin-top:12px">Téléphone</div>
-      <input id="companyPhoneInput" class="search" style="height:44px" placeholder="Téléphone" value="${esc(getCompanyPhone())}">
-      <div class="user-label" style="margin-top:12px">Mail</div>
-      <input id="companyEmailInput" class="search" style="height:44px" placeholder="Mail" value="${esc(getCompanyEmail())}">
-      <div class="user-label" style="margin-top:12px">Logo</div>
-      <input type="file" accept="image/*" class="search" style="height:44px;padding:10px 14px" onchange="onHeaderLogoSelected(this)">
-      <div style="margin-top:10px">
-        <button class="btn neutral" onclick="saveHeaderSettings()">Enregistrer l’entête</button>
-      </div>
-    </div>
-    </div>
-
-    <div class="settings-section" data-settings-section="apparence">
-    <div class="card">
-      <p class="title">Personnalisation de l’appli</p>
-      <div class="user-label" style="margin-top:6px">Couleur du bandeau</div>
-      ${colorButtons}
-      <div class="color-picker-row" style="margin-top:10px">
-        <input type="color" value="${esc(getHeaderBg())}" onchange="setHeaderBg(this.value)">
-        <div class="note">Choix libre du bandeau</div>
-      </div>
-
-      <div class="user-label" style="margin-top:14px">Couleur du fond</div>
-      ${appBgButtons}
-      <div class="color-picker-row" style="margin-top:10px">
-        <input type="color" value="${esc(getAppBg())}" onchange="setAppBg(this.value)">
-        <div class="note">Choix libre du fond</div>
-      </div>
-
-      <div class="user-label" style="margin-top:14px">Couleur des cartes</div>
-      ${cardBgButtons}
-      <div class="color-picker-row" style="margin-top:10px">
-        <input type="color" value="${esc(getCardBg())}" onchange="setCardBg(this.value)">
-        <div class="note">Choix libre des cartes</div>
-      </div>
-
-      <div class="user-label" style="margin-top:14px">Couleur des boutons</div>
-      ${btnAccentButtons}
-      <div class="color-picker-row" style="margin-top:10px">
-        <input type="color" value="${esc(getBtnAccent())}" onchange="setBtnAccent(this.value)">
-        <div class="note">Choix libre des boutons</div>
-      </div>
-    </div>
-    </div>
-
-    <div class="settings-section" data-settings-section="prix">
-    <div class="card">
-      <p class="title">Prix</p>
-      <label style="display:flex;align-items:center;gap:10px;font-weight:700">
-        <input type="checkbox" ${getShowPrices() ? "checked" : ""} onchange="setShowPrices(this.checked); goSettings();">
-        Afficher les prix et le total HT
-      </label>
-    </div>
-    </div>
-
-    <div class="settings-section" data-settings-section="fournisseurs">
-    <div class="card">
-      <p class="title">Fournisseurs</p>
-      <div class="user-label">Ajouter un nouveau fournisseur</div>
-      <div class="note" style="margin-bottom:8px">Chaque fournisseur contient maintenant directement ses produits. L’onglet Produits séparé a été supprimé.</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
-        <input id="newSupplierInput" class="search" style="height:44px;flex:1 1 260px" placeholder="Nom du fournisseur">
-        <button class="btn neutral" style="width:auto" onclick="addSupplier()">+ Ajouter</button>
-        <button class="btn neutral" style="width:auto" onclick="saveSuppliersSettings()">Enregistrer</button>
-      </div>
-      <div style="display:grid;gap:8px">
-        ${getSupplierOptions().map(name => `
+          ${getSupplierOptions().map(name => `
           <div class="card" style="padding:10px;margin:0">
-            <div style="display:grid;grid-template-columns:1fr;gap:10px;align-items:center">
-              <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
-                <div style="font-weight:800">${esc(name)}</div>
-                <div style="display:flex;gap:8px;flex-wrap:wrap">
-                  <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="moveSupplier('${String(name).replace(/'/g,"\'")}', -1)">▲ Monter</button>
-                  <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="moveSupplier('${String(name).replace(/'/g,"\'")}', 1)">▼ Descendre</button>
-                  ${DEFAULT_SUPPLIER_OPTIONS.includes(name) ? '<div class="note" style="display:flex;align-items:center;padding:0 6px">Fournisseur de base</div>' : `<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="deleteSupplier('${String(name).replace(/'/g,"\'")}')">Supprimer</button>`}
-                </div>
+            <div class="supplier-accordion-head" onclick="toggleSupplierCard('${String(name).replace(/'/g,"\\'")}')">
+              <div style="font-weight:800;font-size:18px">${esc(name)}</div>
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                <div class="note">${getCustomProductsForSupplier(name).length} produit(s)</div>
+                <div class="supplier-accordion-toggle">${isSupplierOpen(name) ? "−" : "+"}</div>
               </div>
-              <input class="search" data-supplier-email-input="${esc(name)}" style="height:44px;margin:0" placeholder="Mail du fournisseur" value="${esc(getSupplierEmail(name))}" oninput="updateSupplierEmail('${String(name).replace(/'/g,"\'")}', this.value)" onchange="updateSupplierEmail('${String(name).replace(/'/g,"\'")}', this.value)">
-              <div class="color-picker-row" style="justify-content:flex-start">
-                <select class="select-user" style="margin:0;height:44px;flex:1 1 140px" onchange="updateSupplierColor('${String(name).replace(/'/g,"\'")}', this.value); goSettings(); setSettingsSection('fournisseurs')">
-                  ${getColorOptionsHtml(getSupplierColor(name, "#334155"))}
-                </select>
-                <input type="color" value="${esc(getSupplierColor(name, "#334155"))}" onchange="updateSupplierColor('${String(name).replace(/'/g,"\'")}', this.value); goSettings(); setSettingsSection('fournisseurs')">
-              </div>
-              ${getSupplierProductsSettingsHtml(name)}
             </div>
+            ${isSupplierOpen(name) ? `
+            <div class="supplier-accordion-body">
+              <div style="display:grid;grid-template-columns:1fr;gap:10px;align-items:center">
+                <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;flex-wrap:wrap">
+                  <div style="display:flex;gap:8px;flex-wrap:wrap">
+                    <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="event.stopPropagation();moveSupplier('${String(name).replace(/'/g,"\\'")}', -1)">▲ Monter</button>
+                    <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="event.stopPropagation();moveSupplier('${String(name).replace(/'/g,"\\'")}', 1)">▼ Descendre</button>
+                    ${DEFAULT_SUPPLIER_OPTIONS.includes(name) ? '<div class="note" style="display:flex;align-items:center;padding:0 6px">Fournisseur de base</div>' : `<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="event.stopPropagation();deleteSupplier('${String(name).replace(/'/g,"\\'")}')">Supprimer</button>`}
+                  </div>
+                </div>
+                <input class="search" data-supplier-email-input="${esc(name)}" style="height:44px;margin:0" placeholder="Mail du fournisseur" value="${esc(getSupplierEmail(name))}" oninput="updateSupplierEmail('${String(name).replace(/'/g,"\\'")}', this.value)" onchange="updateSupplierEmail('${String(name).replace(/'/g,"\\'")}', this.value)">
+                <div class="color-picker-row" style="justify-content:flex-start">
+                  <select class="select-user" style="margin:0;height:44px;flex:1 1 140px" onchange="updateSupplierColor('${String(name).replace(/'/g,"\\'")}', this.value); goSettings(); setSettingsSection('fournisseurs')">
+                    ${getColorOptionsHtml(getSupplierColor(name, "#334155"))}
+                  </select>
+                  <input type="color" value="${esc(getSupplierColor(name, "#334155"))}" onchange="updateSupplierColor('${String(name).replace(/'/g,"\\'")}', this.value); goSettings(); setSettingsSection('fournisseurs')">
+                </div>
+                ${getSupplierProductsSettingsHtml(name)}
+              </div>
+            </div>` : ''}
           </div>`).join("")}
       </div>
     </div>
