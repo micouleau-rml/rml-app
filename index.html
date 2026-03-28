@@ -3035,6 +3035,18 @@ const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_WE_zFh9O23cF7zEDie4L3w_JUsSb9ao
 const CLOUD_ROW_ID_KEY = "rml_cloud_row_id";
 const CLOUD_TABLE = "rml-data";
 const CLOUD_HISTORY_TABLE = "rml-data-history";
+async function findSharedCloudRowByApp(){
+  if(!supabaseCloud) throw new Error("Supabase non chargé.");
+  const { data, error } = await supabaseCloud
+    .from(CLOUD_TABLE)
+    .select("id, data, updated_at")
+    .eq("data->>app", "RML GOUTTIERE ALU")
+    .order("updated_at", { ascending: false })
+    .limit(1);
+  if(error) throw error;
+  return (data && data.length) ? data[0] : null;
+}
+
 const supabaseCloud = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY) : null;
 
 function setSyncStatus(message){
@@ -3049,6 +3061,17 @@ async function ensureCloudRow(){
   const existingId = localStorage.getItem(CLOUD_ROW_ID_KEY);
   if(existingId) return existingId;
   if(!supabaseCloud) throw new Error("Supabase non chargé.");
+
+  try{
+    const shared = await findSharedCloudRowByApp();
+    if(shared && shared.id){
+      localStorage.setItem(CLOUD_ROW_ID_KEY, shared.id);
+      return shared.id;
+    }
+  }catch(e){
+    console.error(e);
+  }
+
   const { data, error } = await supabaseCloud
     .from(CLOUD_TABLE)
     .insert([{ data: {} }])
@@ -3212,11 +3235,21 @@ async function loadCloudNow(){
     if(!ok) return;
 
     setSyncStatus("Chargement cloud en cours...");
-    const rowId = localStorage.getItem(CLOUD_ROW_ID_KEY);
+    let rowId = localStorage.getItem(CLOUD_ROW_ID_KEY);
+
+    if(!rowId){
+      const shared = await findSharedCloudRowByApp();
+      if(shared && shared.id){
+        rowId = shared.id;
+        try{ localStorage.setItem(CLOUD_ROW_ID_KEY, rowId); }catch(e){}
+      }
+    }
+
     if(!rowId){
       setSyncStatus("Aucune sauvegarde cloud enregistrée.");
       return;
     }
+
     const { data, error } = await supabaseCloud
       .from(CLOUD_TABLE)
       .select("data")
