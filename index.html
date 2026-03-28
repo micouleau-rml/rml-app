@@ -17,7 +17,7 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,B
 .top-text{min-width:0;text-align:center}
 .top h1{margin:0;font-size:30px;font-weight:900;letter-spacing:2px;line-height:1.1}
 .top p{margin:10px auto 0;color:var(--header-text);opacity:.82;font-size:13px;line-height:1.4;max-width:520px}
-.wrap{max-width:1080px;margin:0 auto;padding:14px 14px 180px 14px}
+.wrap{max-width:1080px;margin:0 auto;padding:14px}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
 .btn{display:block;width:100%;border:none;border-radius:999px;padding:16px 18px;background:#fff;border:1px solid var(--line);box-shadow:0 2px 10px rgba(0,0,0,.05);text-align:left;font-size:16px;font-weight:800;color:var(--text)}
 .btn small{display:block;margin-top:4px;font-size:12px;font-weight:600;color:rgba(255,255,255,.92)}
@@ -892,6 +892,71 @@ function onHeaderLogoSelected(input){
 }
 
 
+
+function getCustomProductsForSupplier(supplierName){
+  const target = String(supplierName || "").trim();
+  return getCustomProducts().filter(p => String((p && p.supplier) || DEFAULT_SUPPLIER).trim() === target);
+}
+function getCustomProductIndexById(productId){
+  const list = getCustomProducts();
+  return list.findIndex(p => String((p && p.id) || "") === String(productId || ""));
+}
+function updateCustomProductById(productId, field, value){
+  const idx = getCustomProductIndexById(productId);
+  if(idx < 0) return;
+  updateCustomProduct(idx, field, value);
+}
+function deleteCustomProductById(productId){
+  const idx = getCustomProductIndexById(productId);
+  if(idx < 0) return;
+  deleteCustomProduct(idx);
+  goSettings();
+  setSettingsSection('fournisseurs');
+}
+function openProductModalForSupplier(supplierName){
+  openProductModal();
+  const el = document.getElementById("newProductSupplier");
+  if(el){
+    el.value = supplierName || DEFAULT_SUPPLIER;
+  }
+}
+function getSupplierProductsSettingsHtml(name){
+  const products = getCustomProductsForSupplier(name);
+  const safeName = String(name).replace(/'/g, "\\'");
+  const rows = products.map(p => `
+      <div class="card" style="padding:10px;margin:8px 0 0 0;background:#f8fafc">
+        <div style="display:grid;grid-template-columns:1.4fr .8fr .9fr .9fr auto;gap:8px;align-items:center">
+          <input class="search" style="height:44px;margin:0" placeholder="Nom du produit" value="${esc(p.name || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'name', this.value)">
+          <select class="select-user" style="margin:0;height:44px" onchange="updateCustomProductById('${esc(p.id || "")}', 'unit', this.value)">
+            <option value="U" ${(p.unit || "U") === "U" ? "selected" : ""}>U</option>
+            <option value="ML" ${(p.unit || "") === "ML" ? "selected" : ""}>ML</option>
+          </select>
+          <select class="select-user" style="margin:0;height:44px" onchange="updateCustomProductById('${esc(p.id || "")}', 'color', this.value); goSettings(); setSettingsSection('fournisseurs')">
+            ${getColorOptionsHtml(p.color || "#334155")}
+          </select>
+          <input class="search" style="height:44px;margin:0" inputmode="decimal" placeholder="Prix HT" value="${esc(p.default_price || p.price || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'default_price', this.value)">
+          <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="deleteCustomProductById('${esc(p.id || "")}')">Supprimer</button>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;margin:8px 0 2px 0;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:8px;font-weight:700">
+            <input type="checkbox" ${p.visible !== false ? "checked" : ""} onchange="updateCustomProductById('${esc(p.id || "")}', 'visible', this.checked)">
+            Visible sur l’accueil
+          </label>
+        </div>
+      </div>
+    `).join("");
+
+  return `
+    <div style="margin-top:10px">
+      <div class="note" style="margin-bottom:8px">Produits du fournisseur</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="openProductModalForSupplier('${safeName}')">+ Ajouter un produit</button>
+      </div>
+      ${rows || '<div class="note">Aucun produit pour ce fournisseur.</div>'}
+    </div>
+  `;
+}
+
 function openProductModal(){
   const modal = document.getElementById("productModal");
   document.getElementById("newProductName").value = "";
@@ -945,7 +1010,10 @@ function saveNewProduct(){
   if(typeof renderFamilies === "function") renderFamilies();
   if(typeof refreshHome === "function") refreshHome();
   if(typeof refreshAll === "function") refreshAll();
-  if(typeof goSettings === "function") goSettings();
+  if(typeof goSettings === "function"){
+    goSettings();
+    setSettingsSection('fournisseurs');
+  }
 }
 
 function getCustomProducts(){
@@ -1243,7 +1311,8 @@ function setSettingsMode(active){
 const SETTINGS_SECTION_KEY = "settings_section";
 
 function getSettingsSection(){
-  return localStorage.getItem(SETTINGS_SECTION_KEY) || "entete";
+  const value = localStorage.getItem(SETTINGS_SECTION_KEY) || "entete";
+  return value === "produits" ? "fournisseurs" : value;
 }
 function setSettingsSection(section){
   try{ localStorage.setItem(SETTINGS_SECTION_KEY, section || "entete"); }catch(e){}
@@ -1258,11 +1327,6 @@ function setSettingsSection(section){
     btn.style.transform = active ? "scale(1.02)" : "scale(1)";
     btn.style.fontWeight = active ? "900" : "800";
   });
-  if(section === "sync"){
-    setTimeout(function(){
-      try{ loadCloudHistoryIntoPanel(); }catch(e){}
-    }, 80);
-  }
 }
 
 function goSettings(){
@@ -1292,7 +1356,6 @@ function goSettings(){
       <button class="btn neutral" data-settings-btn="prix" onclick="setSettingsSection('prix')">Prix</button>
       <button class="btn neutral" data-settings-btn="fournisseurs" onclick="setSettingsSection('fournisseurs')">Fournisseurs</button>
       <button class="btn neutral" data-settings-btn="sodifab" onclick="setSettingsSection('sodifab')">SODIFAB</button>
-      <button class="btn neutral" data-settings-btn="produits" onclick="setSettingsSection('produits')">Produits</button>
       <button class="btn neutral" data-settings-btn="sync" onclick="setSettingsSection('sync')">Sync cloud</button>
       <button class="btn neutral" data-settings-btn="sauvegarde" onclick="setSettingsSection('sauvegarde')">Sauvegarde</button>
     </div>
@@ -1363,7 +1426,7 @@ function goSettings(){
     <div class="card">
       <p class="title">Fournisseurs</p>
       <div class="user-label">Ajouter un nouveau fournisseur</div>
-      <div class="note" style="margin-bottom:8px">Tu peux maintenant choisir une couleur d’affichage pour chaque fournisseur et personnaliser leur ordre.</div>
+      <div class="note" style="margin-bottom:8px">Chaque fournisseur contient maintenant directement ses produits. L’onglet Produits séparé a été supprimé.</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
         <input id="newSupplierInput" class="search" style="height:44px;flex:1 1 260px" placeholder="Nom du fournisseur">
         <button class="btn neutral" style="width:auto" onclick="addSupplier()">+ Ajouter</button>
@@ -1383,11 +1446,12 @@ function goSettings(){
               </div>
               <input class="search" data-supplier-email-input="${esc(name)}" style="height:44px;margin:0" placeholder="Mail du fournisseur" value="${esc(getSupplierEmail(name))}" oninput="updateSupplierEmail('${String(name).replace(/'/g,"\'")}', this.value)" onchange="updateSupplierEmail('${String(name).replace(/'/g,"\'")}', this.value)">
               <div class="color-picker-row" style="justify-content:flex-start">
-                <select class="select-user" style="margin:0;height:44px;flex:1 1 140px" onchange="updateSupplierColor('${String(name).replace(/'/g,"\'")}', this.value); goSettings()">
+                <select class="select-user" style="margin:0;height:44px;flex:1 1 140px" onchange="updateSupplierColor('${String(name).replace(/'/g,"\'")}', this.value); goSettings(); setSettingsSection('fournisseurs')">
                   ${getColorOptionsHtml(getSupplierColor(name, "#334155"))}
                 </select>
-                <input type="color" value="${esc(getSupplierColor(name, "#334155"))}" onchange="updateSupplierColor('${String(name).replace(/'/g,"\'")}', this.value); goSettings()">
+                <input type="color" value="${esc(getSupplierColor(name, "#334155"))}" onchange="updateSupplierColor('${String(name).replace(/'/g,"\'")}', this.value); goSettings(); setSettingsSection('fournisseurs')">
               </div>
+              ${getSupplierProductsSettingsHtml(name)}
             </div>
           </div>`).join("")}
       </div>
@@ -1423,14 +1487,6 @@ function goSettings(){
       </div>
     </div>
     </div>
-
-    <div class="settings-section" data-settings-section="produits">
-    <div class="card">
-      ${getCustomProductsSettingsHtml()}
-    </div>
-    </div>
-
-    
     <div class="settings-section" data-settings-section="sync">
     <div class="card">
       <p class="title">Synchronisation cloud</p>
@@ -1440,14 +1496,6 @@ function goSettings(){
         <button class="btn neutral" style="width:auto" onclick="loadCloudNow()">Recharger depuis le cloud</button>
       </div>
       <div id="syncStatus" class="sync-status">Prêt.</div>
-      <div class="card" style="margin-top:12px;background:#f8fafc">
-        <p class="title">Historique des sauvegardes</p>
-        <p class="note">Les 5 dernières sauvegardes cloud. Tu peux restaurer une version précédente si besoin.</p>
-        <div id="cloudHistoryList" style="margin-top:10px"><div class="note">Aucune sauvegarde d’historique disponible.</div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-          <button class="btn neutral" style="width:auto" onclick="loadCloudHistoryIntoPanel()">Actualiser l’historique</button>
-        </div>
-      </div>
     </div>
     </div>
 
@@ -2763,15 +2811,11 @@ const SUPABASE_URL = "https://dbsibzcqhtecknpkkuxa.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_WE_zFh9O23cF7zEDie4L3w_JUsSb9ao";
 const CLOUD_ROW_ID_KEY = "rml_cloud_row_id";
 const CLOUD_TABLE = "rml-data";
-const CLOUD_HISTORY_TABLE = "rml-data-history";
 const supabaseCloud = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY) : null;
 
 function setSyncStatus(message){
-  const text = message || "";
   const el = document.getElementById("syncStatus");
-  if(el) el.textContent = text;
-  const home = document.getElementById("homeSyncStatus");
-  if(home) home.textContent = text;
+  if(el) el.textContent = message || "";
 }
 
 async function ensureCloudRow(){
@@ -2813,106 +2857,8 @@ function applyCloudPayload(payload){
   });
 }
 
-async function saveCloudHistoryEntry(payload, note){
-  if(!supabaseCloud) return;
-  try{
-    await supabaseCloud.from(CLOUD_HISTORY_TABLE).insert([{
-      data: payload,
-      note: note || "Sauvegarde manuelle",
-      created_at: new Date().toISOString()
-    }]);
-  }catch(err){
-    console.error("Historique cloud indisponible:", err);
-  }
-}
-
-async function loadCloudHistoryIntoPanel(){
-  const host = document.getElementById("cloudHistoryList");
-  if(!host || !supabaseCloud) return;
-  host.innerHTML = '<div class="note">Chargement...</div>';
-
-  try{
-    const { data, error } = await supabaseCloud
-      .from(CLOUD_HISTORY_TABLE)
-      .select("id, created_at, note, data")
-      .order("created_at", { ascending: false })
-      .limit(5);
-
-    if(error) throw error;
-
-    const rows = data || [];
-    if(!rows.length){
-      host.innerHTML = '<div class="note">Aucune sauvegarde d’historique disponible.</div>';
-      return;
-    }
-
-    host.innerHTML = rows.map(row => {
-      const dt = row.created_at ? new Date(row.created_at).toLocaleString() : "";
-      let productsCount = 0;
-      try{
-        const storage = row.data && row.data.storage ? row.data.storage : {};
-        const raw = storage["commande_fournisseur_custom_products_v1"] || "[]";
-        productsCount = JSON.parse(raw).length || 0;
-      }catch(e){}
-      return `
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)">
-          <div>
-            <div style="font-weight:800">${dt}</div>
-            <div class="note">${productsCount} produit(s) • ${row.note || "Sauvegarde cloud"}</div>
-          </div>
-          <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="restoreCloudHistoryVersion('${row.id}')">Restaurer</button>
-        </div>
-      `;
-    }).join("");
-  }catch(err){
-    console.error(err);
-    host.innerHTML = '<div class="note" style="color:#b91c1c">Historique indisponible. Vérifie la table Supabase rml-data-history.</div>';
-  }
-}
-
-async function restoreCloudHistoryVersion(id){
-  const ok = confirm("⚠️ Restaurer cette sauvegarde va écraser les données locales actuelles. Continuer ?");
-  if(!ok) return;
-  try{
-    setSyncStatus("Restauration en cours...");
-    const { data, error } = await supabaseCloud
-      .from(CLOUD_HISTORY_TABLE)
-      .select("data")
-      .eq("id", id)
-      .single();
-
-    if(error) throw error;
-    if(!data || !data.data) throw new Error("Sauvegarde introuvable.");
-
-    applyCloudPayload(data.data);
-    const stamp = new Date().toLocaleString();
-    try{ localStorage.setItem("cloud_last_load_at", stamp); }catch(e){}
-    setSyncStatus("✅ Sauvegarde restaurée (" + stamp + ")");
-    setTimeout(() => location.reload(), 250);
-  }catch(err){
-    console.error(err);
-    setSyncStatus("Erreur restauration cloud : " + (err.message || err));
-    alert("Erreur restauration cloud : " + (err.message || err));
-  }
-}
-
 async function saveCloudNow(){
   try{
-    const ok = confirm("☁️ Sauvegarder dans le cloud ?");
-    if(!ok) return;
-
-    try{
-      const backup = {};
-      for(let i=0;i<localStorage.length;i++){
-        const k = localStorage.key(i);
-        if(k) backup[k] = localStorage.getItem(k);
-      }
-      localStorage.setItem("backup_before_cloud", JSON.stringify({
-        date:new Date().toISOString(),
-        data:backup
-      }));
-    }catch(e){}
-
     setSyncStatus("Sauvegarde cloud en cours...");
     if(typeof flushAllInputsToState === "function") flushAllInputsToState();
     const rowId = await ensureCloudRow();
@@ -2922,12 +2868,7 @@ async function saveCloudNow(){
       .update({ data: payload, updated_at: new Date().toISOString() })
       .eq("id", rowId);
     if(error) throw error;
-
-    await saveCloudHistoryEntry(payload, "Sauvegarde manuelle");
-    const stamp = new Date().toLocaleString();
-    try{ localStorage.setItem("cloud_last_save_at", stamp); }catch(e){}
-    setSyncStatus("✅ Sauvegarde cloud réussie (" + stamp + ")");
-    try{ await loadCloudHistoryIntoPanel(); }catch(e){}
+    setSyncStatus("Sauvegarde cloud OK.");
   }catch(err){
     console.error(err);
     setSyncStatus("Erreur sauvegarde cloud : " + (err.message || err));
@@ -2937,9 +2878,6 @@ async function saveCloudNow(){
 
 async function loadCloudNow(){
   try{
-    const ok = confirm("⚠️ Recharger depuis le cloud va écraser les données locales. Continuer ?");
-    if(!ok) return;
-
     setSyncStatus("Chargement cloud en cours...");
     const rowId = localStorage.getItem(CLOUD_ROW_ID_KEY);
     if(!rowId){
@@ -2957,9 +2895,7 @@ async function loadCloudNow(){
       return;
     }
     applyCloudPayload(data.data);
-    const stamp = new Date().toLocaleString();
-    try{ localStorage.setItem("cloud_last_load_at", stamp); }catch(e){}
-    setSyncStatus("🔄 Rechargement cloud réussi (" + stamp + ")");
+    setSyncStatus("Chargement cloud OK. Rechargement...");
     setTimeout(() => location.reload(), 250);
   }catch(err){
     console.error(err);
@@ -2970,18 +2906,8 @@ async function loadCloudNow(){
 
 window.addEventListener("load", function(){
   setTimeout(function(){
-    const lastSave = localStorage.getItem("cloud_last_save_at") || "";
-    const lastLoad = localStorage.getItem("cloud_last_load_at") || "";
-    if(lastSave){
-      setSyncStatus("Dernière sauvegarde cloud : " + lastSave);
-    }else if(lastLoad){
-      setSyncStatus("Dernier rechargement cloud : " + lastLoad);
-    }else{
-      const rowId = localStorage.getItem(CLOUD_ROW_ID_KEY);
-      if(rowId) setSyncStatus("Cloud connecté.");
-      else setSyncStatus("Cloud prêt.");
-    }
-    try{ loadCloudHistoryIntoPanel(); }catch(e){}
+    const rowId = localStorage.getItem(CLOUD_ROW_ID_KEY);
+    if(rowId) setSyncStatus("Cloud connecté.");
   }, 300);
 });
 
