@@ -296,8 +296,88 @@ const DEFAULT_COMPANY_PHONE = "05 56 67 33 89";
 const DEFAULT_COMPANY_EMAIL = "";
 const CUSTOM_PRODUCTS_KEY = "rml_custom_products";
 const SHOW_PRICES_KEY = "rml_show_prices";
-const DEFAULT_SUPPLIER = "Gutterfrance";
-const DEFAULT_SUPPLIER_OPTIONS = ["Gutterfrance", "Gutterkel", "Gutti", "Almet"];
+const DEFAULT_SUPPLIER = "GUTTERFRANCE";
+const DEFAULT_SUPPLIER_OPTIONS = ["GUTTERFRANCE", "GUTTERKEL", "GUTTI", "ALMET"];
+
+function normalizeSupplierName(value){
+  return String(value || "").trim().replace(/\s+/g, " ").toUpperCase();
+}
+
+function normalizeSupplierMapKeys(map){
+  const out = {};
+  Object.keys(map || {}).forEach(key => {
+    const nk = normalizeSupplierName(key);
+    if(nk) out[nk] = map[key];
+  });
+  return out;
+}
+
+function normalizeSupplierDataOnce(){
+  const FLAG = "rml_supplier_normalize_v8_done";
+  try{
+    if(localStorage.getItem(FLAG) === "1") return;
+  }catch(e){}
+
+  try{
+    const raw = JSON.parse(localStorage.getItem(SUPPLIERS_KEY) || "[]");
+    const clean = Array.isArray(raw) ? raw.map(normalizeSupplierName).filter(Boolean) : [];
+    localStorage.setItem(SUPPLIERS_KEY, JSON.stringify([...new Set(clean)]));
+  }catch(e){}
+
+  try{
+    const raw = JSON.parse(localStorage.getItem(SUPPLIER_ORDER_KEY) || "[]");
+    const clean = Array.isArray(raw) ? raw.map(normalizeSupplierName).filter(Boolean) : [];
+    localStorage.setItem(SUPPLIER_ORDER_KEY, JSON.stringify([...new Set(clean)]));
+  }catch(e){}
+
+  try{
+    const raw = JSON.parse(localStorage.getItem(SUPPLIER_EMAILS_KEY) || "{}") || {};
+    localStorage.setItem(SUPPLIER_EMAILS_KEY, JSON.stringify(normalizeSupplierMapKeys(raw)));
+  }catch(e){}
+
+  try{
+    const raw = JSON.parse(localStorage.getItem(SUPPLIER_COLORS_KEY) || "{}") || {};
+    localStorage.setItem(SUPPLIER_COLORS_KEY, JSON.stringify(normalizeSupplierMapKeys(raw)));
+  }catch(e){}
+
+  try{
+    const openMap = JSON.parse(localStorage.getItem("rml_supplier_open_map_v1") || "{}") || {};
+    const normalized = {};
+    Object.keys(openMap).forEach(k => {
+      normalized[normalizeSupplierName(k)] = openMap[k];
+    });
+    localStorage.setItem("rml_supplier_open_map_v1", JSON.stringify(normalized));
+  }catch(e){}
+
+  try{
+    const innerMap = JSON.parse(localStorage.getItem("rml_supplier_inner_open_map_v1") || "{}") || {};
+    const normalized = {};
+    Object.keys(innerMap).forEach(k => {
+      const parts = String(k).split("||");
+      if(parts.length >= 2){
+        normalized[normalizeSupplierName(parts[0]) + "||" + parts.slice(1).join("||")] = innerMap[k];
+      }else{
+        normalized[normalizeSupplierName(k)] = innerMap[k];
+      }
+    });
+    localStorage.setItem("rml_supplier_inner_open_map_v1", JSON.stringify(normalized));
+  }catch(e){}
+
+  try{
+    const list = getCustomProducts();
+    list.forEach(p => {
+      if(p && typeof p === "object"){
+        if("supplier" in p) p.supplier = normalizeSupplierName(p.supplier || DEFAULT_SUPPLIER);
+        if("supplierName" in p && p.supplierName) p.supplierName = normalizeSupplierName(p.supplierName);
+        if("supplierId" in p && p.supplierId) p.supplierId = normalizeSupplierName(p.supplierId);
+      }
+    });
+    saveCustomProducts(list);
+  }catch(e){}
+
+  try{ localStorage.setItem(FLAG, "1"); }catch(e){}
+}
+
 const SUPPLIERS_KEY = "rml_suppliers";
 cleanupSodifabOnce();
 const SUPPLIER_EMAILS_KEY = "rml_supplier_emails";
@@ -315,13 +395,13 @@ function saveSupplierEmails(map){
   }catch(e){}
 }
 function getSupplierEmail(name){
-  const map = getSupplierEmails();
-  return map[String(name || "").trim()] || "";
+  const map = normalizeSupplierMapKeys(getSupplierEmails());
+  return map[normalizeSupplierName(name)] || "";
 }
 function updateSupplierEmail(name, email){
-  const cleanName = String(name || "").trim();
+  const cleanName = normalizeSupplierName(name);
   if(!cleanName) return;
-  const map = getSupplierEmails();
+  const map = normalizeSupplierMapKeys(getSupplierEmails());
   map[cleanName] = String(email || "").trim();
   saveSupplierEmails(map);
 }
@@ -331,15 +411,15 @@ const SUPPLIER_ORDER_KEY = "supplier_order";
 function getSupplierOrder(){
   try{
     const raw = JSON.parse(localStorage.getItem(SUPPLIER_ORDER_KEY) || "[]");
-    return Array.isArray(raw) ? raw.map(v => String(v || "").trim()).filter(Boolean) : [];
+    return Array.isArray(raw) ? raw.map(normalizeSupplierName).filter(Boolean) : [];
   }catch(e){
     return [];
   }
 }
 function saveSupplierOrder(list){
   try{
-    const clean = Array.isArray(list) ? list.map(v => String(v || "").trim()).filter(Boolean) : [];
-    localStorage.setItem(SUPPLIER_ORDER_KEY, JSON.stringify(clean));
+    const clean = Array.isArray(list) ? list.map(normalizeSupplierName).filter(Boolean) : [];
+    localStorage.setItem(SUPPLIER_ORDER_KEY, JSON.stringify([...new Set(clean)]));
   }catch(e){}
 }
 function normalizeSupplierOrder(list){
@@ -424,15 +504,16 @@ function inferSupplierNameFromText(value){
     upper.includes("DAUPHINS ALU") ||
     upper.includes("DAUPHINS GALVA") ||
     upper.includes("VIS COULEUR ET PEINTURE")
-  ) return "Almet";
-  if(upper.includes("SODIFAB")) return "Sodifab";
-  if(upper.includes("GUTTERKEL")) return "Gutterkel";
-  if(upper.includes("GUTTI")) return "Gutti";
+  ) return "ALMET";
+  if(upper.includes("SODIFAB")) return "SODIFAB";
+  if(upper.includes("GUTTERKEL")) return "GUTTERKEL";
+  if(upper.includes("GUTTI")) return "GUTTI";
+  if(upper.includes("GUTTERFRANCE")) return "GUTTERFRANCE";
   return "";
 }
 function inferSupplierFromProduct(p){
-  const direct = String((p && p.supplier) || "").trim();
-  if(direct) return direct === "Sodifab" ? "" : direct;
+  const direct = normalizeSupplierName((p && p.supplier) || "");
+  if(direct) return direct;
   const fields = [
     (p && p.supplierName) || "",
     (p && p.supplierId) || "",
@@ -452,18 +533,18 @@ function inferSupplierFromProduct(p){
 function getSupplierOptionsRaw(){
   try{
     const raw = JSON.parse(localStorage.getItem(SUPPLIERS_KEY) || "[]");
-    const list = Array.isArray(raw) ? raw.map(v => String(v || "").trim()).filter(Boolean) : [];
+    const list = Array.isArray(raw) ? raw.map(normalizeSupplierName).filter(Boolean) : [];
     const merged = [...DEFAULT_SUPPLIER_OPTIONS];
     list.forEach(name => {
-      if(name !== "Sodifab" && !merged.includes(name)) merged.push(name);
+      if(!merged.includes(name)) merged.push(name);
     });
     getCustomProducts().forEach(p => {
       const s = inferSupplierFromProduct(p);
-      if(s && s !== "Sodifab" && !merged.includes(s)) merged.push(s);
+      if(s && !merged.includes(s)) merged.push(s);
     });
-    return merged.filter(name => name !== "Sodifab");
+    return [...new Set(merged.map(normalizeSupplierName).filter(Boolean))];
   }catch(e){
-    return DEFAULT_SUPPLIER_OPTIONS.filter(name => name !== "Sodifab");
+    return DEFAULT_SUPPLIER_OPTIONS.slice();
   }
 }
 function getSupplierOptions(){
@@ -471,14 +552,14 @@ function getSupplierOptions(){
 }
 function saveSupplierOptions(list){
   try{
-    const clean = Array.isArray(list) ? list.map(v => String(v || "").trim()).filter(Boolean) : [];
-    localStorage.setItem(SUPPLIERS_KEY, JSON.stringify(clean));
+    const clean = Array.isArray(list) ? list.map(normalizeSupplierName).filter(Boolean) : [];
+    localStorage.setItem(SUPPLIERS_KEY, JSON.stringify([...new Set(clean)]));
   }catch(e){}
 }
 function addSupplier(){
   const input = document.getElementById("newSupplierInput");
   if(!input) return;
-  const clean = String(input.value || "").trim();
+  const clean = normalizeSupplierName(input.value || "");
   if(!clean){
     alert("Merci de saisir un nom de fournisseur.");
     return;
@@ -492,11 +573,12 @@ function addSupplier(){
   list.push(clean);
   saveSupplierOptions(list);
   input.value = "";
-  alert("Fournisseur ajouté.");
+  alert("Fournisseur ajouté en majuscules.");
   goSettings();
+  setSettingsSection('fournisseurs');
 }
 function deleteSupplier(name){
-  const clean = String(name || "").trim();
+  const clean = normalizeSupplierName(name);
   if(!clean) return;
   if(DEFAULT_SUPPLIER_OPTIONS.includes(clean)){
     alert("Ce fournisseur de base ne peut pas être supprimé.");
@@ -872,12 +954,12 @@ function getSupplierColors(){
   try{ return JSON.parse(localStorage.getItem(SUPPLIER_COLORS_KEY) || "{}") || {}; }catch(e){ return {}; }
 }
 function getSupplierColor(name, fallback){
-  const map = getSupplierColors();
-  return map[name] || fallback || "#334155";
+  const map = normalizeSupplierMapKeys(getSupplierColors());
+  return map[normalizeSupplierName(name)] || fallback || "#334155";
 }
 function updateSupplierColor(name, value){
-  const map = getSupplierColors();
-  map[name] = value || "#334155";
+  const map = normalizeSupplierMapKeys(getSupplierColors());
+  map[normalizeSupplierName(name)] = value || "#334155";
   localStorage.setItem(SUPPLIER_COLORS_KEY, JSON.stringify(map));
 }
 function getAppBg(){ return localStorage.getItem(APP_BG_KEY) || "#f4f6f9"; }
@@ -1048,7 +1130,7 @@ function deleteCustomProductById(productId){
 function openProductModalForSupplier(supplierName){
   openProductModal();
   const el = document.getElementById("newProductSupplier");
-  if(el) el.value = supplierName || DEFAULT_SUPPLIER;
+  if(el) el.value = normalizeSupplierName(supplierName || DEFAULT_SUPPLIER);
 }
 
 
@@ -1058,7 +1140,7 @@ function isRemovedSupplierFamily(fam){
 }
 
 function getFamilySupplierName(fam){
-  const direct = String((fam && fam.supplier) || "").trim();
+  const direct = normalizeSupplierName((fam && fam.supplier) || "");
   if(direct) return direct;
   const txt = ((fam && fam.name) || "") + " " + ((fam && fam.family_label) || "");
   const upper = txt.toUpperCase();
@@ -1071,12 +1153,12 @@ function getFamilySupplierName(fam){
     upper.includes("DAUPHINS ALU") ||
     upper.includes("DAUPHINS GALVA") ||
     upper.includes("VIS COULEUR ET PEINTURE")
-  ) return "Almet";
+  ) return "ALMET";
 
-  if(upper.includes("GUTTERKEL")) return "Gutterkel";
-  if(upper.includes("GUTTI")) return "Gutti";
-  if(upper.includes("SODIFAB")) return "Sodifab";
-  return "Gutterfrance";
+  if(upper.includes("GUTTERKEL")) return "GUTTERKEL";
+  if(upper.includes("GUTTI")) return "GUTTI";
+  if(upper.includes("SODIFAB")) return "SODIFAB";
+  return "GUTTERFRANCE";
 }
 function getBuiltInSupplierProducts(name){
   const supplierName = String(name || "").trim();
@@ -1512,10 +1594,10 @@ function customProductToFamily(p){
 
 function inferSupplierFromFamily(fam){
   const hay = ((((fam && fam.name) || "") + " " + ((fam && fam.family_label) || "")).toLowerCase());
-  if(hay.includes("gutterkel")) return "Gutterkel";
-  if(hay.includes("gutti")) return "Gutti";
-  if(hay.includes("sodifab")) return "Sodifab";
-  return "Gutterfrance";
+  if(hay.includes("gutterkel")) return "GUTTERKEL";
+  if(hay.includes("gutti")) return "GUTTI";
+  if(hay.includes("sodifab")) return "SODIFAB";
+  return "GUTTERFRANCE";
 }
 function getSupplierName(fam){
   if(fam && fam.supplier && String(fam.supplier).trim()) return String(fam.supplier).trim();
@@ -1850,7 +1932,7 @@ function goSettings(){
       <div class="user-label">Ajouter un nouveau fournisseur</div>
       <div class="note" style="margin-bottom:8px">Chaque fournisseur contient maintenant directement ses produits. L’onglet Produits séparé a été supprimé.</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
-        <input id="newSupplierInput" class="search" style="height:44px;flex:1 1 260px" placeholder="Nom du fournisseur">
+        <input id="newSupplierInput" class="search" style="height:44px;flex:1 1 260px" placeholder="Nom du fournisseur (sera mis en MAJUSCULES)">
         <button class="btn neutral" style="width:auto" onclick="addSupplier()">+ Ajouter</button>
         <button class="btn neutral" style="width:auto" onclick="saveSuppliersSettings()">Enregistrer</button>
       </div>
@@ -3471,6 +3553,7 @@ async function loadCloudNow(){
 }
 
 window.addEventListener("load", function(){
+  normalizeSupplierDataOnce();
   cleanupSodifabOnce();
   setTimeout(function(){
     const lastSave = localStorage.getItem("cloud_last_save_at") || "";
