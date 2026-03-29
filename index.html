@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="RML GOUTTIÈRE ALU">
-<title>RML GOUTTIÈRE ALU • V39 synchronisée • Sodifab supprimé</title>
+<title>RML GOUTTIÈRE ALU • V39 synchronisée • Sodifab supprimé v2</title>
 <style>
 :root{--bg:#f4f6f9;--card:#fff;--line:#d8e0ea;--text:#18212b;--muted:#627182;--btn-accent:#334155;}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
@@ -299,6 +299,7 @@ const SHOW_PRICES_KEY = "rml_show_prices";
 const DEFAULT_SUPPLIER = "Gutterfrance";
 const DEFAULT_SUPPLIER_OPTIONS = ["Gutterfrance", "Gutterkel", "Gutti", "Almet"];
 const SUPPLIERS_KEY = "rml_suppliers";
+cleanupSodifabOnce();
 const SUPPLIER_EMAILS_KEY = "rml_supplier_emails";
 function getSupplierEmails(){
   try{
@@ -431,7 +432,7 @@ function inferSupplierNameFromText(value){
 }
 function inferSupplierFromProduct(p){
   const direct = String((p && p.supplier) || "").trim();
-  if(direct) return direct;
+  if(direct) return direct === "Sodifab" ? "" : direct;
   const fields = [
     (p && p.supplierName) || "",
     (p && p.supplierId) || "",
@@ -453,15 +454,16 @@ function getSupplierOptionsRaw(){
     const raw = JSON.parse(localStorage.getItem(SUPPLIERS_KEY) || "[]");
     const list = Array.isArray(raw) ? raw.map(v => String(v || "").trim()).filter(Boolean) : [];
     const merged = [...DEFAULT_SUPPLIER_OPTIONS];
-    list.forEach(name => { if(!merged.includes(name)) merged.push(name); });
-    // also merge suppliers already present on custom products
+    list.forEach(name => {
+      if(name !== "Sodifab" && !merged.includes(name)) merged.push(name);
+    });
     getCustomProducts().forEach(p => {
       const s = inferSupplierFromProduct(p);
-      if(s && !merged.includes(s)) merged.push(s);
+      if(s && s !== "Sodifab" && !merged.includes(s)) merged.push(s);
     });
-    return merged;
+    return merged.filter(name => name !== "Sodifab");
   }catch(e){
-    return DEFAULT_SUPPLIER_OPTIONS.slice();
+    return DEFAULT_SUPPLIER_OPTIONS.filter(name => name !== "Sodifab");
   }
 }
 function getSupplierOptions(){
@@ -1584,9 +1586,9 @@ function getFamilies(){
     copy.name = String(ov.name || f.name || "").trim();
     copy.visible = ov.visible !== false;
     return copy;
-  }).filter(f => f.visible !== false);
+  }).filter(f => f.visible !== false && !isRemovedSupplierFamily(f));
   const custom = getCustomProducts()
-    .filter(p => String((p && p.name) || "").trim() && p.visible !== false)
+    .filter(p => String((p && p.name) || "").trim() && p.visible !== false && inferSupplierFromProduct(p) !== "Sodifab")
     .map(customProductToFamily);
   return base.concat(custom);
 }
