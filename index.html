@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="RML GOUTTIÈRE ALU">
-<title>RML GOUTTIÈRE ALU • V39 synchronisée • import catalogue corrigé</title>
+<title>RML GOUTTIÈRE ALU • V39 synchronisée • Sodifab supprimé</title>
 <style>
 :root{--bg:#f4f6f9;--card:#fff;--line:#d8e0ea;--text:#18212b;--muted:#627182;--btn-accent:#334155;}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
@@ -297,7 +297,7 @@ const DEFAULT_COMPANY_EMAIL = "";
 const CUSTOM_PRODUCTS_KEY = "rml_custom_products";
 const SHOW_PRICES_KEY = "rml_show_prices";
 const DEFAULT_SUPPLIER = "Gutterfrance";
-const DEFAULT_SUPPLIER_OPTIONS = ["Gutterfrance", "Gutterkel", "Gutti", "Sodifab", "Almet"];
+const DEFAULT_SUPPLIER_OPTIONS = ["Gutterfrance", "Gutterkel", "Gutti", "Almet"];
 const SUPPLIERS_KEY = "rml_suppliers";
 const SUPPLIER_EMAILS_KEY = "rml_supplier_emails";
 function getSupplierEmails(){
@@ -363,6 +363,55 @@ function moveSupplier(name, direction){
   goSettings();
 }
 
+
+
+function cleanupSodifabOnce(){
+  const FLAG = "rml_cleanup_sodifab_done_v1";
+  try{
+    if(localStorage.getItem(FLAG) === "1") return;
+  }catch(e){}
+
+  try{
+    // remove custom products linked to Sodifab
+    const products = getCustomProducts().filter(p => inferSupplierFromProduct(p) !== "Sodifab");
+    saveCustomProducts(products);
+  }catch(e){}
+
+  try{
+    // remove supplier from saved options/order
+    const raw = JSON.parse(localStorage.getItem("rml_suppliers") || "[]");
+    const cleaned = Array.isArray(raw) ? raw.filter(name => String(name || "").trim() !== "Sodifab") : [];
+    localStorage.setItem("rml_suppliers", JSON.stringify(cleaned));
+  }catch(e){}
+
+  try{
+    const emails = JSON.parse(localStorage.getItem("rml_supplier_emails") || "{}") || {};
+    delete emails["Sodifab"];
+    localStorage.setItem("rml_supplier_emails", JSON.stringify(emails));
+  }catch(e){}
+
+  try{
+    const colors = JSON.parse(localStorage.getItem("rml_supplier_colors") || "{}") || {};
+    delete colors["Sodifab"];
+    localStorage.setItem("rml_supplier_colors", JSON.stringify(colors));
+  }catch(e){}
+
+  try{
+    const openMap = JSON.parse(localStorage.getItem("rml_supplier_open_map_v1") || "{}") || {};
+    delete openMap["Sodifab"];
+    localStorage.setItem("rml_supplier_open_map_v1", JSON.stringify(openMap));
+  }catch(e){}
+
+  try{
+    const innerMap = JSON.parse(localStorage.getItem("rml_supplier_inner_open_map_v1") || "{}") || {};
+    Object.keys(innerMap).forEach(k => {
+      if(String(k).startsWith("Sodifab||")) delete innerMap[k];
+    });
+    localStorage.setItem("rml_supplier_inner_open_map_v1", JSON.stringify(innerMap));
+  }catch(e){}
+
+  try{ localStorage.setItem(FLAG, "1"); }catch(e){}
+}
 
 function inferSupplierNameFromText(value){
   const upper = String(value || "").toUpperCase();
@@ -1000,6 +1049,12 @@ function openProductModalForSupplier(supplierName){
   if(el) el.value = supplierName || DEFAULT_SUPPLIER;
 }
 
+
+function isRemovedSupplierFamily(fam){
+  const txt = ((fam && fam.name) || "") + " " + ((fam && fam.family_label) || "");
+  return txt.toUpperCase().includes("SODIFAB");
+}
+
 function getFamilySupplierName(fam){
   const direct = String((fam && fam.supplier) || "").trim();
   if(direct) return direct;
@@ -1026,6 +1081,8 @@ function getBuiltInSupplierProducts(name){
   const list = [];
   try{
     (DATA.families || []).forEach(fam => {
+    if(isRemovedSupplierFamily(fam)) return;
+      if(isRemovedSupplierFamily(fam)) return;
       if(getFamilySupplierName(fam) !== supplierName) return;
       (fam.items || []).forEach((it, idx) => {
         const variant = String((it && it.variant) || (it && it.label) || "").trim();
@@ -3412,6 +3469,7 @@ async function loadCloudNow(){
 }
 
 window.addEventListener("load", function(){
+  cleanupSodifabOnce();
   setTimeout(function(){
     const lastSave = localStorage.getItem("cloud_last_save_at") || "";
     const lastLoad = localStorage.getItem("cloud_last_load_at") || "";
