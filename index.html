@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="RML GOUTTIÈRE ALU">
-<title>RML GOUTTIÈRE ALU • V39 synchronisée</title>
+<title>RML GOUTTIÈRE ALU • V39 synchronisée • V8 dédoublonnage fournisseurs</title>
 <style>
 :root{--bg:#f4f6f9;--card:#fff;--line:#d8e0ea;--text:#18212b;--muted:#627182;--btn-accent:#334155;}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
@@ -315,10 +315,10 @@ function saveSupplierEmails(map){
 }
 function getSupplierEmail(name){
   const map = getSupplierEmails();
-  return map[String(name || "").trim()] || "";
+  return map[canonicalSupplierName(name)] || "";
 }
 function updateSupplierEmail(name, email){
-  const cleanName = String(name || "").trim();
+  const cleanName = canonicalSupplierName(name);
   if(!cleanName) return;
   const map = getSupplierEmails();
   map[cleanName] = String(email || "").trim();
@@ -384,14 +384,14 @@ function getSupplierOptions(){
 }
 function saveSupplierOptions(list){
   try{
-    const clean = Array.isArray(list) ? list.map(v => String(v || "").trim()).filter(Boolean) : [];
-    localStorage.setItem(SUPPLIERS_KEY, JSON.stringify(clean));
+    const clean = Array.isArray(list) ? list.map(canonicalSupplierName).filter(Boolean) : [];
+    localStorage.setItem(SUPPLIERS_KEY, JSON.stringify([...new Set(clean)]));
   }catch(e){}
 }
 function addSupplier(){
   const input = document.getElementById("newSupplierInput");
   if(!input) return;
-  const clean = String(input.value || "").trim();
+  const clean = canonicalSupplierName(input.value || "");
   if(!clean){
     alert("Merci de saisir un nom de fournisseur.");
     return;
@@ -405,8 +405,9 @@ function addSupplier(){
   list.push(clean);
   saveSupplierOptions(list);
   input.value = "";
-  alert("Fournisseur ajouté.");
+  alert("Fournisseur ajouté en majuscules.");
   goSettings();
+  if(typeof setSettingsSection === "function") setSettingsSection('fournisseurs');
 }
 function deleteSupplier(name){
   const clean = String(name || "").trim();
@@ -786,11 +787,11 @@ function getSupplierColors(){
 }
 function getSupplierColor(name, fallback){
   const map = getSupplierColors();
-  return map[name] || fallback || "#334155";
+  return map[canonicalSupplierName(name)] || fallback || "#334155";
 }
 function updateSupplierColor(name, value){
   const map = getSupplierColors();
-  map[name] = value || "#334155";
+  map[canonicalSupplierName(name)] = value || "#334155";
   localStorage.setItem(SUPPLIER_COLORS_KEY, JSON.stringify(map));
 }
 function getAppBg(){ return localStorage.getItem(APP_BG_KEY) || "#f4f6f9"; }
@@ -969,10 +970,10 @@ function getFamilySupplierName(fam){
   if(direct) return direct;
   const txt = ((fam && fam.name) || "") + " " + ((fam && fam.family_label) || "");
   const upper = txt.toUpperCase();
-  if(upper.includes("GUTTERKEL")) return "Gutterkel";
-  if(upper.includes("GUTTI")) return "Gutti";
-  if(upper.includes("SODIFAB")) return "Sodifab";
-  return "Gutterfrance";
+  if(upper.includes("GUTTERKEL")) return "GUTTERKEL";
+  if(upper.includes("GUTTI")) return "GUTTI";
+  if(upper.includes("SODIFAB")) return "SODIFAB";
+  return "GUTTERFRANCE";
 }
 function getBuiltInSupplierProducts(name){
   const supplierName = String(name || "").trim();
@@ -1355,10 +1356,10 @@ function customProductToFamily(p){
 
 function inferSupplierFromFamily(fam){
   const hay = ((((fam && fam.name) || "") + " " + ((fam && fam.family_label) || "")).toLowerCase());
-  if(hay.includes("gutterkel")) return "Gutterkel";
-  if(hay.includes("gutti")) return "Gutti";
-  if(hay.includes("sodifab")) return "Sodifab";
-  return "Gutterfrance";
+  if(hay.includes("gutterkel")) return "GUTTERKEL";
+  if(hay.includes("gutti")) return "GUTTI";
+  if(hay.includes("sodifab")) return "SODIFAB";
+  return "GUTTERFRANCE";
 }
 function getSupplierName(fam){
   if(fam && fam.supplier && String(fam.supplier).trim()) return String(fam.supplier).trim();
@@ -1756,13 +1757,11 @@ function goSettings(){
     <div style="height:260px"></div>
   `;
   settings.classList.remove("hidden");
-  
-
-    if(typeof getSettingsSection === "function"){
-      const section = getSettingsSection() || "fournisseurs";
+  setSettingsSection(getSettingsSection());
+    settings.classList.remove("hidden");
+    if(typeof setSettingsSection === "function"){
+      const section = (typeof getSettingsSection === "function" ? getSettingsSection() : "") || "fournisseurs";
       setSettingsSection(section);
-    }else if(typeof setSettingsSection === "function"){
-      setSettingsSection("fournisseurs");
     }
   }catch(e){
     console.error(e);
@@ -3321,6 +3320,7 @@ async async function loadCloudNow(){
 }
 
 window.addEventListener("load", function(){
+  try{ dedupeSuppliersOnce(); }catch(e){}
   setTimeout(function(){
     const lastSave = localStorage.getItem("cloud_last_save_at") || "";
     const lastLoad = localStorage.getItem("cloud_last_load_at") || "";
