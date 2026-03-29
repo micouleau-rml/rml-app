@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="RML GOUTTIÈRE ALU">
-<title>RML GOUTTIÈRE ALU • V39 synchronisée • sync + Almet corrigé</title>
+<title>RML GOUTTIÈRE ALU • V39 synchronisée • fournisseurs nettoyés</title>
 <style>
 :root{--bg:#f4f6f9;--card:#fff;--line:#d8e0ea;--text:#18212b;--muted:#627182;--btn-accent:#334155;}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
@@ -1124,30 +1124,14 @@ function getSupplierDisplayProducts(name){
 }
 
 
+
 function getSupplierProductsSettingsHtml(name){
-  const customProducts = getCustomProductsForSupplier(name);
-  const displayProducts = getSupplierDisplayProducts(name);
+  const products = getCustomProductsForSupplier(name);
   const safeName = String(name).replace(/'/g, "\\'");
   const builtinsCount = getBuiltInSupplierProducts(name).length;
   const showMigrate = builtinsCount > 0;
 
-  const rows = displayProducts.map(p => {
-    if(p._source === "catalog"){
-      return `
-        <div class="card" style="padding:10px;margin:8px 0 0 0;background:#f8fafc;border-style:dashed">
-          <div style="display:grid;grid-template-columns:1.25fr .7fr .9fr 1fr;gap:8px;align-items:center">
-            <div class="search" style="height:44px;margin:0;display:flex;align-items:center">${esc(p.name || "")}</div>
-            <div class="search" style="height:44px;margin:0;display:flex;align-items:center">${esc(p.unit || "U")}</div>
-            <div class="search" style="height:44px;margin:0;display:flex;align-items:center">${esc(p.product_color || "")}</div>
-            <div class="search" style="height:44px;margin:0;display:flex;align-items:center">${esc(p.supplier_ref || "")}</div>
-          </div>
-          <div style="display:flex;gap:10px;align-items:center;margin:8px 0 2px 0;flex-wrap:wrap">
-            <div class="note">Produit catalogue visible sur l’accueil</div>
-          </div>
-        </div>
-      `;
-    }
-    return `
+  const rows = products.map(p => `
       <div class="card" style="padding:10px;margin:8px 0 0 0;background:#f8fafc">
         <div style="display:grid;grid-template-columns:1.25fr .7fr .9fr 1fr auto;gap:8px;align-items:center">
           <input class="search" style="height:44px;margin:0" placeholder="Nom du produit" value="${esc(p.name || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'name', this.value)">
@@ -1174,8 +1158,11 @@ function getSupplierProductsSettingsHtml(name){
           ${p.from_catalog ? '<div class="note">Importé du catalogue</div>' : ''}
         </div>
       </div>
-    `;
-  }).join("");
+    `).join("");
+
+  const note = showMigrate
+    ? `<div class="note" style="margin-top:8px">Le catalogue visible sur l’accueil n’est plus affiché ici en pointillés. Seuls les vrais produits du fournisseur apparaissent ci-dessous. Utilise “Importer le catalogue” seulement si tu veux les intégrer réellement dans ce fournisseur.</div>`
+    : '';
 
   return `
     <div style="margin-top:10px">
@@ -1184,10 +1171,12 @@ function getSupplierProductsSettingsHtml(name){
         <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="openProductModalForSupplier('${safeName}')">+ Ajouter un produit</button>
         ${showMigrate ? `<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="migrateBuiltInSupplierProducts('${safeName}')">Importer le catalogue ${safeName} (${builtinsCount})</button>` : ''}
       </div>
-      ${rows || '<div class="note">Aucun produit enregistré pour ce fournisseur.</div>'}
+      ${note}
+      ${rows || '<div class="note">Aucun produit réellement rattaché à ce fournisseur pour le moment.</div>'}
     </div>
   `;
 }
+
 
 
 
@@ -1246,7 +1235,7 @@ function toggleSupplierInner(name, section){
 
 function getSupplierAccordionHtml(name){
   const safeName = String(name || "").replace(/'/g, "\\'");
-  const productsCount = getSupplierDisplayProducts(name).length;
+  const productsCount = getCustomProductsForSupplier(name).length;
   const open = isSupplierOpen(name);
   const infosOpen = isSupplierInnerOpen(name, "infos");
   const productsOpen = isSupplierInnerOpen(name, "produits");
