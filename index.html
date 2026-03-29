@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="RML GOUTTIÈRE ALU">
-<title>RML GOUTTIÈRE ALU • V39 synchronisée • sync + fournisseurs corrigés</title>
+<title>RML GOUTTIÈRE ALU • V39 synchronisée • sync + Almet corrigé</title>
 <style>
 :root{--bg:#f4f6f9;--card:#fff;--line:#d8e0ea;--text:#18212b;--muted:#627182;--btn-accent:#334155;}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
@@ -366,7 +366,15 @@ function moveSupplier(name, direction){
 
 function inferSupplierNameFromText(value){
   const upper = String(value || "").toUpperCase();
-  if(upper.includes("ALMET")) return "Almet";
+  if(
+    upper.includes("ALMET") ||
+    upper.includes("COUVERTINES") ||
+    upper.includes("CROCHETS COUVERTINES") ||
+    upper.includes("ANGLES COUVERTINES") ||
+    upper.includes("DAUPHINS ALU") ||
+    upper.includes("DAUPHINS GALVA") ||
+    upper.includes("VIS COULEUR ET PEINTURE")
+  ) return "Almet";
   if(upper.includes("SODIFAB")) return "Sodifab";
   if(upper.includes("GUTTERKEL")) return "Gutterkel";
   if(upper.includes("GUTTI")) return "Gutti";
@@ -997,7 +1005,17 @@ function getFamilySupplierName(fam){
   if(direct) return direct;
   const txt = ((fam && fam.name) || "") + " " + ((fam && fam.family_label) || "");
   const upper = txt.toUpperCase();
-  if(upper.includes("ALMET")) return "Almet";
+
+  if(
+    upper.includes("ALMET") ||
+    upper.includes("COUVERTINES") ||
+    upper.includes("CROCHETS COUVERTINES") ||
+    upper.includes("ANGLES COUVERTINES") ||
+    upper.includes("DAUPHINS ALU") ||
+    upper.includes("DAUPHINS GALVA") ||
+    upper.includes("VIS COULEUR ET PEINTURE")
+  ) return "Almet";
+
   if(upper.includes("GUTTERKEL")) return "Gutterkel";
   if(upper.includes("GUTTI")) return "Gutti";
   if(upper.includes("SODIFAB")) return "Sodifab";
