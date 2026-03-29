@@ -1195,15 +1195,16 @@ function getBuiltInSupplierProducts(name){
   return list;
 }
 
+
 function migrateBuiltInSupplierProducts(name){
-  const supplierName = String(name || "").trim();
-  const builtins = getBuiltInSupplierProducts(supplierName);
+  const supplierName = normalizeSupplierName(name);
+  const builtins = getVisibleHomeProductsForSupplier(supplierName);
   if(!builtins.length){
-    alert("Aucun produit catalogue à importer pour ce fournisseur.");
+    alert("Aucun produit visible à importer pour ce fournisseur.");
     return;
   }
 
-  const ok = confirm("Importer " + builtins.length + " produit(s) du catalogue dans la fiche " + supplierName + " ?");
+  const ok = confirm("Importer " + builtins.length + " produit(s) visibles de l’accueil dans la fiche " + supplierName + " ?");
   if(!ok) return;
 
   const current = getCustomProducts();
@@ -1238,25 +1239,11 @@ function migrateBuiltInSupplierProducts(name){
 
   saveCustomProducts(current);
   try{ if(typeof syncCustomProductPricesToState === "function") syncCustomProductPricesToState(); }catch(e){}
-
   alert(added + " produit(s) importé(s) dans " + supplierName + ".");
   goSettings();
   setSettingsSection('fournisseurs');
-
-  setTimeout(function(){
-    try{
-      const currentSection = document.querySelector('[data-settings-section="fournisseurs"]');
-      if(currentSection){
-        const heads = currentSection.querySelectorAll('.supplier-accordion-head');
-        heads.forEach(head => {
-          if(head.textContent && head.textContent.toUpperCase().includes(supplierName.toUpperCase())){
-            head.click();
-          }
-        });
-      }
-    }catch(e){}
-  }, 150);
 }
+
 
 
 
@@ -1285,13 +1272,55 @@ function getSupplierDisplayProducts(name){
 
 
 
+
+function getVisibleHomeProductsForSupplier(name){
+  const target = normalizeSupplierName(name);
+  const out = [];
+  try{
+    (getFamilies() || []).forEach(fam => {
+      if(!fam || fam.is_custom) return;
+      const supplier = normalizeSupplierName((fam && fam.supplier) || getFamilySupplierName(fam) || "");
+      if(supplier !== target) return;
+      (fam.items || []).forEach((it, idx) => {
+        const variant = String((it && it.variant) || (it && it.label) || "").trim();
+        if(!variant) return;
+        const productColor = String((it && it.color) || "").trim();
+        const unit = (typeof getItemUnit === "function" ? getItemUnit(fam, it) : "") || fam.unit_default || "U";
+        const supplierRef = typeof getSupplierRef === "function" ? getSupplierRef(productColor, "") : "";
+        out.push({
+          id: "visible_" + target + "_" + idx + "_" + variant,
+          supplier: target,
+          family_name: fam.name || "",
+          family_label: fam.family_label || "",
+          name: variant,
+          unit: unit,
+          default_price: it.default_price || fam.default_price || "",
+          price: it.default_price || fam.default_price || "",
+          color: fam.family_color || "#334155",
+          product_color: productColor,
+          supplier_ref: supplierRef
+        });
+      });
+    });
+  }catch(e){}
+  const seen = new Set();
+  return out.filter(p => {
+    const key = [p.name, p.product_color, p.supplier_ref].join("||");
+    if(seen.has(key)) return false
+    seen.add(key)
+    return True
+  });
+}
+
+
 function getSupplierProductsSettingsHtml(name){
   const products = getCustomProductsForSupplier(name);
+  const visibleHomeProducts = getVisibleHomeProductsForSupplier(name);
   const safeName = String(name).replace(/'/g, "\\'");
-  const builtinsCount = getBuiltInSupplierProducts(name).length;
-  const showMigrate = builtinsCount > 0;
+  const importableCount = visibleHomeProducts.length;
+  const showMigrate = importableCount > 0;
 
-  const rows = products.map(p => `
+  const editableRows = products.map(p => `
       <div class="card" style="padding:10px;margin:8px 0 0 0;background:#f8fafc">
         <div style="display:grid;grid-template-columns:1.25fr .7fr .9fr 1fr auto;gap:8px;align-items:center">
           <input class="search" style="height:44px;margin:0" placeholder="Nom du produit" value="${esc(p.name || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'name', this.value)">
@@ -1315,27 +1344,43 @@ function getSupplierProductsSettingsHtml(name){
             <input type="checkbox" ${p.visible !== false ? "checked" : ""} onchange="updateCustomProductById('${esc(p.id || "")}', 'visible', this.checked)">
             Visible sur l’accueil
           </label>
-          ${p.from_catalog ? '<div class="note">Importé du catalogue</div>' : ''}
+          ${p.from_catalog ? '<div class="note">Importé dans ce fournisseur</div>' : ''}
         </div>
       </div>
     `).join("");
 
-  const note = showMigrate
-    ? `<div class="note" style="margin-top:8px">Les produits visibles sur l’accueil ne sont pas encore dans la fiche fournisseur. Clique sur “Importer le catalogue” pour les copier réellement dans ce fournisseur, puis ils apparaîtront ici et tu pourras les modifier ou les supprimer.</div>`
-    : '';
+  const homeRows = visibleHomeProducts.map(p => `
+      <div class="card" style="padding:10px;margin:8px 0 0 0;background:#fff;border-style:dashed">
+        <div style="display:grid;grid-template-columns:1.25fr .7fr .9fr 1fr;gap:8px;align-items:center">
+          <div class="search" style="height:44px;margin:0;display:flex;align-items:center">${esc(p.name || "")}</div>
+          <div class="search" style="height:44px;margin:0;display:flex;align-items:center">${esc(p.unit || "U")}</div>
+          <div class="search" style="height:44px;margin:0;display:flex;align-items:center">${esc(p.product_color || "")}</div>
+          <div class="search" style="height:44px;margin:0;display:flex;align-items:center">${esc(p.supplier_ref || "")}</div>
+        </div>
+      </div>
+    `).join("");
 
   return `
     <div style="margin-top:10px">
       <div class="note" style="margin-bottom:8px">Produits du fournisseur</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
         <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="openProductModalForSupplier('${safeName}')">+ Ajouter un produit</button>
-        ${showMigrate ? `<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="migrateBuiltInSupplierProducts('${safeName}')">Importer le catalogue ${safeName} (${builtinsCount})</button>` : ''}
+        ${showMigrate ? `<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="migrateBuiltInSupplierProducts('${safeName}')">Importer les ${importableCount} produits visibles</button>` : ''}
       </div>
-      ${note}
-      ${rows || '<div class="note">Aucun produit réellement rattaché à ce fournisseur pour le moment.</div>'}
+
+      ${visibleHomeProducts.length ? `
+        <div class="note" style="margin:8px 0">Produits actuellement visibles sur l’accueil pour ${esc(name)} : ${visibleHomeProducts.length}</div>
+        ${homeRows}
+      ` : ''}
+
+      ${products.length ? `
+        <div class="note" style="margin:12px 0 8px 0">Produits réellement enregistrés dans ce fournisseur : ${products.length}</div>
+        ${editableRows}
+      ` : '<div class="note">Aucun produit encore enregistré directement dans ce fournisseur.</div>'}
     </div>
   `;
 }
+
 
 
 
@@ -1395,7 +1440,7 @@ function toggleSupplierInner(name, section){
 
 function getSupplierAccordionHtml(name){
   const safeName = String(name || "").replace(/'/g, "\\'");
-  const productsCount = getCustomProductsForSupplier(name).length;
+  const productsCount = getVisibleHomeProductsForSupplier(name).length;
   const open = isSupplierOpen(name);
   const infosOpen = isSupplierInnerOpen(name, "infos");
   const productsOpen = isSupplierInnerOpen(name, "produits");
