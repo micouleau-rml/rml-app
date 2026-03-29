@@ -1597,25 +1597,172 @@ function setSettingsSection(section){
 
 function goSettings(){
   try{
-    setSettingsMode(true);
+  setSettingsMode(true);
+  document.getElementById("home").classList.add("hidden");
+  document.getElementById("supplier")?.classList.add("hidden");
+  document.getElementById("family").classList.add("hidden");
+  document.getElementById("recap").classList.add("hidden");
+  document.getElementById("history")?.classList.add("hidden");
+  document.getElementById("pdfhistory")?.classList.add("hidden");
+  const settings = document.getElementById("settings");
+  if(!settings) return;
 
-    document.getElementById("home")?.classList.add("hidden");
-    document.getElementById("supplier")?.classList.add("hidden");
-    document.getElementById("family")?.classList.add("hidden");
-    document.getElementById("recap")?.classList.add("hidden");
-    document.getElementById("history")?.classList.add("hidden");
-    document.getElementById("pdfhistory")?.classList.add("hidden");
+  const colorButtons = getColorPresetButtons("setHeaderBg");
+  const appBgButtons = getColorPresetButtons("setAppBg");
+  const cardBgButtons = getColorPresetButtons("setCardBg");
+  const btnAccentButtons = getColorPresetButtons("setBtnAccent");
 
-    const settings = document.getElementById("settings");
-    if(!settings){
-      alert("Erreur : écran réglages introuvable");
-      return;
-    }
+  settings.innerHTML = `
+    <div class="toolbar">
+      <button class="btn neutral" onclick="goHome()">← Fermer les réglages</button>
+    </div>
 
-    settings.classList.remove("hidden");
+    <div class="settings-cats">
+      <button class="btn neutral" data-settings-btn="entete" onclick="setSettingsSection('entete')">Entête</button>
+      <button class="btn neutral" data-settings-btn="apparence" onclick="setSettingsSection('apparence')">Apparence</button>
+      <button class="btn neutral" data-settings-btn="prix" onclick="setSettingsSection('prix')">Prix</button>
+      <button class="btn neutral" data-settings-btn="fournisseurs" onclick="setSettingsSection('fournisseurs')">Fournisseurs</button>
+      <button class="btn neutral" data-settings-btn="sync" onclick="setSettingsSection('sync')">Sync cloud</button>
+      <button class="btn neutral" data-settings-btn="sauvegarde" onclick="setSettingsSection('sauvegarde')">Sauvegarde</button>
+    </div>
 
-    if(typeof setSettingsSection === "function"){
-      setSettingsSection('fournisseurs');
+    <div class="settings-section" data-settings-section="entete">
+    <div class="card">
+      <p class="title">Entête du document</p>
+      <div class="user-label" style="margin-top:12px">Nom de la société</div>
+      <input id="companyNameInput" class="search" style="height:44px" placeholder="Nom de la société" value="${esc(getCompanyName())}">
+      <div class="user-label" style="margin-top:12px">Adresse</div>
+      <input id="companyAddressInput" class="search" style="height:44px" placeholder="Adresse" value="${esc(getCompanyAddress())}">
+      <div class="user-label" style="margin-top:12px">Téléphone</div>
+      <input id="companyPhoneInput" class="search" style="height:44px" placeholder="Téléphone" value="${esc(getCompanyPhone())}">
+      <div class="user-label" style="margin-top:12px">Mail</div>
+      <input id="companyEmailInput" class="search" style="height:44px" placeholder="Mail" value="${esc(getCompanyEmail())}">
+      <div class="user-label" style="margin-top:12px">Logo</div>
+      <input type="file" accept="image/*" class="search" style="height:44px;padding:10px 14px" onchange="onHeaderLogoSelected(this)">
+      <div style="margin-top:10px">
+        <button class="btn neutral" onclick="saveHeaderSettings()">Enregistrer l’entête</button>
+      </div>
+    </div>
+    </div>
+
+    <div class="settings-section" data-settings-section="apparence">
+    <div class="card">
+      <p class="title">Personnalisation de l’appli</p>
+      <div class="user-label" style="margin-top:6px">Couleur du bandeau</div>
+      ${colorButtons}
+      <div class="color-picker-row" style="margin-top:10px">
+        <input type="color" value="${esc(getHeaderBg())}" onchange="setHeaderBg(this.value)">
+        <div class="note">Choix libre du bandeau</div>
+      </div>
+
+      <div class="user-label" style="margin-top:14px">Couleur du fond</div>
+      ${appBgButtons}
+      <div class="color-picker-row" style="margin-top:10px">
+        <input type="color" value="${esc(getAppBg())}" onchange="setAppBg(this.value)">
+        <div class="note">Choix libre du fond</div>
+      </div>
+
+      <div class="user-label" style="margin-top:14px">Couleur des cartes</div>
+      ${cardBgButtons}
+      <div class="color-picker-row" style="margin-top:10px">
+        <input type="color" value="${esc(getCardBg())}" onchange="setCardBg(this.value)">
+        <div class="note">Choix libre des cartes</div>
+      </div>
+
+      <div class="user-label" style="margin-top:14px">Couleur des boutons</div>
+      ${btnAccentButtons}
+      <div class="color-picker-row" style="margin-top:10px">
+        <input type="color" value="${esc(getBtnAccent())}" onchange="setBtnAccent(this.value)">
+        <div class="note">Choix libre des boutons</div>
+      </div>
+    </div>
+    </div>
+
+    <div class="settings-section" data-settings-section="prix">
+    <div class="card">
+      <p class="title">Prix</p>
+      <label style="display:flex;align-items:center;gap:10px;font-weight:700">
+        <input type="checkbox" ${getShowPrices() ? "checked" : ""} onchange="setShowPrices(this.checked); goSettings();">
+        Afficher les prix et le total HT
+      </label>
+    </div>
+    </div>
+
+    <div class="settings-section" data-settings-section="fournisseurs">
+    <div class="card">
+      <p class="title">Fournisseurs</p>
+      <div class="user-label">Ajouter un nouveau fournisseur</div>
+      <div class="note" style="margin-bottom:8px">Chaque fournisseur contient maintenant directement ses produits. L’onglet Produits séparé a été supprimé.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
+        <input id="newSupplierInput" class="search" style="height:44px;flex:1 1 260px" placeholder="Nom du fournisseur">
+        <button class="btn neutral" style="width:auto" onclick="addSupplier()">+ Ajouter</button>
+        <button class="btn neutral" style="width:auto" onclick="saveSuppliersSettings()">Enregistrer</button>
+      </div>
+      <div style="display:grid;gap:8px">
+        ${getSupplierOptions().map(name => getSupplierAccordionHtml(name)).join("")}
+      </div>
+    </div>
+    </div>
+
+    <div class="settings-section" data-settings-section="sync">
+    <div class="card">
+      <p class="title">Synchronisation cloud</p>
+      <p class="note">Cette version enregistre et recharge les données de l’appli depuis Supabase.</p>
+      <div class="sync-card" style="margin-top:10px">
+        <button class="btn neutral" style="width:auto;background:#0a8454;color:#fff;border-color:#0a8454" onclick="saveCloudNow()">Sauvegarder sur le cloud</button>
+        <button class="btn neutral" style="width:auto" onclick="loadCloudNow()">Recharger depuis le cloud</button>
+      </div>
+      <div id="syncStatus" class="sync-status">Prêt.</div>
+      <div class="note" style="margin-top:8px">Sync iPhone/Mac corrigée sur cette version.</div>
+      <div class="card" style="margin-top:12px;background:#f8fafc">
+        <p class="title">Historique des sauvegardes</p>
+        <p class="note">Les 5 dernières sauvegardes cloud. Tu peux restaurer une version précédente si besoin.</p>
+        <div id="cloudHistoryList" style="margin-top:10px"><div class="note">Aucune sauvegarde d’historique disponible.</div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+          <button class="btn neutral" style="width:auto" onclick="loadCloudHistoryIntoPanel()">Actualiser l’historique</button>
+        </div>
+      </div>
+    </div>
+    </div>
+
+<div class="settings-section" data-settings-section="sauvegarde">
+    <div class="card">
+      <p class="title">Sauvegarde / transfert</p>
+      <p class="note">Version V38 pensée pour une ouverture en lien web : transfère les réglages, fournisseurs, produits personnalisés et personnalisation, sans l’historique lourd qui peut bloquer l’iPhone.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+        <button class="btn neutral" style="width:auto" onclick="exportAppData()">Exporter les données (allégé)</button>
+        <button class="btn neutral" style="width:auto" onclick="triggerImportAppData()">Choisir un fichier</button>
+      </div>
+      <div style="margin-top:10px">
+        <input id="importAppDataInput" type="file" accept=".json,application/json,text/json,text/plain" style="display:block;margin-top:10px;width:100%;max-width:420px" onchange="importAppDataFromInput(event)">
+        <div class="note" style="margin-top:8px">Méthode 1 : choisis le fichier .json exporté depuis l’autre appareil.</div>
+      </div>
+      <div style="margin-top:14px">
+        <div class="user-label">Import manuel si iPhone refuse le fichier</div>
+        <textarea id="importAppDataTextarea" class="search" style="height:150px;padding:12px;line-height:1.35;border-radius:16px" placeholder="Colle ici le contenu JSON de la sauvegarde"></textarea>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+          <button class="btn neutral" style="width:auto;background:#0a8454;color:#fff;border-color:#0a8454" onclick="importAppDataFromTextarea()">Importer le texte collé</button>
+          <button class="btn neutral" style="width:auto" onclick="copyExportDataToClipboard()">Copier la sauvegarde</button>
+        </div>
+        <div class="note" style="margin-top:8px">Méthode 2 : sur le Mac, exporte la sauvegarde allégée puis ouvre le fichier .json, copie tout le contenu, puis colle-le ici sur l’iPhone. Cette méthode est la plus fiable si l’iPhone bloque le fichier.</div>
+      </div>
+      <div id="exportAppDataStatus" class="note" style="margin-top:10px"></div>
+      <div id="exportAppDataActions" class="hidden" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+        <a id="exportAppDataDownloadLink" class="btn neutral" style="width:auto" download="rml-sauvegarde.json">Télécharger le fichier</a>
+        <button id="exportAppDataShareBtn" class="btn neutral" style="width:auto" onclick="shareExportedAppData()">Partager le fichier</button>
+      </div>
+    </div>
+    </div>
+    <div style="height:260px"></div>
+  `;
+  settings.classList.remove("hidden");
+  
+
+    if(typeof getSettingsSection === "function"){
+      const section = getSettingsSection() || "fournisseurs";
+      setSettingsSection(section);
+    }else if(typeof setSettingsSection === "function"){
+      setSettingsSection("fournisseurs");
     }
   }catch(e){
     console.error(e);
