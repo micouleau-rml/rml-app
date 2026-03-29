@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="RML GOUTTIÈRE ALU">
-<title>RML GOUTTIÈRE ALU • V39 synchronisée • fournisseurs nettoyés</title>
+<title>RML GOUTTIÈRE ALU • V39 synchronisée • import catalogue corrigé</title>
 <style>
 :root{--bg:#f4f6f9;--card:#fff;--line:#d8e0ea;--text:#18212b;--muted:#627182;--btn-accent:#334155;}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
@@ -1053,51 +1053,70 @@ function getBuiltInSupplierProducts(name){
   }catch(e){}
   return list;
 }
+
 function migrateBuiltInSupplierProducts(name){
   const supplierName = String(name || "").trim();
   const builtins = getBuiltInSupplierProducts(supplierName);
   if(!builtins.length){
-    alert("Aucun produit catalogue à migrer pour ce fournisseur.");
+    alert("Aucun produit catalogue à importer pour ce fournisseur.");
     return;
   }
-  const ok = confirm("Importer " + builtins.length + " produit(s) catalogue dans la fiche " + supplierName + " ?\n\nIls seront ajoutés dans la fiche fournisseur, sans s'afficher en double sur l'accueil.");
+
+  const ok = confirm("Importer " + builtins.length + " produit(s) du catalogue dans la fiche " + supplierName + " ?");
   if(!ok) return;
 
-  const list = getCustomProducts();
+  const current = getCustomProducts();
   let added = 0;
 
-  builtins.forEach(p => {
-    const exists = list.some(x =>
-      String((x && x.supplier) || "").trim() === supplierName &&
+  builtins.forEach((p, idx) => {
+    const exists = current.some(x =>
+      inferSupplierFromProduct(x) === supplierName &&
       String((x && x.name) || "").trim() === String(p.name || "").trim() &&
-      String((x && x.product_color) || "").trim() === String(p.product_color || "").trim()
+      String((x && x.product_color) || "").trim() === String(p.product_color || "").trim() &&
+      String((x && x.supplier_ref) || "").trim() === String(p.supplier_ref || "").trim()
     );
-    if(!exists){
-      list.push({
-        id: "mig_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,8),
-        supplier: supplierName,
-        name: p.name,
-        unit: p.unit || "U",
-        default_price: p.default_price || "",
-        price: p.price || "",
-        color: p.color || "#334155",
-        product_color: p.product_color || "",
-        supplier_ref: p.supplier_ref || "",
-        family_name: p.family_name || "",
-        family_label: p.family_label || "",
-        visible: false,
-        from_catalog: true
-      });
-      added++;
-    }
+    if(exists) return;
+
+    current.push({
+      id: "imp_" + supplierName.replace(/\s+/g, "_").toLowerCase() + "_" + Date.now().toString(36) + "_" + idx + "_" + Math.random().toString(36).slice(2,7),
+      supplier: supplierName,
+      name: p.name || "",
+      unit: p.unit || "U",
+      product_color: p.product_color || "",
+      supplier_ref: p.supplier_ref || "",
+      default_price: p.default_price || p.price || "",
+      price: p.price || p.default_price || "",
+      family_name: p.family_name || "",
+      family_label: p.family_label || "",
+      color: p.color || "#334155",
+      visible: false,
+      from_catalog: true
+    });
+    added++;
   });
 
-  saveCustomProducts(list);
+  saveCustomProducts(current);
   try{ if(typeof syncCustomProductPricesToState === "function") syncCustomProductPricesToState(); }catch(e){}
+
   alert(added + " produit(s) importé(s) dans " + supplierName + ".");
   goSettings();
   setSettingsSection('fournisseurs');
+
+  setTimeout(function(){
+    try{
+      const currentSection = document.querySelector('[data-settings-section="fournisseurs"]');
+      if(currentSection){
+        const heads = currentSection.querySelectorAll('.supplier-accordion-head');
+        heads.forEach(head => {
+          if(head.textContent && head.textContent.toUpperCase().includes(supplierName.toUpperCase())){
+            head.click();
+          }
+        });
+      }
+    }catch(e){}
+  }, 150);
 }
+
 
 
 
@@ -1161,7 +1180,7 @@ function getSupplierProductsSettingsHtml(name){
     `).join("");
 
   const note = showMigrate
-    ? `<div class="note" style="margin-top:8px">Le catalogue visible sur l’accueil n’est plus affiché ici en pointillés. Seuls les vrais produits du fournisseur apparaissent ci-dessous. Utilise “Importer le catalogue” seulement si tu veux les intégrer réellement dans ce fournisseur.</div>`
+    ? `<div class="note" style="margin-top:8px">Les produits visibles sur l’accueil ne sont pas encore dans la fiche fournisseur. Clique sur “Importer le catalogue” pour les copier réellement dans ce fournisseur, puis ils apparaîtront ici et tu pourras les modifier ou les supprimer.</div>`
     : '';
 
   return `
