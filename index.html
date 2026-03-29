@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="RML GOUTTIÈRE ALU">
-<title>RML GOUTTIÈRE ALU • V39 synchronisée • sync corrigée</title>
+<title>RML GOUTTIÈRE ALU • V39 synchronisée • sync + fournisseurs corrigés</title>
 <style>
 :root{--bg:#f4f6f9;--card:#fff;--line:#d8e0ea;--text:#18212b;--muted:#627182;--btn-accent:#334155;}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
@@ -297,7 +297,7 @@ const DEFAULT_COMPANY_EMAIL = "";
 const CUSTOM_PRODUCTS_KEY = "rml_custom_products";
 const SHOW_PRICES_KEY = "rml_show_prices";
 const DEFAULT_SUPPLIER = "Gutterfrance";
-const DEFAULT_SUPPLIER_OPTIONS = ["Gutterfrance", "Gutterkel", "Gutti", "Sodifab"];
+const DEFAULT_SUPPLIER_OPTIONS = ["Gutterfrance", "Gutterkel", "Gutti", "Sodifab", "Almet"];
 const SUPPLIERS_KEY = "rml_suppliers";
 const SUPPLIER_EMAILS_KEY = "rml_supplier_emails";
 function getSupplierEmails(){
@@ -363,6 +363,34 @@ function moveSupplier(name, direction){
   goSettings();
 }
 
+
+function inferSupplierNameFromText(value){
+  const upper = String(value || "").toUpperCase();
+  if(upper.includes("ALMET")) return "Almet";
+  if(upper.includes("SODIFAB")) return "Sodifab";
+  if(upper.includes("GUTTERKEL")) return "Gutterkel";
+  if(upper.includes("GUTTI")) return "Gutti";
+  return "";
+}
+function inferSupplierFromProduct(p){
+  const direct = String((p && p.supplier) || "").trim();
+  if(direct) return direct;
+  const fields = [
+    (p && p.supplierName) || "",
+    (p && p.supplierId) || "",
+    (p && p.family_name) || "",
+    (p && p.family_label) || "",
+    (p && p.name) || "",
+    (p && p.product_color) || "",
+    (p && p.supplier_ref) || ""
+  ];
+  for(const field of fields){
+    const guess = inferSupplierNameFromText(field);
+    if(guess) return guess;
+  }
+  return DEFAULT_SUPPLIER;
+}
+
 function getSupplierOptionsRaw(){
   try{
     const raw = JSON.parse(localStorage.getItem(SUPPLIERS_KEY) || "[]");
@@ -371,7 +399,7 @@ function getSupplierOptionsRaw(){
     list.forEach(name => { if(!merged.includes(name)) merged.push(name); });
     // also merge suppliers already present on custom products
     getCustomProducts().forEach(p => {
-      const s = String((p && p.supplier) || "").trim();
+      const s = inferSupplierFromProduct(p);
       if(s && !merged.includes(s)) merged.push(s);
     });
     return merged;
@@ -969,6 +997,7 @@ function getFamilySupplierName(fam){
   if(direct) return direct;
   const txt = ((fam && fam.name) || "") + " " + ((fam && fam.family_label) || "");
   const upper = txt.toUpperCase();
+  if(upper.includes("ALMET")) return "Almet";
   if(upper.includes("GUTTERKEL")) return "Gutterkel";
   if(upper.includes("GUTTI")) return "Gutti";
   if(upper.includes("SODIFAB")) return "Sodifab";
@@ -1053,13 +1082,54 @@ function migrateBuiltInSupplierProducts(name){
 }
 
 
+
+function getSupplierDisplayProducts(name){
+  const custom = getCustomProductsForSupplier(name);
+  const builtins = getBuiltInSupplierProducts(name);
+  const seen = new Set();
+  const out = [];
+
+  custom.forEach(p => {
+    const key = [String(p.name||"").trim(), String(p.product_color||"").trim(), String(p.supplier_ref||"").trim()].join("||");
+    seen.add(key);
+    out.push({ ...p, _source: "custom" });
+  });
+
+  builtins.forEach(p => {
+    const key = [String(p.name||"").trim(), String(p.product_color||"").trim(), String(p.supplier_ref||"").trim()].join("||");
+    if(!seen.has(key)){
+      out.push({ ...p, _source: "catalog" });
+    }
+  });
+
+  return out;
+}
+
+
 function getSupplierProductsSettingsHtml(name){
-  const products = getCustomProductsForSupplier(name);
+  const customProducts = getCustomProductsForSupplier(name);
+  const displayProducts = getSupplierDisplayProducts(name);
   const safeName = String(name).replace(/'/g, "\\'");
   const builtinsCount = getBuiltInSupplierProducts(name).length;
-  const showMigrate = name === "Gutterfrance" && builtinsCount > 0;
+  const showMigrate = builtinsCount > 0;
 
-  const rows = products.map(p => `
+  const rows = displayProducts.map(p => {
+    if(p._source === "catalog"){
+      return `
+        <div class="card" style="padding:10px;margin:8px 0 0 0;background:#f8fafc;border-style:dashed">
+          <div style="display:grid;grid-template-columns:1.25fr .7fr .9fr 1fr;gap:8px;align-items:center">
+            <div class="search" style="height:44px;margin:0;display:flex;align-items:center">${esc(p.name || "")}</div>
+            <div class="search" style="height:44px;margin:0;display:flex;align-items:center">${esc(p.unit || "U")}</div>
+            <div class="search" style="height:44px;margin:0;display:flex;align-items:center">${esc(p.product_color || "")}</div>
+            <div class="search" style="height:44px;margin:0;display:flex;align-items:center">${esc(p.supplier_ref || "")}</div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;margin:8px 0 2px 0;flex-wrap:wrap">
+            <div class="note">Produit catalogue visible sur l’accueil</div>
+          </div>
+        </div>
+      `;
+    }
+    return `
       <div class="card" style="padding:10px;margin:8px 0 0 0;background:#f8fafc">
         <div style="display:grid;grid-template-columns:1.25fr .7fr .9fr 1fr auto;gap:8px;align-items:center">
           <input class="search" style="height:44px;margin:0" placeholder="Nom du produit" value="${esc(p.name || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'name', this.value)">
@@ -1068,14 +1138,14 @@ function getSupplierProductsSettingsHtml(name){
             <option value="ML" ${(p.unit || "") === "ML" ? "selected" : ""}>ML</option>
           </select>
           <input class="search" style="height:44px;margin:0" placeholder="Produit / couleur" value="${esc(p.product_color || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'product_color', this.value)">
-          <input class="search" style="height:44px;margin:0" inputmode="decimal" placeholder="Prix HT" value="${esc(p.default_price || p.price || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'default_price', this.value)">
+          <input class="search" style="height:44px;margin:0" placeholder="Réf fournisseur" value="${esc(p.supplier_ref || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'supplier_ref', this.value)">
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="duplicateCustomProductById('${esc(p.id || "")}')">Dupliquer</button>
             <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="confirmDeleteProductById('${esc(p.id || "")}')">Supprimer</button>
           </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center;margin-top:8px">
-          <input class="search" style="height:44px;margin:0" placeholder="Réf fournisseur" value="${esc(p.supplier_ref || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'supplier_ref', this.value)">
+          <input class="search" style="height:44px;margin:0" placeholder="Prix HT" value="${esc(p.default_price || p.price || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'default_price', this.value)">
           <input class="search" style="height:44px;margin:0" placeholder="Famille d'origine" value="${esc(p.family_name || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'family_name', this.value)">
         </div>
         <div style="display:flex;gap:10px;align-items:center;margin:8px 0 2px 0;flex-wrap:wrap">
@@ -1086,19 +1156,21 @@ function getSupplierProductsSettingsHtml(name){
           ${p.from_catalog ? '<div class="note">Importé du catalogue</div>' : ''}
         </div>
       </div>
-    `).join("");
+    `;
+  }).join("");
 
   return `
     <div style="margin-top:10px">
       <div class="note" style="margin-bottom:8px">Produits du fournisseur</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
         <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="openProductModalForSupplier('${safeName}')">+ Ajouter un produit</button>
-        ${showMigrate ? `<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="migrateBuiltInSupplierProducts('${safeName}')">Importer le catalogue Gutterfrance (${builtinsCount})</button>` : ''}
+        ${showMigrate ? `<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="migrateBuiltInSupplierProducts('${safeName}')">Importer le catalogue ${safeName} (${builtinsCount})</button>` : ''}
       </div>
       ${rows || '<div class="note">Aucun produit enregistré pour ce fournisseur.</div>'}
     </div>
   `;
 }
+
 
 
 function getSupplierOpenMap(){
@@ -1156,7 +1228,7 @@ function toggleSupplierInner(name, section){
 
 function getSupplierAccordionHtml(name){
   const safeName = String(name || "").replace(/'/g, "\\'");
-  const productsCount = getCustomProductsForSupplier(name).length;
+  const productsCount = getSupplierDisplayProducts(name).length;
   const open = isSupplierOpen(name);
   const infosOpen = isSupplierInnerOpen(name, "infos");
   const productsOpen = isSupplierInnerOpen(name, "produits");
