@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="RML GOUTTIÈRE ALU">
-<title>RML GOUTTIÈRE ALU • V39 synchronisée</title>
+<title>RML GOUTTIÈRE ALU • V39 synchronisée • sync corrigée</title>
 <style>
 :root{--bg:#f4f6f9;--card:#fff;--line:#d8e0ea;--text:#18212b;--muted:#627182;--btn-accent:#334155;}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
@@ -3034,6 +3034,7 @@ function isLikelyEmbeddedViewer(){
 
 const SUPABASE_URL = "https://dbsibzcqhtecknpkkuxa.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_WE_zFh9O23cF7zEDie4L3w_JUsSb9ao";
+
 const CLOUD_ROW_ID_KEY = "rml_cloud_row_id";
 const CLOUD_TABLE = "rml-data";
 const CLOUD_HISTORY_TABLE = "rml-data-history";
@@ -3046,18 +3047,6 @@ function setSyncStatus(message){
   if(el) el.textContent = text;
   const home = document.getElementById("homeSyncStatus");
   if(home) home.textContent = text;
-}
-
-async function findSharedCloudRow(){
-  if(!supabaseCloud) throw new Error("Supabase non chargé.");
-  const { data, error } = await supabaseCloud
-    .from(CLOUD_TABLE)
-    .select("id,data,updated_at")
-    .contains("data", { sharedKey: CLOUD_SHARED_KEY })
-    .order("updated_at", { ascending: false })
-    .limit(1);
-  if(error) throw error;
-  return Array.isArray(data) && data.length ? data[0] : null;
 }
 
 async function findSharedCloudRow(){
@@ -3096,7 +3085,7 @@ async function ensureCloudRow(){
 
   const initialPayload = {
     app: "RML GOUTTIERE ALU",
-    version: "v39-sync-fix",
+    version: "v39-sync-fix-mac-iphone",
     sharedKey: CLOUD_SHARED_KEY,
     savedAt: new Date().toISOString(),
     storage: {}
@@ -3124,7 +3113,7 @@ function buildCloudPayload(){
   return {
     app: "RML GOUTTIERE ALU",
     sharedKey: CLOUD_SHARED_KEY,
-    version: "v39-sync",
+    version: "v39-sync-fix-mac-iphone",
     savedAt: new Date().toISOString(),
     storage
   };
@@ -3135,7 +3124,7 @@ function applyCloudPayload(payload){
   if(!storage || typeof storage !== "object") throw new Error("Sauvegarde cloud invalide.");
 
   const preserved = {};
-  [CLOUD_ROW_ID_KEY, "cloud_last_save_at", "cloud_last_load_at"].forEach(key => {
+  [CLOUD_ROW_ID_KEY, "cloud_last_save_at", "cloud_last_load_at", "backup_before_cloud"].forEach(key => {
     try{
       const value = localStorage.getItem(key);
       if(value !== null) preserved[key] = value;
@@ -3174,36 +3163,33 @@ async function saveCloudHistoryEntry(payload, note){
 async function loadCloudHistoryIntoPanel(){
   const host = document.getElementById("cloudHistoryList");
   if(!host || !supabaseCloud) return;
-  host.innerHTML = '<div class="note">Chargement...</div>';
-
+  host.innerHTML = '<div style="font-size:12px;color:#64748b">Chargement...</div>';
   try{
     const { data, error } = await supabaseCloud
       .from(CLOUD_HISTORY_TABLE)
-      .select("id, created_at, note, data")
+      .select("id,created_at,note,data")
       .order("created_at", { ascending: false })
       .limit(5);
-
     if(error) throw error;
-
-    const rows = data || [];
+    const rows = Array.isArray(data) ? data : [];
     if(!rows.length){
-      host.innerHTML = '<div class="note">Aucune sauvegarde d’historique disponible.</div>';
+      host.innerHTML = '<div style="font-size:13px;color:#64748b">Aucune sauvegarde d’historique disponible.</div>';
       return;
     }
-
     host.innerHTML = rows.map(row => {
-      const dt = row.created_at ? new Date(row.created_at).toLocaleString() : "";
       let productsCount = 0;
       try{
         const storage = row.data && row.data.storage ? row.data.storage : {};
-        const raw = storage["commande_fournisseur_custom_products_v1"] || "[]";
+        const raw = storage["commande_fournisseur_custom_products_v1"] || storage["rml_custom_products"] || "[]";
         productsCount = JSON.parse(raw).length || 0;
-      }catch(e){}
+      }catch(err){}
+      const dt = row.created_at ? new Date(row.created_at).toLocaleString() : "";
+      const note = row.note || "Sauvegarde";
       return `
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 0;border-top:1px solid #e2e8f0">
           <div>
             <div style="font-weight:800">${dt}</div>
-            <div class="note">${productsCount} produit(s) • ${row.note || "Sauvegarde cloud"}</div>
+            <div style="font-size:13px;color:#64748b">${productsCount} produit(s) • ${note}</div>
           </div>
           <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="restoreCloudHistoryVersion('${row.id}')">Restaurer</button>
         </div>
@@ -3211,33 +3197,28 @@ async function loadCloudHistoryIntoPanel(){
     }).join("");
   }catch(err){
     console.error(err);
-    host.innerHTML = '<div class="note" style="color:#b91c1c">Historique indisponible. Vérifie la table Supabase rml-data-history.</div>';
+    host.innerHTML = '<div style="font-size:13px;color:#b91c1c">Historique indisponible. Vérifie la table Supabase rml-data-history.</div>';
   }
 }
 
 async function restoreCloudHistoryVersion(id){
-  const ok = confirm("⚠️ Restaurer cette sauvegarde va écraser les données locales actuelles. Continuer ?");
-  if(!ok) return;
   try{
-    setSyncStatus("Restauration en cours...");
+    const ok = confirm("⚠️ Restaurer cette sauvegarde va écraser les données locales actuelles. Continuer ?");
+    if(!ok) return;
     const { data, error } = await supabaseCloud
       .from(CLOUD_HISTORY_TABLE)
       .select("data")
       .eq("id", id)
       .single();
-
     if(error) throw error;
-    if(!data || !data.data) throw new Error("Sauvegarde introuvable.");
-
+    if(!data || !data.data) throw new Error("Sauvegarde historique introuvable.");
     applyCloudPayload(data.data);
-    const stamp = new Date().toLocaleString();
-    try{ localStorage.setItem("cloud_last_load_at", stamp); }catch(e){}
-    setSyncStatus("✅ Sauvegarde restaurée (" + stamp + ")");
-    setTimeout(() => location.reload(), 250);
+    try{ localStorage.setItem("cloud_last_load_at", new Date().toLocaleString()); }catch(e){}
+    setSyncStatus("Historique restauré. Mise à jour...");
+    setTimeout(() => location.reload(), 350);
   }catch(err){
     console.error(err);
-    setSyncStatus("Erreur restauration cloud : " + (err.message || err));
-    alert("Erreur restauration cloud : " + (err.message || err));
+    alert("Erreur restauration : " + (err.message || err));
   }
 }
 
@@ -3245,6 +3226,19 @@ async function saveCloudNow(){
   try{
     setSyncStatus("Sauvegarde cloud en cours...");
     if(typeof flushAllInputsToState === "function") flushAllInputsToState();
+
+    try{
+      const backup = {};
+      for(let i = 0; i < localStorage.length; i++){
+        const k = localStorage.key(i);
+        if(k) backup[k] = localStorage.getItem(k);
+      }
+      localStorage.setItem("backup_before_cloud", JSON.stringify({
+        date: new Date().toISOString(),
+        data: backup
+      }));
+    }catch(e){}
+
     const rowId = await ensureCloudRow();
     const payload = buildCloudPayload();
     const { error } = await supabaseCloud
@@ -3252,9 +3246,12 @@ async function saveCloudNow(){
       .update({ data: payload, updated_at: new Date().toISOString() })
       .eq("id", rowId);
     if(error) throw error;
+
+    try{ await saveCloudHistoryEntry(payload, "Sauvegarde manuelle"); }catch(e){}
     try{ localStorage.setItem("cloud_last_save_at", new Date().toLocaleString()); }catch(e){}
     localStorage.setItem(CLOUD_ROW_ID_KEY, rowId);
     setSyncStatus("✅ Sauvegarde cloud OK.");
+    try{ await loadCloudHistoryIntoPanel(); }catch(e){}
   }catch(err){
     console.error(err);
     setSyncStatus("Erreur sauvegarde cloud : " + (err.message || err));
@@ -3262,7 +3259,7 @@ async function saveCloudNow(){
   }
 }
 
-async async function loadCloudNow(){
+async function loadCloudNow(){
   try{
     setSyncStatus("Chargement cloud en cours...");
 
@@ -3298,7 +3295,6 @@ async async function loadCloudNow(){
     applyCloudPayload(row.data);
     try{ localStorage.setItem("cloud_last_load_at", new Date().toLocaleString()); }catch(e){}
     if(rowId) localStorage.setItem(CLOUD_ROW_ID_KEY, rowId);
-
     setSyncStatus("🔄 Rechargement cloud réussi. Mise à jour...");
     setTimeout(() => location.reload(), 350);
   }catch(err){
@@ -3320,11 +3316,11 @@ window.addEventListener("load", function(){
       const rowId = localStorage.getItem(CLOUD_ROW_ID_KEY);
       if(rowId) setSyncStatus("Cloud connecté.");
       else setSyncStatus("Cloud prêt.");
-      else setSyncStatus("Cloud prêt.");
     }
     try{ loadCloudHistoryIntoPanel(); }catch(e){}
   }, 300);
 });
+
 
 
 function getExportStorageKeys(){
