@@ -881,14 +881,11 @@ function getSupplierRef(color, fallback){
 function getShowPrices(){
   return localStorage.getItem(SHOW_PRICES_KEY) !== "0";
 }
+function getShowPdfHeaderBand(){ return localStorage.getItem("show_pdf_header_band") !== "0"; }
+function setShowPdfHeaderBand(value){ try{ localStorage.setItem("show_pdf_header_band", value ? "1":"0"); }catch(e){} }
+
 function setShowPrices(value){
   try{ localStorage.setItem(SHOW_PRICES_KEY, value ? "1" : "0"); }catch(e){}
-}
-function getShowPdfHeaderBand(){
-  return localStorage.getItem("show_pdf_header_band") !== "0";
-}
-function setShowPdfHeaderBand(value){
-  try{ localStorage.setItem("show_pdf_header_band", value ? "1" : "0"); }catch(e){}
 }
 function totalHt(){
   return Object.values(state).reduce((sum, entry) => {
@@ -1922,19 +1919,24 @@ function goSettings(){
     </div>
     </div>
 
-    <div class="settings-section" data-settings-section="prix">
-    <div class="card">
-      <p class="title">Prix et PDF</p>
-      <label style="display:flex;align-items:center;gap:10px;font-weight:700;margin-bottom:12px">
-        <input type="checkbox" ${getShowPrices() ? "checked" : ""} onchange="setShowPrices(this.checked); goSettings();">
-        Afficher les prix et le total HT
-      </label>
-      <label style="display:flex;align-items:center;gap:10px;font-weight:700">
-        <input type="checkbox" ${getShowPdfHeaderBand() ? "checked" : ""} onchange="setShowPdfHeaderBand(this.checked); goSettings();">
-        Afficher le bandeau couleur en haut du PDF
-      </label>
-    </div>
-    </div>
+    
+<div class="settings-section" data-settings-section="prix">
+<div class="card">
+  <p class="title">Prix et PDF</p>
+
+  <label style="display:flex;align-items:center;gap:10px;font-weight:700;margin-bottom:10px">
+    <input type="checkbox" ${getShowPrices() ? "checked" : ""} onchange="setShowPrices(this.checked); goSettings();">
+    Afficher les prix et le total HT
+  </label>
+
+  <label style="display:flex;align-items:center;gap:10px;font-weight:700">
+    <input type="checkbox" ${getShowPdfHeaderBand() ? "checked" : ""} onchange="setShowPdfHeaderBand(this.checked); goSettings();">
+    Afficher le bandeau couleur en haut du PDF
+  </label>
+
+</div>
+</div>
+
 
     <div class="settings-section" data-settings-section="fournisseurs">
     <div class="card">
@@ -2325,29 +2327,18 @@ async function buildPdfBlob(){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const groups = buildGroups();
-  const showPrices = getShowPrices();
-  const showPdfHeaderBand = getShowPdfHeaderBand();
   let y = 14;
 
   const headerRgb = getPdfHeaderRgb();
+  const showPdfHeaderBand = getShowPdfHeaderBand();
   const headerTextRgb = getPdfHeaderTextRgb();
+  if(showPdfHeaderBand){ doc.setFillColor(headerRgb[0], headerRgb[1], headerRgb[2]); doc.rect(10, 10, 190, 12, "F"); }
+  doc.setTextColor(headerTextRgb[0], headerTextRgb[1], headerTextRgb[2]);
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(16);
+  doc.text(String(getCompanyName()), 14, 18);
 
-  if(showPdfHeaderBand){
-    doc.setFillColor(headerRgb[0], headerRgb[1], headerRgb[2]);
-    doc.rect(10, 10, 190, 12, "F");
-    doc.setTextColor(headerTextRgb[0], headerTextRgb[1], headerTextRgb[2]);
-    doc.setFont("helvetica","bold");
-    doc.setFontSize(16);
-    doc.text(String(getCompanyName()), 14, 18);
-    y = 30;
-  }else{
-    doc.setTextColor(30,30,30);
-    doc.setFont("helvetica","bold");
-    doc.setFontSize(16);
-    doc.text(String(getCompanyName()), 14, 18);
-    y = 26;
-  }
-
+  y = 30;
   doc.setTextColor(30,30,30);
   doc.setFont("helvetica","normal");
   doc.setFontSize(10);
@@ -2365,6 +2356,9 @@ async function buildPdfBlob(){
   doc.text("Commande n° " + getOrderNumber(), 14, y); y += 5;
   doc.text("Commande du " + getTodayFR() + "\nPersonne : " + (orderUser || "-"), 14, y); y += 7;
   doc.setFont("helvetica","normal");
+  doc.text("Total lignes : " + linesCount() + "   Quantité totale : " + totalQty(), 14, y); y += 5;
+  if(getShowPrices()){ doc.text("Total HT : " + formatMoneyFR(totalHt()), 14, y); y += 5; }
+  else { y += 3; }
   if(orderMessage && orderMessage.trim()){
     doc.setFont("helvetica","bold");
     doc.text("Message :", 14, y); y += 5;
@@ -2386,7 +2380,7 @@ async function buildPdfBlob(){
     doc.setTextColor(20,20,20);
     doc.setFontSize(9);
     doc.setFont("helvetica","bold");
-    if(showPrices){
+    if(getShowPrices()){
       doc.text("Produit", 16, y);
       doc.text("Couleur", 70, y);
       doc.text("Réf", 108, y);
@@ -2406,7 +2400,7 @@ async function buildPdfBlob(){
 
     for(const line of g.lines){
       if(y > 280){ doc.addPage(); y = 14; }
-      if(showPrices){
+      if(getShowPrices()){
         const prod = doc.splitTextToSize(String(line.variant), 48);
         const color = doc.splitTextToSize(String(line.color), 26);
         const ref = doc.splitTextToSize(String(line.ref || "-"), 24);
@@ -2445,15 +2439,7 @@ async function buildPdfBlob(){
     y += 4;
   }
 
-  if(y > 272){ doc.addPage(); y = 14; }
-  doc.setFont("helvetica","bold");
-  doc.setFontSize(10);
-  doc.setTextColor(30,30,30);
-  doc.text("Total lignes : " + linesCount(), 14, y + 4);
-  doc.text("Quantité totale : " + totalQty(), 70, y + 4);
-  y += 10;
-
-  if(showPrices){
+  if(getShowPrices()){
     if(y > 282){ doc.addPage(); y = 14; }
     doc.setFont("helvetica","bold");
     doc.setFontSize(11);
