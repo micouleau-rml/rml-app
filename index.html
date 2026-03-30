@@ -1,3 +1,6 @@
+function normalizeSupplierCompare(str){
+  return String(str || "").trim().toUpperCase();
+}
 <!-- V7 FIX -->
 <!DOCTYPE html>
 <html lang="fr">
@@ -7,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="RML GOUTTIÈRE ALU">
-<title>RML GOUTTIÈRE ALU • V39 synchronisée • V8 dédoublonnage fournisseurs</title>
+<title>RML GOUTTIÈRE ALU • ALMET iPhone corrigé • V39 synchronisée • Sodifab supprimé v2</title>
 <style>
 :root{--bg:#f4f6f9;--card:#fff;--line:#d8e0ea;--text:#18212b;--muted:#627182;--btn-accent:#334155;}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
@@ -296,9 +299,90 @@ const DEFAULT_COMPANY_PHONE = "05 56 67 33 89";
 const DEFAULT_COMPANY_EMAIL = "";
 const CUSTOM_PRODUCTS_KEY = "rml_custom_products";
 const SHOW_PRICES_KEY = "rml_show_prices";
-const DEFAULT_SUPPLIER = "Gutterfrance";
-const DEFAULT_SUPPLIER_OPTIONS = ["Gutterfrance", "Gutterkel", "Gutti", "Sodifab"];
+const DEFAULT_SUPPLIER = "GUTTERFRANCE";
+const DEFAULT_SUPPLIER_OPTIONS = ["GUTTERFRANCE", "GUTTERKEL", "GUTTI", "ALMET"];
+
+function normalizeSupplierName(value){
+  return String(value || "").trim().replace(/\s+/g, " ").toUpperCase();
+}
+
+function normalizeSupplierMapKeys(map){
+  const out = {};
+  Object.keys(map || {}).forEach(key => {
+    const nk = normalizeSupplierName(key);
+    if(nk) out[nk] = map[key];
+  });
+  return out;
+}
+
+function normalizeSupplierDataOnce(){
+  const FLAG = "rml_supplier_normalize_v8_done";
+  try{
+    if(localStorage.getItem(FLAG) === "1") return;
+  }catch(e){}
+
+  try{
+    const raw = JSON.parse(localStorage.getItem(SUPPLIERS_KEY) || "[]");
+    const clean = Array.isArray(raw) ? raw.map(normalizeSupplierName).filter(Boolean) : [];
+    localStorage.setItem(SUPPLIERS_KEY, JSON.stringify([...new Set(clean)]));
+  }catch(e){}
+
+  try{
+    const raw = JSON.parse(localStorage.getItem(SUPPLIER_ORDER_KEY) || "[]");
+    const clean = Array.isArray(raw) ? raw.map(normalizeSupplierName).filter(Boolean) : [];
+    localStorage.setItem(SUPPLIER_ORDER_KEY, JSON.stringify([...new Set(clean)]));
+  }catch(e){}
+
+  try{
+    const raw = JSON.parse(localStorage.getItem(SUPPLIER_EMAILS_KEY) || "{}") || {};
+    localStorage.setItem(SUPPLIER_EMAILS_KEY, JSON.stringify(normalizeSupplierMapKeys(raw)));
+  }catch(e){}
+
+  try{
+    const raw = JSON.parse(localStorage.getItem(SUPPLIER_COLORS_KEY) || "{}") || {};
+    localStorage.setItem(SUPPLIER_COLORS_KEY, JSON.stringify(normalizeSupplierMapKeys(raw)));
+  }catch(e){}
+
+  try{
+    const openMap = JSON.parse(localStorage.getItem("rml_supplier_open_map_v1") || "{}") || {};
+    const normalized = {};
+    Object.keys(openMap).forEach(k => {
+      normalized[normalizeSupplierName(k)] = openMap[k];
+    });
+    localStorage.setItem("rml_supplier_open_map_v1", JSON.stringify(normalized));
+  }catch(e){}
+
+  try{
+    const innerMap = JSON.parse(localStorage.getItem("rml_supplier_inner_open_map_v1") || "{}") || {};
+    const normalized = {};
+    Object.keys(innerMap).forEach(k => {
+      const parts = String(k).split("||");
+      if(parts.length >= 2){
+        normalized[normalizeSupplierName(parts[0]) + "||" + parts.slice(1).join("||")] = innerMap[k];
+      }else{
+        normalized[normalizeSupplierName(k)] = innerMap[k];
+      }
+    });
+    localStorage.setItem("rml_supplier_inner_open_map_v1", JSON.stringify(normalized));
+  }catch(e){}
+
+  try{
+    const list = getCustomProducts();
+    list.forEach(p => {
+      if(p && typeof p === "object"){
+        if("supplier" in p) p.supplier = normalizeSupplierName(p.supplier || DEFAULT_SUPPLIER);
+        if("supplierName" in p && p.supplierName) p.supplierName = normalizeSupplierName(p.supplierName);
+        if("supplierId" in p && p.supplierId) p.supplierId = normalizeSupplierName(p.supplierId);
+      }
+    });
+    saveCustomProducts(list);
+  }catch(e){}
+
+  try{ localStorage.setItem(FLAG, "1"); }catch(e){}
+}
+
 const SUPPLIERS_KEY = "rml_suppliers";
+cleanupSodifabOnce();
 const SUPPLIER_EMAILS_KEY = "rml_supplier_emails";
 function getSupplierEmails(){
   try{
@@ -314,13 +398,13 @@ function saveSupplierEmails(map){
   }catch(e){}
 }
 function getSupplierEmail(name){
-  const map = getSupplierEmails();
-  return map[canonicalSupplierName(name)] || "";
+  const map = normalizeSupplierMapKeys(getSupplierEmails());
+  return map[normalizeSupplierName(name)] || "";
 }
 function updateSupplierEmail(name, email){
-  const cleanName = canonicalSupplierName(name);
+  const cleanName = normalizeSupplierName(name);
   if(!cleanName) return;
-  const map = getSupplierEmails();
+  const map = normalizeSupplierMapKeys(getSupplierEmails());
   map[cleanName] = String(email || "").trim();
   saveSupplierEmails(map);
 }
@@ -330,15 +414,15 @@ const SUPPLIER_ORDER_KEY = "supplier_order";
 function getSupplierOrder(){
   try{
     const raw = JSON.parse(localStorage.getItem(SUPPLIER_ORDER_KEY) || "[]");
-    return Array.isArray(raw) ? raw.map(v => String(v || "").trim()).filter(Boolean) : [];
+    return Array.isArray(raw) ? raw.map(normalizeSupplierName).filter(Boolean) : [];
   }catch(e){
     return [];
   }
 }
 function saveSupplierOrder(list){
   try{
-    const clean = Array.isArray(list) ? list.map(v => String(v || "").trim()).filter(Boolean) : [];
-    localStorage.setItem(SUPPLIER_ORDER_KEY, JSON.stringify(clean));
+    const clean = Array.isArray(list) ? list.map(normalizeSupplierName).filter(Boolean) : [];
+    localStorage.setItem(SUPPLIER_ORDER_KEY, JSON.stringify([...new Set(clean)]));
   }catch(e){}
 }
 function normalizeSupplierOrder(list){
@@ -363,18 +447,105 @@ function moveSupplier(name, direction){
   goSettings();
 }
 
+
+
+function cleanupSodifabOnce(){
+  const FLAG = "rml_cleanup_sodifab_done_v1";
+  try{
+    if(localStorage.getItem(FLAG) === "1") return;
+  }catch(e){}
+
+  try{
+    // remove custom products linked to Sodifab
+    const products = getCustomProducts().filter(p => inferSupplierFromProduct(p) !== "Sodifab");
+    saveCustomProducts(products);
+  }catch(e){}
+
+  try{
+    // remove supplier from saved options/order
+    const raw = JSON.parse(localStorage.getItem("rml_suppliers") || "[]");
+    const cleaned = Array.isArray(raw) ? raw.filter(name => String(name || "").trim() !== "Sodifab") : [];
+    localStorage.setItem("rml_suppliers", JSON.stringify(cleaned));
+  }catch(e){}
+
+  try{
+    const emails = JSON.parse(localStorage.getItem("rml_supplier_emails") || "{}") || {};
+    delete emails["Sodifab"];
+    localStorage.setItem("rml_supplier_emails", JSON.stringify(emails));
+  }catch(e){}
+
+  try{
+    const colors = JSON.parse(localStorage.getItem("rml_supplier_colors") || "{}") || {};
+    delete colors["Sodifab"];
+    localStorage.setItem("rml_supplier_colors", JSON.stringify(colors));
+  }catch(e){}
+
+  try{
+    const openMap = JSON.parse(localStorage.getItem("rml_supplier_open_map_v1") || "{}") || {};
+    delete openMap["Sodifab"];
+    localStorage.setItem("rml_supplier_open_map_v1", JSON.stringify(openMap));
+  }catch(e){}
+
+  try{
+    const innerMap = JSON.parse(localStorage.getItem("rml_supplier_inner_open_map_v1") || "{}") || {};
+    Object.keys(innerMap).forEach(k => {
+      if(String(k).startsWith("Sodifab||")) delete innerMap[k];
+    });
+    localStorage.setItem("rml_supplier_inner_open_map_v1", JSON.stringify(innerMap));
+  }catch(e){}
+
+  try{ localStorage.setItem(FLAG, "1"); }catch(e){}
+}
+
+function inferSupplierNameFromText(value){
+  const upper = String(value || "").toUpperCase();
+  if(
+    upper.includes("ALMET") ||
+    upper.includes("COUVERTINES") ||
+    upper.includes("CROCHETS COUVERTINES") ||
+    upper.includes("ANGLES COUVERTINES") ||
+    upper.includes("DAUPHINS ALU") ||
+    upper.includes("DAUPHINS GALVA") ||
+    upper.includes("VIS COULEUR ET PEINTURE")
+  ) return "ALMET";
+  if(upper.includes("SODIFAB")) return "SODIFAB";
+  if(upper.includes("GUTTERKEL")) return "GUTTERKEL";
+  if(upper.includes("GUTTI")) return "GUTTI";
+  if(upper.includes("GUTTERFRANCE")) return "GUTTERFRANCE";
+  return "";
+}
+function inferSupplierFromProduct(p){
+  const direct = normalizeSupplierName((p && p.supplier) || "");
+  if(direct) return direct;
+  const fields = [
+    (p && p.supplierName) || "",
+    (p && p.supplierId) || "",
+    (p && p.family_name) || "",
+    (p && p.family_label) || "",
+    (p && p.name) || "",
+    (p && p.product_color) || "",
+    (p && p.supplier_ref) || ""
+  ];
+  for(const field of fields){
+    const guess = inferSupplierNameFromText(field);
+    if(guess) return guess;
+  }
+  return DEFAULT_SUPPLIER;
+}
+
 function getSupplierOptionsRaw(){
   try{
     const raw = JSON.parse(localStorage.getItem(SUPPLIERS_KEY) || "[]");
-    const list = Array.isArray(raw) ? raw.map(v => String(v || "").trim()).filter(Boolean) : [];
+    const list = Array.isArray(raw) ? raw.map(normalizeSupplierName).filter(Boolean) : [];
     const merged = [...DEFAULT_SUPPLIER_OPTIONS];
-    list.forEach(name => { if(!merged.includes(name)) merged.push(name); });
-    // also merge suppliers already present on custom products
+    list.forEach(name => {
+      if(!merged.includes(name)) merged.push(name);
+    });
     getCustomProducts().forEach(p => {
-      const s = String((p && p.supplier) || "").trim();
+      const s = inferSupplierFromProduct(p);
       if(s && !merged.includes(s)) merged.push(s);
     });
-    return merged;
+    return [...new Set(merged.map(normalizeSupplierName).filter(Boolean))];
   }catch(e){
     return DEFAULT_SUPPLIER_OPTIONS.slice();
   }
@@ -384,14 +555,14 @@ function getSupplierOptions(){
 }
 function saveSupplierOptions(list){
   try{
-    const clean = Array.isArray(list) ? list.map(canonicalSupplierName).filter(Boolean) : [];
+    const clean = Array.isArray(list) ? list.map(normalizeSupplierName).filter(Boolean) : [];
     localStorage.setItem(SUPPLIERS_KEY, JSON.stringify([...new Set(clean)]));
   }catch(e){}
 }
 function addSupplier(){
   const input = document.getElementById("newSupplierInput");
   if(!input) return;
-  const clean = canonicalSupplierName(input.value || "");
+  const clean = normalizeSupplierName(input.value || "");
   if(!clean){
     alert("Merci de saisir un nom de fournisseur.");
     return;
@@ -407,10 +578,10 @@ function addSupplier(){
   input.value = "";
   alert("Fournisseur ajouté en majuscules.");
   goSettings();
-  if(typeof setSettingsSection === "function") setSettingsSection('fournisseurs');
+  setSettingsSection('fournisseurs');
 }
 function deleteSupplier(name){
-  const clean = String(name || "").trim();
+  const clean = normalizeSupplierName(name);
   if(!clean) return;
   if(DEFAULT_SUPPLIER_OPTIONS.includes(clean)){
     alert("Ce fournisseur de base ne peut pas être supprimé.");
@@ -786,12 +957,12 @@ function getSupplierColors(){
   try{ return JSON.parse(localStorage.getItem(SUPPLIER_COLORS_KEY) || "{}") || {}; }catch(e){ return {}; }
 }
 function getSupplierColor(name, fallback){
-  const map = getSupplierColors();
-  return map[canonicalSupplierName(name)] || fallback || "#334155";
+  const map = normalizeSupplierMapKeys(getSupplierColors());
+  return map[normalizeSupplierName(name)] || fallback || "#334155";
 }
 function updateSupplierColor(name, value){
-  const map = getSupplierColors();
-  map[canonicalSupplierName(name)] = value || "#334155";
+  const map = normalizeSupplierMapKeys(getSupplierColors());
+  map[normalizeSupplierName(name)] = value || "#334155";
   localStorage.setItem(SUPPLIER_COLORS_KEY, JSON.stringify(map));
 }
 function getAppBg(){ return localStorage.getItem(APP_BG_KEY) || "#f4f6f9"; }
@@ -962,25 +1133,44 @@ function deleteCustomProductById(productId){
 function openProductModalForSupplier(supplierName){
   openProductModal();
   const el = document.getElementById("newProductSupplier");
-  if(el) el.value = supplierName || DEFAULT_SUPPLIER;
+  if(el) el.value = normalizeSupplierName(supplierName || DEFAULT_SUPPLIER);
+}
+
+
+function isRemovedSupplierFamily(fam){
+  const txt = ((fam && fam.name) || "") + " " + ((fam && fam.family_label) || "");
+  return txt.toUpperCase().includes("SODIFAB");
 }
 
 function getFamilySupplierName(fam){
-  const direct = String((fam && fam.supplier) || "").trim();
+  const direct = normalizeSupplierName((fam && fam.supplier) || "");
   if(direct) return direct;
   const txt = ((fam && fam.name) || "") + " " + ((fam && fam.family_label) || "");
   const upper = txt.toUpperCase();
+
+  if(
+    upper.includes("ALMET") ||
+    upper.includes("COUVERTINES") ||
+    upper.includes("CROCHETS COUVERTINES") ||
+    upper.includes("ANGLES COUVERTINES") ||
+    upper.includes("DAUPHINS ALU") ||
+    upper.includes("DAUPHINS GALVA") ||
+    upper.includes("VIS COULEUR ET PEINTURE")
+  ) return "ALMET";
+
   if(upper.includes("GUTTERKEL")) return "GUTTERKEL";
   if(upper.includes("GUTTI")) return "GUTTI";
   if(upper.includes("SODIFAB")) return "SODIFAB";
   return "GUTTERFRANCE";
 }
 function getBuiltInSupplierProducts(name){
-  const supplierName = String(name || "").trim();
+  const supplierName = normalizeSupplierCompare(name);
   const list = [];
   try{
     (DATA.families || []).forEach(fam => {
-      if(getFamilySupplierName(fam) !== supplierName) return;
+    if(isRemovedSupplierFamily(fam)) return;
+      if(isRemovedSupplierFamily(fam)) return;
+      if(normalizeSupplierCompare(getFamilySupplierName(fam)) !== normalizeSupplierCompare(supplierName)) return;
       (fam.items || []).forEach((it, idx) => {
         const variant = String((it && it.variant) || (it && it.label) || "").trim();
         if(!variant) return;
@@ -1007,58 +1197,102 @@ function getBuiltInSupplierProducts(name){
   }catch(e){}
   return list;
 }
+
 function migrateBuiltInSupplierProducts(name){
   const supplierName = String(name || "").trim();
   const builtins = getBuiltInSupplierProducts(supplierName);
   if(!builtins.length){
-    alert("Aucun produit catalogue à migrer pour ce fournisseur.");
+    alert("Aucun produit catalogue à importer pour ce fournisseur.");
     return;
   }
-  const ok = confirm("Importer " + builtins.length + " produit(s) catalogue dans la fiche " + supplierName + " ?\n\nIls seront ajoutés dans la fiche fournisseur, sans s'afficher en double sur l'accueil.");
+
+  const ok = confirm("Importer " + builtins.length + " produit(s) du catalogue dans la fiche " + supplierName + " ?");
   if(!ok) return;
 
-  const list = getCustomProducts();
+  const current = getCustomProducts();
   let added = 0;
 
-  builtins.forEach(p => {
-    const exists = list.some(x =>
-      String((x && x.supplier) || "").trim() === supplierName &&
+  builtins.forEach((p, idx) => {
+    const exists = current.some(x =>
+      inferSupplierFromProduct(x) === supplierName &&
       String((x && x.name) || "").trim() === String(p.name || "").trim() &&
-      String((x && x.product_color) || "").trim() === String(p.product_color || "").trim()
+      String((x && x.product_color) || "").trim() === String(p.product_color || "").trim() &&
+      String((x && x.supplier_ref) || "").trim() === String(p.supplier_ref || "").trim()
     );
-    if(!exists){
-      list.push({
-        id: "mig_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,8),
-        supplier: supplierName,
-        name: p.name,
-        unit: p.unit || "U",
-        default_price: p.default_price || "",
-        price: p.price || "",
-        color: p.color || "#334155",
-        product_color: p.product_color || "",
-        supplier_ref: p.supplier_ref || "",
-        family_name: p.family_name || "",
-        family_label: p.family_label || "",
-        visible: false,
-        from_catalog: true
-      });
-      added++;
-    }
+    if(exists) return;
+
+    current.push({
+      id: "imp_" + supplierName.replace(/\s+/g, "_").toLowerCase() + "_" + Date.now().toString(36) + "_" + idx + "_" + Math.random().toString(36).slice(2,7),
+      supplier: supplierName,
+      name: p.name || "",
+      unit: p.unit || "U",
+      product_color: p.product_color || "",
+      supplier_ref: p.supplier_ref || "",
+      default_price: p.default_price || p.price || "",
+      price: p.price || p.default_price || "",
+      family_name: p.family_name || "",
+      family_label: p.family_label || "",
+      color: p.color || "#334155",
+      visible: false,
+      from_catalog: true
+    });
+    added++;
   });
 
-  saveCustomProducts(list);
+  saveCustomProducts(current);
   try{ if(typeof syncCustomProductPricesToState === "function") syncCustomProductPricesToState(); }catch(e){}
+
   alert(added + " produit(s) importé(s) dans " + supplierName + ".");
   goSettings();
   setSettingsSection('fournisseurs');
+
+  setTimeout(function(){
+    try{
+      const currentSection = document.querySelector('[data-settings-section="fournisseurs"]');
+      if(currentSection){
+        const heads = currentSection.querySelectorAll('.supplier-accordion-head');
+        heads.forEach(head => {
+          if(head.textContent && head.textContent.toUpperCase().includes(supplierName.toUpperCase())){
+            head.click();
+          }
+        });
+      }
+    }catch(e){}
+  }, 150);
 }
+
+
+
+
+function getSupplierDisplayProducts(name){
+  const custom = getCustomProductsForSupplier(name);
+  const builtins = getBuiltInSupplierProducts(name);
+  const seen = new Set();
+  const out = [];
+
+  custom.forEach(p => {
+    const key = [String(p.name||"").trim(), String(p.product_color||"").trim(), String(p.supplier_ref||"").trim()].join("||");
+    seen.add(key);
+    out.push({ ...p, _source: "custom" });
+  });
+
+  builtins.forEach(p => {
+    const key = [String(p.name||"").trim(), String(p.product_color||"").trim(), String(p.supplier_ref||"").trim()].join("||");
+    if(!seen.has(key)){
+      out.push({ ...p, _source: "catalog" });
+    }
+  });
+
+  return out;
+}
+
 
 
 function getSupplierProductsSettingsHtml(name){
   const products = getCustomProductsForSupplier(name);
   const safeName = String(name).replace(/'/g, "\\'");
   const builtinsCount = getBuiltInSupplierProducts(name).length;
-  const showMigrate = name === "Gutterfrance" && builtinsCount > 0;
+  const showMigrate = builtinsCount > 0;
 
   const rows = products.map(p => `
       <div class="card" style="padding:10px;margin:8px 0 0 0;background:#f8fafc">
@@ -1069,14 +1303,14 @@ function getSupplierProductsSettingsHtml(name){
             <option value="ML" ${(p.unit || "") === "ML" ? "selected" : ""}>ML</option>
           </select>
           <input class="search" style="height:44px;margin:0" placeholder="Produit / couleur" value="${esc(p.product_color || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'product_color', this.value)">
-          <input class="search" style="height:44px;margin:0" inputmode="decimal" placeholder="Prix HT" value="${esc(p.default_price || p.price || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'default_price', this.value)">
+          <input class="search" style="height:44px;margin:0" placeholder="Réf fournisseur" value="${esc(p.supplier_ref || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'supplier_ref', this.value)">
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="duplicateCustomProductById('${esc(p.id || "")}')">Dupliquer</button>
             <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="confirmDeleteProductById('${esc(p.id || "")}')">Supprimer</button>
           </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center;margin-top:8px">
-          <input class="search" style="height:44px;margin:0" placeholder="Réf fournisseur" value="${esc(p.supplier_ref || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'supplier_ref', this.value)">
+          <input class="search" style="height:44px;margin:0" placeholder="Prix HT" value="${esc(p.default_price || p.price || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'default_price', this.value)">
           <input class="search" style="height:44px;margin:0" placeholder="Famille d'origine" value="${esc(p.family_name || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'family_name', this.value)">
         </div>
         <div style="display:flex;gap:10px;align-items:center;margin:8px 0 2px 0;flex-wrap:wrap">
@@ -1089,17 +1323,24 @@ function getSupplierProductsSettingsHtml(name){
       </div>
     `).join("");
 
+  const note = showMigrate
+    ? `<div class="note" style="margin-top:8px">Les produits visibles sur l’accueil ne sont pas encore dans la fiche fournisseur. Clique sur “Importer le catalogue” pour les copier réellement dans ce fournisseur, puis ils apparaîtront ici et tu pourras les modifier ou les supprimer.</div>`
+    : '';
+
   return `
     <div style="margin-top:10px">
       <div class="note" style="margin-bottom:8px">Produits du fournisseur</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
         <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="openProductModalForSupplier('${safeName}')">+ Ajouter un produit</button>
-        ${showMigrate ? `<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="migrateBuiltInSupplierProducts('${safeName}')">Importer le catalogue Gutterfrance (${builtinsCount})</button>` : ''}
+        ${showMigrate ? `<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="migrateBuiltInSupplierProducts('${safeName}')">Importer le catalogue ${safeName} (${builtinsCount})</button>` : ''}
       </div>
-      ${rows || '<div class="note">Aucun produit enregistré pour ce fournisseur.</div>'}
+      ${note}
+      ${rows || '<div class="note">Aucun produit réellement rattaché à ce fournisseur pour le moment.</div>'}
     </div>
   `;
 }
+
+
 
 
 function getSupplierOpenMap(){
@@ -1430,9 +1671,9 @@ function getFamilies(){
     copy.name = String(ov.name || f.name || "").trim();
     copy.visible = ov.visible !== false;
     return copy;
-  }).filter(f => f.visible !== false);
+  }).filter(f => f.visible !== false && !isRemovedSupplierFamily(f));
   const custom = getCustomProducts()
-    .filter(p => String((p && p.name) || "").trim() && p.visible !== false)
+    .filter(p => String((p && p.name) || "").trim() && p.visible !== false && inferSupplierFromProduct(p) !== "Sodifab")
     .map(customProductToFamily);
   return base.concat(custom);
 }
@@ -1597,7 +1838,6 @@ function setSettingsSection(section){
 }
 
 function goSettings(){
-  try{
   setSettingsMode(true);
   document.getElementById("home").classList.add("hidden");
   document.getElementById("supplier")?.classList.add("hidden");
@@ -1695,7 +1935,7 @@ function goSettings(){
       <div class="user-label">Ajouter un nouveau fournisseur</div>
       <div class="note" style="margin-bottom:8px">Chaque fournisseur contient maintenant directement ses produits. L’onglet Produits séparé a été supprimé.</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
-        <input id="newSupplierInput" class="search" style="height:44px;flex:1 1 260px" placeholder="Nom du fournisseur">
+        <input id="newSupplierInput" class="search" style="height:44px;flex:1 1 260px" placeholder="Nom du fournisseur (sera mis en MAJUSCULES)">
         <button class="btn neutral" style="width:auto" onclick="addSupplier()">+ Ajouter</button>
         <button class="btn neutral" style="width:auto" onclick="saveSuppliersSettings()">Enregistrer</button>
       </div>
@@ -1758,15 +1998,6 @@ function goSettings(){
   `;
   settings.classList.remove("hidden");
   setSettingsSection(getSettingsSection());
-    settings.classList.remove("hidden");
-    if(typeof setSettingsSection === "function"){
-      const section = (typeof getSettingsSection === "function" ? getSettingsSection() : "") || "fournisseurs";
-      setSettingsSection(section);
-    }
-  }catch(e){
-    console.error(e);
-    alert("Erreur ouverture réglages");
-  }
 }
 
 function goHome(){
@@ -3045,6 +3276,7 @@ function isLikelyEmbeddedViewer(){
 
 const SUPABASE_URL = "https://dbsibzcqhtecknpkkuxa.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_WE_zFh9O23cF7zEDie4L3w_JUsSb9ao";
+
 const CLOUD_ROW_ID_KEY = "rml_cloud_row_id";
 const CLOUD_TABLE = "rml-data";
 const CLOUD_HISTORY_TABLE = "rml-data-history";
@@ -3064,22 +3296,17 @@ async function findSharedCloudRow(){
   const { data, error } = await supabaseCloud
     .from(CLOUD_TABLE)
     .select("id,data,updated_at")
-    .contains("data", { sharedKey: CLOUD_SHARED_KEY })
-    .order("updated_at", { ascending: false })
-    .limit(1);
-  if(error) throw error;
-  return Array.isArray(data) && data.length ? data[0] : null;
-}
-
-async function findSharedCloudRow(){
-  if(!supabaseCloud) throw new Error("Supabase non chargé.");
-  const { data, error } = await supabaseCloud
-    .from(CLOUD_TABLE)
-    .select("id,data,updated_at")
     .order("updated_at", { ascending: false });
   if(error) throw error;
   const rows = Array.isArray(data) ? data : [];
-  return rows.find(row => row && row.data && row.data.sharedKey === CLOUD_SHARED_KEY) || null;
+
+  // 1) row already migrated to shared key
+  const shared = rows.find(row => row && row.data && row.data.sharedKey === CLOUD_SHARED_KEY);
+  if(shared) return shared;
+
+  // 2) fallback: most recent legacy row for this app
+  const legacy = rows.find(row => row && row.data && row.data.app === "RML GOUTTIERE ALU");
+  return legacy || null;
 }
 
 async function ensureCloudRow(){
@@ -3093,7 +3320,7 @@ async function ensureCloudRow(){
         .select("id,data")
         .eq("id", existingId)
         .single();
-      if(!error && data && data.id && data.data && data.data.sharedKey === CLOUD_SHARED_KEY){
+      if(!error && data && data.id){
         return data.id;
       }
     }catch(e){}
@@ -3107,7 +3334,7 @@ async function ensureCloudRow(){
 
   const initialPayload = {
     app: "RML GOUTTIERE ALU",
-    version: "v39-sync-fix",
+    version: "v39-sync-fix-mac-iphone",
     sharedKey: CLOUD_SHARED_KEY,
     savedAt: new Date().toISOString(),
     storage: {}
@@ -3135,7 +3362,7 @@ function buildCloudPayload(){
   return {
     app: "RML GOUTTIERE ALU",
     sharedKey: CLOUD_SHARED_KEY,
-    version: "v39-sync",
+    version: "v39-sync-fix-mac-iphone",
     savedAt: new Date().toISOString(),
     storage
   };
@@ -3146,7 +3373,7 @@ function applyCloudPayload(payload){
   if(!storage || typeof storage !== "object") throw new Error("Sauvegarde cloud invalide.");
 
   const preserved = {};
-  [CLOUD_ROW_ID_KEY, "cloud_last_save_at", "cloud_last_load_at"].forEach(key => {
+  [CLOUD_ROW_ID_KEY, "cloud_last_save_at", "cloud_last_load_at", "backup_before_cloud"].forEach(key => {
     try{
       const value = localStorage.getItem(key);
       if(value !== null) preserved[key] = value;
@@ -3185,36 +3412,33 @@ async function saveCloudHistoryEntry(payload, note){
 async function loadCloudHistoryIntoPanel(){
   const host = document.getElementById("cloudHistoryList");
   if(!host || !supabaseCloud) return;
-  host.innerHTML = '<div class="note">Chargement...</div>';
-
+  host.innerHTML = '<div style="font-size:12px;color:#64748b">Chargement...</div>';
   try{
     const { data, error } = await supabaseCloud
       .from(CLOUD_HISTORY_TABLE)
-      .select("id, created_at, note, data")
+      .select("id,created_at,note,data")
       .order("created_at", { ascending: false })
       .limit(5);
-
     if(error) throw error;
-
-    const rows = data || [];
+    const rows = Array.isArray(data) ? data : [];
     if(!rows.length){
-      host.innerHTML = '<div class="note">Aucune sauvegarde d’historique disponible.</div>';
+      host.innerHTML = '<div style="font-size:13px;color:#64748b">Aucune sauvegarde d’historique disponible.</div>';
       return;
     }
-
     host.innerHTML = rows.map(row => {
-      const dt = row.created_at ? new Date(row.created_at).toLocaleString() : "";
       let productsCount = 0;
       try{
         const storage = row.data && row.data.storage ? row.data.storage : {};
-        const raw = storage["commande_fournisseur_custom_products_v1"] || "[]";
+        const raw = storage["commande_fournisseur_custom_products_v1"] || storage["rml_custom_products"] || "[]";
         productsCount = JSON.parse(raw).length || 0;
-      }catch(e){}
+      }catch(err){}
+      const dt = row.created_at ? new Date(row.created_at).toLocaleString() : "";
+      const note = row.note || "Sauvegarde";
       return `
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 0;border-top:1px solid #e2e8f0">
           <div>
             <div style="font-weight:800">${dt}</div>
-            <div class="note">${productsCount} produit(s) • ${row.note || "Sauvegarde cloud"}</div>
+            <div style="font-size:13px;color:#64748b">${productsCount} produit(s) • ${note}</div>
           </div>
           <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="restoreCloudHistoryVersion('${row.id}')">Restaurer</button>
         </div>
@@ -3222,33 +3446,28 @@ async function loadCloudHistoryIntoPanel(){
     }).join("");
   }catch(err){
     console.error(err);
-    host.innerHTML = '<div class="note" style="color:#b91c1c">Historique indisponible. Vérifie la table Supabase rml-data-history.</div>';
+    host.innerHTML = '<div style="font-size:13px;color:#b91c1c">Historique indisponible. Vérifie la table Supabase rml-data-history.</div>';
   }
 }
 
 async function restoreCloudHistoryVersion(id){
-  const ok = confirm("⚠️ Restaurer cette sauvegarde va écraser les données locales actuelles. Continuer ?");
-  if(!ok) return;
   try{
-    setSyncStatus("Restauration en cours...");
+    const ok = confirm("⚠️ Restaurer cette sauvegarde va écraser les données locales actuelles. Continuer ?");
+    if(!ok) return;
     const { data, error } = await supabaseCloud
       .from(CLOUD_HISTORY_TABLE)
       .select("data")
       .eq("id", id)
       .single();
-
     if(error) throw error;
-    if(!data || !data.data) throw new Error("Sauvegarde introuvable.");
-
+    if(!data || !data.data) throw new Error("Sauvegarde historique introuvable.");
     applyCloudPayload(data.data);
-    const stamp = new Date().toLocaleString();
-    try{ localStorage.setItem("cloud_last_load_at", stamp); }catch(e){}
-    setSyncStatus("✅ Sauvegarde restaurée (" + stamp + ")");
-    setTimeout(() => location.reload(), 250);
+    try{ localStorage.setItem("cloud_last_load_at", new Date().toLocaleString()); }catch(e){}
+    setSyncStatus("Historique restauré. Mise à jour...");
+    setTimeout(() => location.reload(), 350);
   }catch(err){
     console.error(err);
-    setSyncStatus("Erreur restauration cloud : " + (err.message || err));
-    alert("Erreur restauration cloud : " + (err.message || err));
+    alert("Erreur restauration : " + (err.message || err));
   }
 }
 
@@ -3256,16 +3475,34 @@ async function saveCloudNow(){
   try{
     setSyncStatus("Sauvegarde cloud en cours...");
     if(typeof flushAllInputsToState === "function") flushAllInputsToState();
+
+    try{
+      const backup = {};
+      for(let i = 0; i < localStorage.length; i++){
+        const k = localStorage.key(i);
+        if(k) backup[k] = localStorage.getItem(k);
+      }
+      localStorage.setItem("backup_before_cloud", JSON.stringify({
+        date: new Date().toISOString(),
+        data: backup
+      }));
+    }catch(e){}
+
     const rowId = await ensureCloudRow();
     const payload = buildCloudPayload();
+    payload.sharedKey = CLOUD_SHARED_KEY;
+
     const { error } = await supabaseCloud
       .from(CLOUD_TABLE)
       .update({ data: payload, updated_at: new Date().toISOString() })
       .eq("id", rowId);
     if(error) throw error;
+
+    try{ await saveCloudHistoryEntry(payload, "Sauvegarde manuelle"); }catch(e){}
     try{ localStorage.setItem("cloud_last_save_at", new Date().toLocaleString()); }catch(e){}
     localStorage.setItem(CLOUD_ROW_ID_KEY, rowId);
     setSyncStatus("✅ Sauvegarde cloud OK.");
+    try{ await loadCloudHistoryIntoPanel(); }catch(e){}
   }catch(err){
     console.error(err);
     setSyncStatus("Erreur sauvegarde cloud : " + (err.message || err));
@@ -3273,7 +3510,7 @@ async function saveCloudNow(){
   }
 }
 
-async async function loadCloudNow(){
+async function loadCloudNow(){
   try{
     setSyncStatus("Chargement cloud en cours...");
 
@@ -3287,7 +3524,7 @@ async async function loadCloudNow(){
           .select("id,data")
           .eq("id", rowId)
           .single();
-        if(!error && data && data.data && data.data.sharedKey === CLOUD_SHARED_KEY){
+        if(!error && data && data.data){
           row = data;
         }
       }catch(e){}
@@ -3309,7 +3546,6 @@ async async function loadCloudNow(){
     applyCloudPayload(row.data);
     try{ localStorage.setItem("cloud_last_load_at", new Date().toLocaleString()); }catch(e){}
     if(rowId) localStorage.setItem(CLOUD_ROW_ID_KEY, rowId);
-
     setSyncStatus("🔄 Rechargement cloud réussi. Mise à jour...");
     setTimeout(() => location.reload(), 350);
   }catch(err){
@@ -3320,7 +3556,8 @@ async async function loadCloudNow(){
 }
 
 window.addEventListener("load", function(){
-  try{ dedupeSuppliersOnce(); }catch(e){}
+  normalizeSupplierDataOnce();
+  cleanupSodifabOnce();
   setTimeout(function(){
     const lastSave = localStorage.getItem("cloud_last_save_at") || "";
     const lastLoad = localStorage.getItem("cloud_last_load_at") || "";
@@ -3332,11 +3569,11 @@ window.addEventListener("load", function(){
       const rowId = localStorage.getItem(CLOUD_ROW_ID_KEY);
       if(rowId) setSyncStatus("Cloud connecté.");
       else setSyncStatus("Cloud prêt.");
-      else setSyncStatus("Cloud prêt.");
     }
     try{ loadCloudHistoryIntoPanel(); }catch(e){}
   }, 300);
 });
+
 
 
 function getExportStorageKeys(){
