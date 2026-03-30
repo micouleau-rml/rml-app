@@ -3426,7 +3426,7 @@ async function loadCloudHistoryIntoPanel(){
       let productsCount = 0;
       try{
         const storage = row.data && row.data.storage ? row.data.storage : {};
-        const raw = storage["commande_fournisseur_custom_products_v1"] || storage["rml_custom_products"] || "[]";
+        const raw = storage["rml_custom_products"] || storage["commande_fournisseur_custom_products_v1"] || "[]";
         productsCount = JSON.parse(raw).length || 0;
       }catch(err){}
       const dt = row.created_at ? new Date(row.created_at).toLocaleString() : "";
@@ -3574,14 +3574,21 @@ window.addEventListener("load", function(){
 
 
 function getExportStorageKeys(){
-  // Export allégé compatible iPhone :
-  // on garde uniquement les données utiles à la personnalisation et au catalogue
-  // et on exclut l'historique PDF, les jetons, et les blocs trop lourds.
+  // Export allégé compatible iPhone.
+  // On garde les clés actuelles + les anciennes pour rester compatible.
   return [
     "commande_fournisseur_state_v1",
     "commande_fournisseur_custom_products_v1",
     "commande_fournisseur_supplier_emails_v1",
     "commande_fournisseur_suppliers_v1",
+    "rml_custom_products",
+    "rml_supplier_emails",
+    "rml_suppliers",
+    "rml_supplier_colors",
+    "rml_supplier_open_map_v1",
+    "rml_supplier_inner_open_map_v1",
+    "rml_cleanup_sodifab_done_v1",
+    "rml_supplier_normalize_v8_done",
     "supplier_order",
     "supplier_colors",
     "base_family_overrides",
