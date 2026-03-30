@@ -460,21 +460,20 @@ function inferSupplierNameFromText(value){
   return "";
 }
 function inferSupplierFromProduct(p){
-  const direct = normalizeSupplierName((p && p.supplier) || "");
-  if(direct) return direct;
-  const fields = [
-    (p && p.supplierName) || "",
-    (p && p.supplierId) || "",
-    (p && p.family_name) || "",
-    (p && p.family_label) || "",
-    (p && p.name) || "",
-    (p && p.product_color) || "",
-    (p && p.supplier_ref) || ""
-  ];
-  for(const field of fields){
-    const guess = inferSupplierNameFromText(field);
-    if(guess) return guess;
+  if(!p) return "";
+  if(p.supplier && p.supplier.trim()){
+    return normalizeSupplierCompare(p.supplier);
   }
+  if(p.supplierName && p.supplierName.trim()){
+    return normalizeSupplierCompare(p.supplierName);
+  }
+  const name = String(p.name || "").toUpperCase();
+  if(name.includes("ALMET")) return "ALMET";
+  if(name.includes("SODIFAB")) return "SODIFAB";
+  if(name.includes("GUTTERKEL")) return "GUTTERKEL";
+  if(name.includes("GUTTI")) return "GUTTI";
+  return "GUTTERFRANCE";
+}
   return DEFAULT_SUPPLIER;
 }
 function getSupplierOptionsRaw(){
