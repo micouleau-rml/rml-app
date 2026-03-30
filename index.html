@@ -8,9 +8,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="RML GOUTTIÈRE ALU">
-<title>V finale propre • RML GOUTTIÈRE ALU • ALMET iPhone corrigé • V39 synchronisée • Sodifab supprimé v2</title>
+<title>V finale PDF ajusté • V finale propre • RML GOUTTIÈRE ALU • ALMET iPhone corrigé • V39 synchronisée • Sodifab supprimé v2</title>
 <style>
-#tab-sauvegarde, .tab-sauvegarde { display:none !important; }
+
 :root{--bg:#f4f6f9;--card:#fff;--line:#d8e0ea;--text:#18212b;--muted:#627182;--btn-accent:#334155;}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;overscroll-behavior:none}
@@ -1764,10 +1764,14 @@ function goSettings(){
     </div>
     <div class="settings-section" data-settings-section="prix">
     <div class="card">
-      <p class="title">Prix</p>
-      <label style="display:flex;align-items:center;gap:10px;font-weight:700">
+      <p class="title">Prix et PDF</p>
+      <label style="display:flex;align-items:center;gap:10px;font-weight:700;margin-bottom:10px">
         <input type="checkbox" ${getShowPrices() ? "checked" : ""} onchange="setShowPrices(this.checked); goSettings();">
         Afficher les prix et le total HT
+      </label>
+      <label style="display:flex;align-items:center;gap:10px;font-weight:700">
+        <input type="checkbox" ${getPdfHeaderBand() ? "checked" : ""} onchange="setPdfHeaderBand(this.checked); goSettings();">
+        Afficher le bandeau couleur en haut du PDF
       </label>
     </div>
     </div>
@@ -2711,6 +2715,7 @@ function goRecap(){
   document.getElementById("recap").classList.remove("hidden");
   const groups = buildGroups();
   const showPrices = getShowPrices();
+  const pdfHeaderBand = getPdfHeaderBand();
   const hasCommande = groups.length > 0;
   const content = hasCommande ? groups.map(g => `
     <div class="section-title" style="color:${g.color}">${esc(g.family)}</div>
