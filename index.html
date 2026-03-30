@@ -226,6 +226,11 @@ window.addEventListener("beforeunload", function(){
 
 </script>
 <script>
+
+function normalizeSupplierCompare(str){
+  return String(str || "").trim().toUpperCase();
+}
+
 function toggleDropboxPanel(forceOpen){
   const panel = document.getElementById("dropboxPanel");
   if(!panel) return;
