@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="RML GOUTTIÈRE ALU">
-<title>RML GOUTTIÈRE ALU • V39 synchronisée • Sodifab supprimé v2</title>
+<title>RML GOUTTIÈRE ALU • PDF bandeau couleur • V39 synchronisée • Sodifab supprimé v2</title>
 <style>
 :root{--bg:#f4f6f9;--card:#fff;--line:#d8e0ea;--text:#18212b;--muted:#627182;--btn-accent:#334155;}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
@@ -889,6 +889,12 @@ function getShowPdfHeaderBand(){
 }
 function setShowPdfHeaderBand(value){
   try{ localStorage.setItem("show_pdf_header_band", value ? "1" : "0"); }catch(e){}
+}
+function getPdfHeaderBandColor(){
+  return localStorage.getItem("pdf_header_band_color") || getHeaderBg() || "#0b6bcb";
+}
+function setPdfHeaderBandColor(value){
+  try{ localStorage.setItem("pdf_header_band_color", value || "#0b6bcb"); }catch(e){}
 }
 function totalHt(){
   return Object.values(state).reduce((sum, entry) => {
@@ -1937,10 +1943,15 @@ function goSettings(){
     <div class="settings-section" data-settings-section="pdf">
     <div class="card">
       <p class="title">PDF</p>
-      <label style="display:flex;align-items:center;gap:10px;font-weight:700">
+      <label style="display:flex;align-items:center;gap:10px;font-weight:700;margin-bottom:14px">
         <input type="checkbox" ${getShowPdfHeaderBand() ? "checked" : ""} onchange="setShowPdfHeaderBand(this.checked); goSettings();">
         Afficher le bandeau couleur en haut du PDF
       </label>
+      <div class="user-label" style="margin-top:6px">Couleur du bandeau PDF</div>
+      <div class="color-picker-row" style="margin-top:10px">
+        <input type="color" value="${esc(getPdfHeaderBandColor())}" onchange="setPdfHeaderBandColor(this.value); goSettings();">
+        <div class="note">Choix libre de la couleur du bandeau PDF</div>
+      </div>
     </div>
     </div>
 
@@ -2337,7 +2348,9 @@ async function buildPdfBlob(){
   const showPdfHeaderBand = getShowPdfHeaderBand();
   let y = 14;
 
-  const headerRgb = getPdfHeaderRgb();
+  let headerRgb = hexToRgb(getPdfHeaderBandColor());
+  if(!headerRgb || headerRgb.length !== 3){ headerRgb = getPdfHeaderRgb(); }
+  if(!headerRgb || headerRgb.length !== 3){ headerRgb = [11, 107, 203]; }
   const headerTextRgb = getPdfHeaderTextRgb();
 
   if(showPdfHeaderBand){
