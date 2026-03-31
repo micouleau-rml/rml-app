@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="RML GOUTTIÈRE ALU">
-<title>RML GOUTTIÈRE ALU • V39 synchronisée • Sodifab supprimé v2</title>
+<title>RML GOUTTIÈRE ALU • PDF bandeau couleur • V39 synchronisée • Sodifab supprimé v2</title>
 <style>
 :root{--bg:#f4f6f9;--card:#fff;--line:#d8e0ea;--text:#18212b;--muted:#627182;--btn-accent:#334155;}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
@@ -890,6 +890,12 @@ function getShowPdfHeaderBand(){
 function setShowPdfHeaderBand(value){
   try{ localStorage.setItem("show_pdf_header_band", value ? "1" : "0"); }catch(e){}
 }
+function getPdfHeaderBandColor(){
+  return localStorage.getItem("pdf_header_band_color") || getHeaderBg() || "#0b6bcb";
+}
+function setPdfHeaderBandColor(value){
+  try{ localStorage.setItem("pdf_header_band_color", value || "#0b6bcb"); }catch(e){}
+}
 function totalHt(){
   return Object.values(state).reduce((sum, entry) => {
     const qty = Number(entry && entry.qty || 0) || 0;
@@ -1423,7 +1429,7 @@ function getSupplierAccordionHtml(name){
         +     '</div>'
         +   '</div>'
         +   '<input class="search" data-supplier-email-input="' + esc(name) + '" style="height:44px;margin:0 0 10px 0" placeholder="Mail du fournisseur" value="' + esc(getSupplierEmail(name)) + '" oninput="updateSupplierEmail(\'' + safeName + '\', this.value)" onchange="updateSupplierEmail(\'' + safeName + '\', this.value)">'
-        +   '<div class="color-picker-row" style="justify-content:flex-start">'
+        +   '<div class="color-picker-row" style="display:flex;gap:10px;align-items:center" style="justify-content:flex-start">'
         +     '<select class="select-user" style="margin:0;height:44px;flex:1 1 140px" onchange="updateSupplierColor(\'' + safeName + '\', this.value); goSettings(); setSettingsSection(\'fournisseurs\')">'
         +       getColorOptionsHtml(getSupplierColor(name, "#334155"))
         +     '</select>'
@@ -1692,7 +1698,7 @@ function getCustomProductsSettingsHtml(){
           <option value="U" ${(p.unit || "U") === "U" ? "selected" : ""}>U</option>
           <option value="ML" ${(p.unit || "") === "ML" ? "selected" : ""}>ML</option>
         </select>
-        <div class="color-picker-row">
+        <div class="color-picker-row" style="display:flex;gap:10px;align-items:center">
         <select class="select-user" style="margin:0;height:44px;flex:1 1 150px" onchange="updateCustomProduct(${idx}, 'color', this.value)">
           ${getColorOptionsHtml(p.color || "#334155")}
         </select>
@@ -1895,28 +1901,28 @@ function goSettings(){
       <p class="title">Personnalisation de l’appli</p>
       <div class="user-label" style="margin-top:6px">Couleur du bandeau</div>
       ${colorButtons}
-      <div class="color-picker-row" style="margin-top:10px">
+      <div class="color-picker-row" style="display:flex;gap:10px;align-items:center" style="margin-top:10px">
         <input type="color" value="${esc(getHeaderBg())}" onchange="setHeaderBg(this.value)">
         <div class="note">Choix libre du bandeau</div>
       </div>
 
       <div class="user-label" style="margin-top:14px">Couleur du fond</div>
       ${appBgButtons}
-      <div class="color-picker-row" style="margin-top:10px">
+      <div class="color-picker-row" style="display:flex;gap:10px;align-items:center" style="margin-top:10px">
         <input type="color" value="${esc(getAppBg())}" onchange="setAppBg(this.value)">
         <div class="note">Choix libre du fond</div>
       </div>
 
       <div class="user-label" style="margin-top:14px">Couleur des cartes</div>
       ${cardBgButtons}
-      <div class="color-picker-row" style="margin-top:10px">
+      <div class="color-picker-row" style="display:flex;gap:10px;align-items:center" style="margin-top:10px">
         <input type="color" value="${esc(getCardBg())}" onchange="setCardBg(this.value)">
         <div class="note">Choix libre des cartes</div>
       </div>
 
       <div class="user-label" style="margin-top:14px">Couleur des boutons</div>
       ${btnAccentButtons}
-      <div class="color-picker-row" style="margin-top:10px">
+      <div class="color-picker-row" style="display:flex;gap:10px;align-items:center" style="margin-top:10px">
         <input type="color" value="${esc(getBtnAccent())}" onchange="setBtnAccent(this.value)">
         <div class="note">Choix libre des boutons</div>
       </div>
@@ -1937,10 +1943,15 @@ function goSettings(){
     <div class="settings-section" data-settings-section="pdf">
     <div class="card">
       <p class="title">PDF</p>
-      <label style="display:flex;align-items:center;gap:10px;font-weight:700">
+      <label style="display:flex;align-items:center;gap:10px;font-weight:700;margin-bottom:14px">
         <input type="checkbox" ${getShowPdfHeaderBand() ? "checked" : ""} onchange="setShowPdfHeaderBand(this.checked); goSettings();">
         Afficher le bandeau couleur en haut du PDF
       </label>
+      <div class="user-label" style="margin-top:6px">Couleur du bandeau PDF</div>
+      <div class="color-picker-row" style="display:flex;gap:10px;align-items:center" style="margin-top:10px">
+        <input type="color" value="${getPdfHeaderBandColor()}" onchange="setPdfHeaderBandColor(this.value); goSettings();">
+        <div class="note">Choix libre de la couleur du bandeau PDF</div>
+      </div>
     </div>
     </div>
 
@@ -2337,7 +2348,9 @@ async function buildPdfBlob(){
   const showPdfHeaderBand = getShowPdfHeaderBand();
   let y = 14;
 
-  const headerRgb = getPdfHeaderRgb();
+  let headerRgb = hexToRgb(getPdfHeaderBandColor());
+  if(!headerRgb || headerRgb.length !== 3){ headerRgb = getPdfHeaderRgb(); }
+  if(!headerRgb || headerRgb.length !== 3){ headerRgb = [11, 107, 203]; }
   const headerTextRgb = getPdfHeaderTextRgb();
 
   if(showPdfHeaderBand){
