@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="RML GOUTTIÈRE ALU">
-<title>RML GOUTTIÈRE ALU • PDF bandeau couleur • V39 synchronisée • Sodifab supprimé v2</title>
+<title>RML GOUTTIÈRE ALU • V39 synchronisée • Sodifab supprimé v2</title>
 <style>
 :root{--bg:#f4f6f9;--card:#fff;--line:#d8e0ea;--text:#18212b;--muted:#627182;--btn-accent:#334155;}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
@@ -884,18 +884,6 @@ function getShowPrices(){
 function setShowPrices(value){
   try{ localStorage.setItem(SHOW_PRICES_KEY, value ? "1" : "0"); }catch(e){}
 }
-function getShowPdfHeaderBand(){
-  return localStorage.getItem("show_pdf_header_band") !== "0";
-}
-function setShowPdfHeaderBand(value){
-  try{ localStorage.setItem("show_pdf_header_band", value ? "1" : "0"); }catch(e){}
-}
-function getPdfHeaderBandColor(){
-  return localStorage.getItem("pdf_header_band_color") || getHeaderBg() || "#0b6bcb";
-}
-function setPdfHeaderBandColor(value){
-  try{ localStorage.setItem("pdf_header_band_color", value || "#0b6bcb"); }catch(e){}
-}
 function totalHt(){
   return Object.values(state).reduce((sum, entry) => {
     const qty = Number(entry && entry.qty || 0) || 0;
@@ -1429,7 +1417,7 @@ function getSupplierAccordionHtml(name){
         +     '</div>'
         +   '</div>'
         +   '<input class="search" data-supplier-email-input="' + esc(name) + '" style="height:44px;margin:0 0 10px 0" placeholder="Mail du fournisseur" value="' + esc(getSupplierEmail(name)) + '" oninput="updateSupplierEmail(\'' + safeName + '\', this.value)" onchange="updateSupplierEmail(\'' + safeName + '\', this.value)">'
-        +   '<div class="color-picker-row" style="display:flex;gap:10px;align-items:center" style="justify-content:flex-start">'
+        +   '<div class="color-picker-row" style="justify-content:flex-start">'
         +     '<select class="select-user" style="margin:0;height:44px;flex:1 1 140px" onchange="updateSupplierColor(\'' + safeName + '\', this.value); goSettings(); setSettingsSection(\'fournisseurs\')">'
         +       getColorOptionsHtml(getSupplierColor(name, "#334155"))
         +     '</select>'
@@ -1698,7 +1686,7 @@ function getCustomProductsSettingsHtml(){
           <option value="U" ${(p.unit || "U") === "U" ? "selected" : ""}>U</option>
           <option value="ML" ${(p.unit || "") === "ML" ? "selected" : ""}>ML</option>
         </select>
-        <div class="color-picker-row" style="display:flex;gap:10px;align-items:center">
+        <div class="color-picker-row">
         <select class="select-user" style="margin:0;height:44px;flex:1 1 150px" onchange="updateCustomProduct(${idx}, 'color', this.value)">
           ${getColorOptionsHtml(p.color || "#334155")}
         </select>
@@ -1871,7 +1859,6 @@ function goSettings(){
       <button class="btn neutral" data-settings-btn="entete" onclick="setSettingsSection('entete')">Entête</button>
       <button class="btn neutral" data-settings-btn="apparence" onclick="setSettingsSection('apparence')">Apparence</button>
       <button class="btn neutral" data-settings-btn="prix" onclick="setSettingsSection('prix')">Prix</button>
-      <button class="btn neutral" data-settings-btn="pdf" onclick="setSettingsSection('pdf')">PDF</button>
       <button class="btn neutral" data-settings-btn="fournisseurs" onclick="setSettingsSection('fournisseurs')">Fournisseurs</button>
       <button class="btn neutral" data-settings-btn="sync" onclick="setSettingsSection('sync')">Sync cloud</button>
       <button class="btn neutral" data-settings-btn="sauvegarde" onclick="setSettingsSection('sauvegarde')">Sauvegarde</button>
@@ -1901,28 +1888,28 @@ function goSettings(){
       <p class="title">Personnalisation de l’appli</p>
       <div class="user-label" style="margin-top:6px">Couleur du bandeau</div>
       ${colorButtons}
-      <div class="color-picker-row" style="display:flex;gap:10px;align-items:center" style="margin-top:10px">
+      <div class="color-picker-row" style="margin-top:10px">
         <input type="color" value="${esc(getHeaderBg())}" onchange="setHeaderBg(this.value)">
         <div class="note">Choix libre du bandeau</div>
       </div>
 
       <div class="user-label" style="margin-top:14px">Couleur du fond</div>
       ${appBgButtons}
-      <div class="color-picker-row" style="display:flex;gap:10px;align-items:center" style="margin-top:10px">
+      <div class="color-picker-row" style="margin-top:10px">
         <input type="color" value="${esc(getAppBg())}" onchange="setAppBg(this.value)">
         <div class="note">Choix libre du fond</div>
       </div>
 
       <div class="user-label" style="margin-top:14px">Couleur des cartes</div>
       ${cardBgButtons}
-      <div class="color-picker-row" style="display:flex;gap:10px;align-items:center" style="margin-top:10px">
+      <div class="color-picker-row" style="margin-top:10px">
         <input type="color" value="${esc(getCardBg())}" onchange="setCardBg(this.value)">
         <div class="note">Choix libre des cartes</div>
       </div>
 
       <div class="user-label" style="margin-top:14px">Couleur des boutons</div>
       ${btnAccentButtons}
-      <div class="color-picker-row" style="display:flex;gap:10px;align-items:center" style="margin-top:10px">
+      <div class="color-picker-row" style="margin-top:10px">
         <input type="color" value="${esc(getBtnAccent())}" onchange="setBtnAccent(this.value)">
         <div class="note">Choix libre des boutons</div>
       </div>
@@ -1939,23 +1926,7 @@ function goSettings(){
     </div>
     </div>
 
-    
-    <div class="settings-section" data-settings-section="pdf">
-    <div class="card">
-      <p class="title">PDF</p>
-      <label style="display:flex;align-items:center;gap:10px;font-weight:700;margin-bottom:14px">
-        <input type="checkbox" ${getShowPdfHeaderBand() ? "checked" : ""} onchange="setShowPdfHeaderBand(this.checked); goSettings();">
-        Afficher le bandeau couleur en haut du PDF
-      </label>
-      <div class="user-label" style="margin-top:6px">Couleur du bandeau PDF</div>
-      <div class="color-picker-row" style="display:flex;gap:10px;align-items:center" style="margin-top:10px">
-        <input type="color" value="${getPdfHeaderBandColor()}" onchange="setPdfHeaderBandColor(this.value); goSettings();">
-        <div class="note">Choix libre de la couleur du bandeau PDF</div>
-      </div>
-    </div>
-    </div>
-
-<div class="settings-section" data-settings-section="fournisseurs">
+    <div class="settings-section" data-settings-section="fournisseurs">
     <div class="card">
       <p class="title">Fournisseurs</p>
       <div class="user-label">Ajouter un nouveau fournisseur</div>
@@ -2344,31 +2315,18 @@ async function buildPdfBlob(){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const groups = buildGroups();
-  const showPrices = getShowPrices();
-  const showPdfHeaderBand = getShowPdfHeaderBand();
   let y = 14;
 
-  let headerRgb = hexToRgb(getPdfHeaderBandColor());
-  if(!headerRgb || headerRgb.length !== 3){ headerRgb = getPdfHeaderRgb(); }
-  if(!headerRgb || headerRgb.length !== 3){ headerRgb = [11, 107, 203]; }
+  const headerRgb = getPdfHeaderRgb();
   const headerTextRgb = getPdfHeaderTextRgb();
+  doc.setFillColor(headerRgb[0], headerRgb[1], headerRgb[2]);
+  doc.rect(10, 10, 190, 12, "F");
+  doc.setTextColor(headerTextRgb[0], headerTextRgb[1], headerTextRgb[2]);
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(16);
+  doc.text(String(getCompanyName()), 14, 18);
 
-  if(showPdfHeaderBand){
-    doc.setFillColor(headerRgb[0], headerRgb[1], headerRgb[2]);
-    doc.rect(10, 10, 190, 12, "F");
-    doc.setTextColor(headerTextRgb[0], headerTextRgb[1], headerTextRgb[2]);
-    doc.setFont("helvetica","bold");
-    doc.setFontSize(16);
-    doc.text(String(getCompanyName()), 14, 18);
-    y = 30;
-  }else{
-    doc.setTextColor(30,30,30);
-    doc.setFont("helvetica","bold");
-    doc.setFontSize(16);
-    doc.text(String(getCompanyName()), 14, 18);
-    y = 26;
-  }
-
+  y = 30;
   doc.setTextColor(30,30,30);
   doc.setFont("helvetica","normal");
   doc.setFontSize(10);
@@ -2384,18 +2342,18 @@ async function buildPdfBlob(){
   y += 2;
   doc.setFont("helvetica","bold");
   doc.text("Commande n° " + getOrderNumber(), 14, y); y += 5;
-  doc.text("Commande du " + getTodayFR(), 14, y); y += 5;
-  doc.text("Personne : " + (orderUser || "-"), 14, y); y += 5;
-
+  doc.text("Commande du " + getTodayFR() + "\nPersonne : " + (orderUser || "-"), 14, y); y += 7;
+  doc.setFont("helvetica","normal");
+  doc.text("Total lignes : " + linesCount() + "   Quantité totale : " + totalQty(), 14, y); y += 5;
+  if(getShowPrices()){ doc.text("Total HT : " + formatMoneyFR(totalHt()), 14, y); y += 5; }
+  else { y += 3; }
   if(orderMessage && orderMessage.trim()){
+    doc.setFont("helvetica","bold");
     doc.text("Message :", 14, y); y += 5;
     doc.setFont("helvetica","normal");
     const msgLines = doc.splitTextToSize(String(orderMessage.trim()), 180);
     doc.text(msgLines, 14, y);
     y += (msgLines.length * 4) + 4;
-    doc.setFont("helvetica","bold");
-  }else{
-    y += 2;
   }
 
   for(const g of groups){
@@ -2410,7 +2368,7 @@ async function buildPdfBlob(){
     doc.setTextColor(20,20,20);
     doc.setFontSize(9);
     doc.setFont("helvetica","bold");
-    if(showPrices){
+    if(getShowPrices()){
       doc.text("Produit", 16, y);
       doc.text("Couleur", 70, y);
       doc.text("Réf", 108, y);
@@ -2430,7 +2388,7 @@ async function buildPdfBlob(){
 
     for(const line of g.lines){
       if(y > 280){ doc.addPage(); y = 14; }
-      if(showPrices){
+      if(getShowPrices()){
         const prod = doc.splitTextToSize(String(line.variant), 48);
         const color = doc.splitTextToSize(String(line.color), 26);
         const ref = doc.splitTextToSize(String(line.ref || "-"), 24);
@@ -2469,15 +2427,7 @@ async function buildPdfBlob(){
     y += 4;
   }
 
-  if(y > 272){ doc.addPage(); y = 14; }
-  doc.setFont("helvetica","bold");
-  doc.setFontSize(10);
-  doc.setTextColor(30,30,30);
-  doc.text("Total lignes : " + linesCount(), 14, y + 4);
-  doc.text("Quantité totale : " + totalQty(), 70, y + 4);
-  y += 10;
-
-  if(showPrices){
+  if(getShowPrices()){
     if(y > 282){ doc.addPage(); y = 14; }
     doc.setFont("helvetica","bold");
     doc.setFontSize(11);
