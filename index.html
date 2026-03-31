@@ -2318,8 +2318,7 @@ async function buildPdfBlob(){
   let y = 14;
 
   const headerRgb = getPdfHeaderRgb();
-  doc.setFillColor(headerRgb[0], headerRgb[1], headerRgb[2]);
-  doc.rect(10, 10, 190, 12, "F");  const headerTextRgb = getPdfHeaderTextRgb();
+  const headerTextRgb = getPdfHeaderTextRgb();
   doc.setFillColor(headerRgb[0], headerRgb[1], headerRgb[2]);
   doc.rect(10, 10, 190, 12, "F");
   doc.setTextColor(headerTextRgb[0], headerTextRgb[1], headerTextRgb[2]);
@@ -2345,9 +2344,7 @@ async function buildPdfBlob(){
   doc.text("Commande n° " + getOrderNumber(), 14, y); y += 5;
   doc.text("Commande du " + getTodayFR() + "\nPersonne : " + (orderUser || "-"), 14, y); y += 7;
   doc.setFont("helvetica","normal");
-  doc.text("Total lignes : " + linesCount() + "   Quantité totale : " + totalQty(), 14, y); y += 5;
-  if(getShowPrices()){ doc.text("Total HT : " + formatMoneyFR(totalHt()), 14, y); y += 5; }
-  else { y += 3; }
+  y += 3;
   if(orderMessage && orderMessage.trim()){
     doc.setFont("helvetica","bold");
     doc.text("Message :", 14, y); y += 5;
@@ -2427,6 +2424,15 @@ async function buildPdfBlob(){
     }
     y += 4;
   }
+
+  if(y > 272){ doc.addPage(); y = 14; }
+
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(10);
+  doc.setTextColor(30,30,30);
+  doc.text("Total lignes : " + linesCount(), 14, y + 4);
+  doc.text("Quantité totale : " + totalQty(), 70, y + 4);
+  y += 10;
 
   if(getShowPrices()){
     if(y > 282){ doc.addPage(); y = 14; }
