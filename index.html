@@ -2318,7 +2318,8 @@ async function buildPdfBlob(){
   let y = 14;
 
   const headerRgb = getPdfHeaderRgb();
-  const headerTextRgb = getPdfHeaderTextRgb();
+  doc.setFillColor(headerRgb[0], headerRgb[1], headerRgb[2]);
+  doc.rect(10, 10, 190, 12, "F");  const headerTextRgb = getPdfHeaderTextRgb();
   doc.setFillColor(headerRgb[0], headerRgb[1], headerRgb[2]);
   doc.rect(10, 10, 190, 12, "F");
   doc.setTextColor(headerTextRgb[0], headerTextRgb[1], headerTextRgb[2]);
