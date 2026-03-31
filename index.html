@@ -2294,11 +2294,13 @@ function savePdfHistory(entries){
 function saveCurrentPdfToHistory(){
   const groups = buildGroups();
   if(!groups.length) return false;
+  const text = recapText();
   const entry = {
     orderNumber: getOrderNumber(),
     date: getTodayFR(),
     createdAt: new Date().toISOString(),
-    text: recapText()
+    text: text,
+    html: '<pre style="white-space:pre-wrap;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Arial,sans-serif;padding:20px;color:#18212b">' + esc(text) + '</pre>'
   };
   const history = getPdfHistory();
   history.unshift(entry);
@@ -2448,6 +2450,7 @@ async function exportPDF(){
   const blob = await buildPdfBlob();
   if(!blob) return;
   saveCurrentPdfToHistory();
+  try{ saveCurrentOrderToHistory(); }catch(e){}
 
   const file = new File([blob], "commande_" + getOrderNumber() + ".pdf", { type: "application/pdf" });
 
@@ -2720,7 +2723,7 @@ function showHistory(){
     "07":"Juillet","08":"Août","09":"Septembre","10":"Octobre","11":"Novembre","12":"Décembre"
   };
 
-  let content = '<div class="empty">Aucune commande enregistrée.</div>';
+  let content = '<div class="empty">Aucune commande enregistrée. Enregistre ou partage d’abord une commande depuis le récapitulatif.</div>';
 
   if(history.length){
     const groups = {};
