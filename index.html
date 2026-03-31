@@ -223,6 +223,10 @@ window.addEventListener("beforeunload", function(){
 
 </script>
 <script>
+
+function getShowPdfHeaderBand(){ return localStorage.getItem("show_pdf_header_band") !== "0"; }
+function setShowPdfHeaderBand(v){ localStorage.setItem("show_pdf_header_band", v ? "1":"0"); }
+
 function toggleDropboxPanel(forceOpen){
   const panel = document.getElementById("dropboxPanel");
   if(!panel) return;
@@ -1245,7 +1249,18 @@ function migrateBuiltInSupplierProducts(name){
 
   setTimeout(function(){
     try{
-      const currentSection = document.querySelector('[data-settings-section="fournisseurs"]');
+      const currentSection = document.querySelector('[
+<div class="settings-section" data-settings-section="pdf">
+<div class="card">
+<p class="title">PDF</p>
+<label style="display:flex;gap:10px;align-items:center;font-weight:700">
+<input type="checkbox" ${getShowPdfHeaderBand() ? "checked":""} onchange="setShowPdfHeaderBand(this.checked); goSettings();">
+Afficher bandeau PDF
+</label>
+</div>
+</div>
+
+<div class="settings-section" data-settings-section="fournisseurs"]');
       if(currentSection){
         const heads = currentSection.querySelectorAll('.supplier-accordion-head');
         heads.forEach(head => {
@@ -2319,8 +2334,8 @@ async function buildPdfBlob(){
 
   const headerRgb = getPdfHeaderRgb();
   const headerTextRgb = getPdfHeaderTextRgb();
-  doc.setFillColor(headerRgb[0], headerRgb[1], headerRgb[2]);
-  doc.rect(10, 10, 190, 12, "F");
+  if(getShowPdfHeaderBand()){ doc.setFillColor(headerRgb[0], headerRgb[1], headerRgb[2]);
+  doc.rect(10, 10, 190, 12, "F"); }
   doc.setTextColor(headerTextRgb[0], headerTextRgb[1], headerTextRgb[2]);
   doc.setFont("helvetica","bold");
   doc.setFontSize(16);
