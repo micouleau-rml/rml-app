@@ -2294,13 +2294,11 @@ function savePdfHistory(entries){
 function saveCurrentPdfToHistory(){
   const groups = buildGroups();
   if(!groups.length) return false;
-  const text = recapText();
   const entry = {
     orderNumber: getOrderNumber(),
     date: getTodayFR(),
     createdAt: new Date().toISOString(),
-    text: text,
-    html: '<pre style="white-space:pre-wrap;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Arial,sans-serif;padding:20px;color:#18212b">' + esc(text) + '</pre>'
+    text: recapText()
   };
   const history = getPdfHistory();
   history.unshift(entry);
@@ -2450,7 +2448,6 @@ async function exportPDF(){
   const blob = await buildPdfBlob();
   if(!blob) return;
   saveCurrentPdfToHistory();
-  try{ saveCurrentOrderToHistory(); }catch(e){}
 
   const file = new File([blob], "commande_" + getOrderNumber() + ".pdf", { type: "application/pdf" });
 
@@ -2547,6 +2544,7 @@ async function previewPdf(){
     alert("Impossible de créer le PDF.");
     return;
   }
+  try{ saveCurrentOrderToHistory(); }catch(e){}
   const previewBox = document.getElementById("pdfPreviewBox");
   const frame = document.getElementById("pdfPreviewFrame");
   if(!previewBox || !frame){
@@ -2593,6 +2591,8 @@ async function shareCommande(){
     alert("Impossible de créer le PDF.");
     return;
   }
+
+  try{ saveCurrentOrderToHistory(); }catch(e){}
 
   const filename = "commande_" + getOrderNumber() + ".pdf";
   const file = new File([blob], filename, { type: "application/pdf" });
@@ -2691,6 +2691,7 @@ function sendEmail(){
 }
 
 function sendEmailWithPdfGuide(){
+  try{ syncVisibleInputs(); saveCurrentOrderToHistory(); }catch(e){}
   const ok = sendEmail();
   if(ok){
     setTimeout(function(){
@@ -2723,7 +2724,7 @@ function showHistory(){
     "07":"Juillet","08":"Août","09":"Septembre","10":"Octobre","11":"Novembre","12":"Décembre"
   };
 
-  let content = '<div class="empty">Aucune commande enregistrée. Enregistre ou partage d’abord une commande depuis le récapitulatif.</div>';
+  let content = '<div class="empty">Aucune commande enregistrée. Utilise Partager / enregistrer le PDF ou Préparer le mail depuis le récapitulatif.</div>';
 
   if(history.length){
     const groups = {};
