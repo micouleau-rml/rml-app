@@ -612,6 +612,10 @@ function setValidatedSupplier(name){
 function getValidatedSupplier(){
   return localStorage.getItem(VALIDATED_SUPPLIER) || "";
 }
+function clearValidatedSupplier(){
+  localStorage.removeItem(VALIDATED_SUPPLIER);
+  alert("Commande supprimée du récapitulatif.");
+}
 
 
 function migrateUnits(){
@@ -2095,8 +2099,9 @@ function openSupplier(index){
       <button class="btn" style="background:#0a8454;color:#fff;border-color:#0a8454" onclick="goRecap()">Récapitulatif</button>
     </div>
     <div class="section-title">Fournisseur : ${esc(supplier.name)}</div>
-<div style="margin-bottom:10px">
-<button class="btn" style="background:#c62828;color:#fff" onclick="setValidatedSupplier(currentSupplierName)">Valider la commande</button>
+<div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap">
+<button class="btn" style="background:#c62828;color:#fff;flex:1 1 260px" onclick="setValidatedSupplier(currentSupplierName)">Valider la commande</button>
+<button class="btn neutral" style="flex:1 1 260px" onclick="clearValidatedSupplier()">Supprimer la commande validée</button>
 </div>
     ${buttons ? `<div class="grid">${buttons}</div>` : `<div class="empty">Aucun produit affecté pour l’instant à ce fournisseur.</div>`}
     <p class="note">Sélectionnez ensuite une famille pour saisir les quantités.</p>
