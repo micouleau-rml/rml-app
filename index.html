@@ -607,12 +607,21 @@ let currentSupplierName = "";
 const VALIDATED_SUPPLIER = "rml_validated_supplier_v1";
 
 function setValidatedSupplier(name){
+  // overwrite previous
+  localStorage.setItem(VALIDATED_SUPPLIER, name);
+
   localStorage.setItem(VALIDATED_SUPPLIER, name);
 }
 function getValidatedSupplier(){
   return localStorage.getItem(VALIDATED_SUPPLIER) || "";
 }
 function clearValidatedSupplier(){
+  localStorage.removeItem(VALIDATED_SUPPLIER);
+  // force refresh
+  if(typeof goRecap === 'function'){
+    setTimeout(()=>goRecap(),100);
+  }
+
   localStorage.removeItem(VALIDATED_SUPPLIER);
   alert("Commande supprimée du récapitulatif.");
 }
