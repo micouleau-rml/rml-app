@@ -605,18 +605,18 @@ const DEFAULT_COMPANY_LOGO = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABAAA
 
 let currentFamily = null;
 let currentSupplierName = "";
-const SUPPLIER_DRAFTS_KEY = "rml_supplier_drafts_v1";
+const VALIDATED_SUPPLIER_ORDERS_KEY = "rml_validated_supplier_orders_v1";
 
-function getSupplierDrafts(){
+function getValidatedSupplierOrders(){
   try{
-    const raw = JSON.parse(localStorage.getItem(SUPPLIER_DRAFTS_KEY) || "{}");
+    const raw = JSON.parse(localStorage.getItem(VALIDATED_SUPPLIER_ORDERS_KEY) || "{}");
     return raw && typeof raw === "object" ? raw : {};
   }catch(e){
     return {};
   }
 }
-function saveSupplierDrafts(map){
-  try{ localStorage.setItem(SUPPLIER_DRAFTS_KEY, JSON.stringify(map || {})); }catch(e){}
+function saveValidatedSupplierOrders(map){
+  try{ localStorage.setItem(VALIDATED_SUPPLIER_ORDERS_KEY, JSON.stringify(map || {})); }catch(e){}
 }
 function getSupplierFamilyNames(name){
   try{
@@ -635,61 +635,60 @@ function getSupplierStateSubset(name){
   });
   return subset;
 }
-function saveDraftForSupplier(name){
-  const clean = String(name || "").trim();
-  if(!clean) return;
-  const drafts = getSupplierDrafts();
-  drafts[clean] = {
-    savedAt: new Date().toISOString(),
-    orderUser: orderUser || "",
-    orderMessage: orderMessage || "",
-    state: getSupplierStateSubset(clean)
-  };
-  saveSupplierDrafts(drafts);
-}
-function loadDraftForSupplier(name){
-  const clean = String(name || "").trim();
-  if(!clean) return false;
-  const draft = getSupplierDrafts()[clean];
-  if(!draft || !draft.state || typeof draft.state !== "object") return false;
-
-  const familyNames = new Set(getSupplierFamilyNames(clean));
+function loadStateSubsetIntoState(name, subset){
+  const familyNames = new Set(getSupplierFamilyNames(name));
   Object.keys(state || {}).forEach(key => {
     const fam = String(key || "").split("||")[0];
     if(familyNames.has(fam)) delete state[key];
   });
-  Object.keys(draft.state).forEach(key => {
-    state[key] = draft.state[key];
+  Object.keys(subset || {}).forEach(key => {
+    state[key] = subset[key];
   });
-
-  orderUser = draft.orderUser || orderUser || "";
-  orderMessage = typeof draft.orderMessage === "string" ? draft.orderMessage : (orderMessage || "");
-  save();
-  return true;
 }
-function clearDraftForSupplier(name){
+function getValidatedOrderMeta(name){
+  const clean = String(name || "").trim();
+  return getValidatedSupplierOrders()[clean] || null;
+}
+async function validateCurrentSupplierOrder(){
+  const clean = String(currentSupplierName || "").trim();
+  if(!clean){
+    alert("Ouvrez d'abord un fournisseur.");
+    return;
+  }
+  const subset = getSupplierStateSubset(clean);
+  const hasQty = Object.keys(subset).some(k => Number((subset[k] || {}).qty || 0) > 0);
+  if(!hasQty){
+    alert("Aucune ligne à valider pour ce fournisseur.");
+    return;
+  }
+  const orders = getValidatedSupplierOrders();
+  orders[clean] = {
+    validatedAt: new Date().toISOString(),
+    state: subset,
+    orderUser: orderUser || "",
+    orderMessage: orderMessage || ""
+  };
+  saveValidatedSupplierOrders(orders);
+  try{ await cloudSaveNow(true); }catch(e){}
+  alert("Commande validée pour " + clean + ". Elle apparaît maintenant dans le récapitulatif.");
+  openSupplier(getSuppliers().findIndex(s => s.name === clean));
+}
+function clearValidatedSupplierOrder(name){
   const clean = String(name || "").trim();
   if(!clean) return;
-  const drafts = getSupplierDrafts();
-  delete drafts[clean];
-  saveSupplierDrafts(drafts);
+  const orders = getValidatedSupplierOrders();
+  delete orders[clean];
+  saveValidatedSupplierOrders(orders);
 }
-function getDraftMetaForSupplier(name){
+function loadValidatedSupplierOrderIntoState(name){
   const clean = String(name || "").trim();
-  return getSupplierDrafts()[clean] || null;
-}
-function resumeSupplierDraft(name, index){
-  if(loadDraftForSupplier(name)){
-    openSupplier(index);
-    alert("Brouillon chargé pour " + name + ".");
-  }else{
-    alert("Aucun brouillon trouvé pour ce fournisseur.");
-  }
-}
-function clearSupplierDraftAndRefresh(name, index){
-  if(!confirm('Supprimer le brouillon du fournisseur "' + name + '" ?')) return;
-  clearDraftForSupplier(name);
-  openSupplier(index);
+  const meta = getValidatedOrderMeta(clean);
+  if(!meta || !meta.state) return false;
+  loadStateSubsetIntoState(clean, meta.state);
+  orderUser = meta.orderUser || orderUser || "";
+  orderMessage = typeof meta.orderMessage === "string" ? meta.orderMessage : (orderMessage || "");
+  save();
+  return true;
 }
 
 
@@ -802,7 +801,6 @@ function save(){
     localStorage.setItem(STATE_BACKUP_KEY, payload);
     localStorage.setItem(LAST_SAVE_AT_KEY, String(Date.now()));
     saveMetaBackup();
-    if(currentSupplierName) saveDraftForSupplier(currentSupplierName);
   }catch(e){}
 }
 function esc(s){ return String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
@@ -2161,17 +2159,10 @@ function openSupplier(index){
   document.getElementById("settings")?.classList.add("hidden");
   document.getElementById("recap").classList.add("hidden");
 
-  const draftMeta = getDraftMetaForSupplier(supplier.name);
-  const draftDate = draftMeta && draftMeta.savedAt ? new Date(draftMeta.savedAt).toLocaleString("fr-FR") : "";
-  const draftBlock = `
-    <div class="card" style="padding:12px;margin-bottom:12px">
-      <div class="title" style="margin-bottom:4px">Brouillon fournisseur</div>
-      <div class="note" style="margin-bottom:8px">${draftMeta ? "Dernier brouillon : " + esc(draftDate) : "Aucun brouillon enregistré pour ce fournisseur."}</div>
-      <div class="toolbar" style="margin-bottom:0">
-        <button class="btn" style="background:#0a8454;color:#fff;border-color:#0a8454" onclick="resumeSupplierDraft('${String(supplier.name).replace(/'/g, "\\'")}', ${index})">Reprendre le brouillon</button>
-        <button class="btn neutral" onclick="clearSupplierDraftAndRefresh('${String(supplier.name).replace(/'/g, "\\'")}', ${index})">Vider le brouillon</button>
-      </div>
-    </div>`;
+  const validatedMeta = getValidatedOrderMeta(supplier.name);
+  const validatedInfo = validatedMeta && validatedMeta.validatedAt
+    ? `<div class="note" style="margin-bottom:8px">Commande validée le ${esc(new Date(validatedMeta.validatedAt).toLocaleString("fr-FR"))}</div>`
+    : `<div class="note" style="margin-bottom:8px">Cette commande n'est pas encore validée. Elle n'apparaîtra pas dans le récapitulatif tant que vous n'aurez pas cliqué sur "Valider la commande".</div>`;
 
   const buttons = supplier.families.map(obj => {
     const fam = obj.fam;
@@ -2188,9 +2179,15 @@ function openSupplier(index){
       <button class="btn" style="background:#0a8454;color:#fff;border-color:#0a8454" onclick="goRecap()">Récapitulatif</button>
     </div>
     <div class="section-title">Fournisseur : ${esc(supplier.name)}</div>
-    ${draftBlock}
+    <div class="card" style="padding:12px;margin-bottom:12px">
+      <div class="title" style="margin-bottom:4px">Commande fournisseur</div>
+      ${validatedInfo}
+      <div class="toolbar" style="margin-bottom:0">
+        <button class="btn" style="background:#c62828;color:#fff;border-color:#c62828" onclick="validateCurrentSupplierOrder()">Valider la commande</button>
+      </div>
+    </div>
     ${buttons ? `<div class="grid">${buttons}</div>` : `<div class="empty">Aucun produit affecté pour l’instant à ce fournisseur.</div>`}
-    <p class="note">Sélectionnez ensuite une famille pour saisir les quantités. Le brouillon est conservé séparément par fournisseur.</p>
+    <p class="note">Sélectionnez ensuite une famille pour saisir les quantités.</p>
     <div style="height:220px"></div>`;
 }
 
@@ -2333,16 +2330,44 @@ function stepQty(key, delta){
 
 function buildGroups(){
   const groups = [];
-  for(const fam of getFamilies()){
-    const lines = [];
-    for(const it of fam.items){
-      const entry = state[keyOf(fam.name, it.label)];
-      const qty = Number((entry || {}).qty || 0);
-      const price = Number((entry || {}).price || 0);
-      if(qty > 0) lines.push({ variant: it.variant, color: it.color, ref: getSupplierRef(it.color, String((entry || {}).ref || "").trim()), unit: getItemUnit(fam, it), qty: qty, price: price, total: qty * price });
-    }
-    if(lines.length) groups.push({ family: fam.name, color: fam.family_color, lines: lines });
-  }
+  const suppliers = getSuppliers();
+  const validatedOrders = getValidatedSupplierOrders();
+
+  suppliers.forEach(supplier => {
+    const validated = validatedOrders[supplier.name];
+    if(!validated || !validated.state) return;
+
+    supplier.families.forEach(obj => {
+      const fam = obj.fam;
+      const lines = [];
+      (fam.items || []).forEach(it => {
+        const row = validated.state[keyOf(fam.name, it.label)] || {};
+        const qty = Number(row.qty || 0);
+        if(qty > 0){
+          lines.push({
+            supplier: supplier.name,
+            family: fam.name,
+            variant: it.variant,
+            color: it.color,
+            label: it.label,
+            unit: getUnitForItem(fam, it),
+            qty: qty,
+            price: row.price || getDefaultPriceForItem(fam, it) || ""
+          });
+        }
+      });
+      if(lines.length){
+        groups.push({
+          supplier: supplier.name,
+          family: fam.name,
+          family_label: fam.family_label,
+          family_color: fam.family_color,
+          lines: lines
+        });
+      }
+    });
+  });
+
   return groups;
 }
 
