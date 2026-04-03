@@ -219,7 +219,7 @@ function saveCurrentSelection(){
 
 window.addEventListener("beforeunload", function(){
   try{ save(); }catch(e){}
-});
+}
 
 </script>
 <script>
@@ -618,6 +618,25 @@ function getValidatedSupplierOrders(){
 function saveValidatedSupplierOrders(map){
   try{ localStorage.setItem(VALIDATED_SUPPLIER_ORDERS_KEY, JSON.stringify(map || {})); }catch(e){}
 }
+
+function clearSupplierQtyInputsFromDom(supplierName){
+  const supplier = getSuppliers().find(s => s.name === String(supplierName || "").trim());
+  if(!supplier) return;
+  const allowedKeys = new Set();
+  (supplier.families || []).forEach(obj => {
+    const fam = obj.fam;
+    (fam.items || []).forEach(it => {
+      allowedKeys.add(keyOf(fam.name, it.label));
+    });
+  });
+
+  document.querySelectorAll(".js-qty-input").forEach(input => {
+    const key = input.getAttribute("data-key") || "";
+    if(allowedKeys.has(key)){
+      input.value = "";
+    }
+  });
+});
 function buildGroupsForSupplierName(supplierName){
   const supplier = getSuppliers().find(s => s.name === supplierName);
   if(!supplier) return [];
@@ -695,6 +714,7 @@ function deleteValidatedSupplierOrder(supplierName, silent){
         }
       });
     });
+    clearSupplierQtyInputsFromDom(clean);
     save();
   }
 
@@ -729,6 +749,7 @@ function resetSupplierData(supplierName){
     });
   });
 
+  clearSupplierQtyInputsFromDom(cleanName);
   save();
   const idx = getSuppliers().findIndex(s => s.name === cleanName);
   if(idx >= 0) openSupplier(idx);
