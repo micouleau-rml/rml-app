@@ -675,9 +675,29 @@ function validateCurrentSupplierOrder(){
 function deleteValidatedSupplierOrder(supplierName, silent){
   const clean = String(supplierName || "").trim();
   if(!clean) return;
+
   const orders = getValidatedSupplierOrders();
   delete orders[clean];
   saveValidatedSupplierOrders(orders);
+
+  const supplier = getSuppliers().find(s => s.name === clean);
+  if(supplier){
+    (supplier.families || []).forEach(obj => {
+      const fam = obj.fam;
+      (fam.items || []).forEach(it => {
+        const key = keyOf(fam.name, it.label);
+        if(state[key]){
+          const existing = state[key] || {};
+          state[key] = {
+            ...existing,
+            qty: ""
+          };
+        }
+      });
+    });
+    save();
+  }
+
   if(!silent) alert("Commande supprimée du récapitulatif.");
 }
 
