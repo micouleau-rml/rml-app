@@ -624,20 +624,10 @@ function resetSupplierData(supplierName){
       const key = keyOf(fam.name, it.label);
       if(state[key]){
         const existing = state[key] || {};
-        const hasPrice = existing.price !== undefined && existing.price !== "";
-        const hasRef = existing.ref !== undefined && String(existing.ref).trim() !== "";
-        const keepUnit = existing.unit || getUnitForItem(fam, it);
-
-        if(hasPrice || hasRef){
-          state[key] = {
-            qty: "",
-            unit: keepUnit,
-            price: hasPrice ? existing.price : "",
-            ref: hasRef ? String(existing.ref).trim() : ""
-          };
-        }else{
-          delete state[key];
-        }
+        state[key] = {
+          ...existing,
+          qty: ""
+        };
       }
     });
   });
