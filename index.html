@@ -604,6 +604,24 @@ const DEFAULT_COMPANY_LOGO = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABAAA
 
 let currentFamily = null;
 let currentSupplierName = "";
+
+const VALIDATED_SUPPLIER_KEY = "rml_validated_supplier_v1";
+
+function setValidatedSupplier(name){
+  localStorage.setItem(VALIDATED_SUPPLIER_KEY, name);
+  location.reload();
+}
+
+function getValidatedSupplier(){
+  return localStorage.getItem(VALIDATED_SUPPLIER_KEY) || "";
+}
+
+function clearValidatedSupplier(){
+  localStorage.removeItem(VALIDATED_SUPPLIER_KEY);
+  location.reload();
+}
+
+let currentSupplierName = "";
 const VALIDATED_SUPPLIER = "rml_validated_supplier_v1";
 
 function setValidatedSupplier(name){
@@ -2086,7 +2104,7 @@ function goHome(){
 
 function openSupplier(index){
   const suppliers = getSuppliers();
-  const supplier = suppliers[index]; currentSupplierName = supplier.name;
+  const supplier = suppliers[index]; currentSupplierName = supplier.name; currentSupplierName = supplier.name;
   if(!supplier) return;
   document.getElementById("home").classList.add("hidden");
   document.getElementById("supplier").classList.remove("hidden");
@@ -2256,17 +2274,54 @@ function stepQty(key, delta){
 }
 
 function buildGroups(){
-  const groups = [];
-  for(const fam of getFamilies()){
-    const lines = [];
-    for(const it of fam.items){
-      const entry = state[keyOf(fam.name, it.label)];
-      const qty = Number((entry || {}).qty || 0);
-      const price = Number((entry || {}).price || 0);
-      if(qty > 0) lines.push({ variant: it.variant, color: it.color, ref: getSupplierRef(it.color, String((entry || {}).ref || "").trim()), unit: getItemUnit(fam, it), qty: qty, price: price, total: qty * price });
-    }
-    if(lines.length) groups.push({ family: fam.name, color: fam.family_color, lines: lines });
+
+  const activeSupplier = getValidatedSupplier();
+
+  if(!activeSupplier){
+    return [];
   }
+
+  const groups = [];
+  const suppliers = getSuppliers();
+
+  suppliers.forEach(supplier => {
+
+    if(supplier.name !== activeSupplier) return;
+
+    supplier.families.forEach(obj => {
+      const fam = obj.fam;
+      const lines = [];
+
+      (fam.items || []).forEach(it => {
+        const key = keyOf(fam.name, it.label);
+        const row = state[key] || {};
+        const qty = Number(row.qty || 0);
+        const price = Number(row.price || 0);
+
+        if(qty > 0){
+          lines.push({
+            variant: it.variant,
+            color: it.color,
+            label: it.label,
+            qty: qty,
+            unit: getUnitForItem(fam, it),
+            price: price
+          });
+        }
+      });
+
+      if(lines.length){
+        groups.push({
+          family: fam.name,
+          family_color: fam.family_color,
+          lines: lines
+        });
+      }
+
+    });
+
+  });
+
   return groups;
 }
 
