@@ -605,44 +605,16 @@ const DEFAULT_COMPANY_LOGO = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABAAA
 let currentFamily = null;
 let currentSupplierName = "";
 
-const VALIDATED_SUPPLIER_KEY = "rml_validated_supplier_v1";
-
-function setValidatedSupplier(name){
-  localStorage.setItem(VALIDATED_SUPPLIER_KEY, name);
-  location.reload();
-}
-
-function getValidatedSupplier(){
-  return localStorage.getItem(VALIDATED_SUPPLIER_KEY) || "";
-}
-
-function clearValidatedSupplier(){
-  localStorage.removeItem(VALIDATED_SUPPLIER_KEY);
-  location.reload();
-}
-
-let currentSupplierName = "";
 const VALIDATED_SUPPLIER = "rml_validated_supplier_v1";
 
 function setValidatedSupplier(name){
-  localStorage.setItem("rml_validated_supplier_v1", name);
-  if(typeof goRecap === "function"){
-    setTimeout(()=>goRecap(),100);
-  }
-
-  localStorage.setItem(VALIDATED_SUPPLIER, name);
+  try{ localStorage.setItem(VALIDATED_SUPPLIER, String(name || "")); }catch(e){}
 }
 function getValidatedSupplier(){
-  return localStorage.getItem(VALIDATED_SUPPLIER) || "";
+  try{ return String(localStorage.getItem(VALIDATED_SUPPLIER) || "").trim(); }catch(e){ return ""; }
 }
 function clearValidatedSupplier(){
-  localStorage.removeItem("rml_validated_supplier_v1");
-  if(typeof goRecap === "function"){
-    setTimeout(()=>goRecap(),100);
-  }
-
-  localStorage.removeItem(VALIDATED_SUPPLIER);
-  alert("Commande supprimée du récapitulatif.");
+  try{ localStorage.removeItem(VALIDATED_SUPPLIER); }catch(e){}
 }
 
 
@@ -2104,7 +2076,8 @@ function goHome(){
 
 function openSupplier(index){
   const suppliers = getSuppliers();
-  const supplier = suppliers[index]; currentSupplierName = supplier.name; currentSupplierName = supplier.name;
+  const supplier = suppliers[index];
+  currentSupplierName = supplier ? supplier.name : "";
   if(!supplier) return;
   document.getElementById("home").classList.add("hidden");
   document.getElementById("supplier").classList.remove("hidden");
@@ -2127,10 +2100,14 @@ function openSupplier(index){
       <button class="btn" style="background:#0a8454;color:#fff;border-color:#0a8454" onclick="goRecap()">Récapitulatif</button>
     </div>
     <div class="section-title">Fournisseur : ${esc(supplier.name)}</div>
-<div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap">
-<button class="btn" style="background:#c62828;color:#fff;flex:1 1 260px" onclick="setValidatedSupplier(currentSupplierName)">Valider la commande</button>
-<button class="btn neutral" style="flex:1 1 260px" onclick="clearValidatedSupplier()">Supprimer la commande validée</button>
-</div>
+    <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" style="background:#c62828;color:#fff;border-color:#c62828;flex:1 1 240px" onclick="setValidatedSupplier(currentSupplierName); alert('Commande validée pour ' + currentSupplierName);">
+        Valider la commande
+      </button>
+      <button class="btn neutral" style="flex:1 1 180px" onclick="clearValidatedSupplier(); goRecap();">
+        Supprimer
+      </button>
+    </div>
     ${buttons ? `<div class="grid">${buttons}</div>` : `<div class="empty">Aucun produit affecté pour l’instant à ce fournisseur.</div>`}
     <p class="note">Sélectionnez ensuite une famille pour saisir les quantités.</p>
     <div style="height:220px"></div>`;
@@ -2274,54 +2251,18 @@ function stepQty(key, delta){
 }
 
 function buildGroups(){
-
   const activeSupplier = getValidatedSupplier();
-
-  if(!activeSupplier){
-    return [];
-  }
-
   const groups = [];
-  const suppliers = getSuppliers();
-
-  suppliers.forEach(supplier => {
-
-    if(supplier.name !== activeSupplier) return;
-
-    supplier.families.forEach(obj => {
-      const fam = obj.fam;
-      const lines = [];
-
-      (fam.items || []).forEach(it => {
-        const key = keyOf(fam.name, it.label);
-        const row = state[key] || {};
-        const qty = Number(row.qty || 0);
-        const price = Number(row.price || 0);
-
-        if(qty > 0){
-          lines.push({
-            variant: it.variant,
-            color: it.color,
-            label: it.label,
-            qty: qty,
-            unit: getUnitForItem(fam, it),
-            price: price
-          });
-        }
-      });
-
-      if(lines.length){
-        groups.push({
-          family: fam.name,
-          family_color: fam.family_color,
-          lines: lines
-        });
-      }
-
-    });
-
-  });
-
+  for(const fam of getFamilies()){
+    const lines = [];
+    for(const it of fam.items){
+      const entry = state[keyOf(fam.name, it.label)];
+      const qty = Number((entry || {}).qty || 0);
+      const price = Number((entry || {}).price || 0);
+      if(qty > 0) lines.push({ variant: it.variant, color: it.color, ref: getSupplierRef(it.color, String((entry || {}).ref || "").trim()), unit: getItemUnit(fam, it), qty: qty, price: price, total: qty * price });
+    }
+    if(lines.length) groups.push({ family: fam.name, color: fam.family_color, lines: lines });
+  }
   return groups;
 }
 
