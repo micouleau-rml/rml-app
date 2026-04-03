@@ -604,17 +604,27 @@ const DEFAULT_COMPANY_LOGO = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABAAA
 
 let currentFamily = null;
 let currentSupplierName = "";
-
 const VALIDATED_SUPPLIER = "rml_validated_supplier_v1";
 
 function setValidatedSupplier(name){
-  try{ localStorage.setItem(VALIDATED_SUPPLIER, String(name || "")); }catch(e){}
+  localStorage.setItem("rml_validated_supplier_v1", name);
+  if(typeof goRecap === "function"){
+    setTimeout(()=>goRecap(),100);
+  }
+
+  localStorage.setItem(VALIDATED_SUPPLIER, name);
 }
 function getValidatedSupplier(){
-  try{ return String(localStorage.getItem(VALIDATED_SUPPLIER) || "").trim(); }catch(e){ return ""; }
+  return localStorage.getItem(VALIDATED_SUPPLIER) || "";
 }
 function clearValidatedSupplier(){
-  try{ localStorage.removeItem(VALIDATED_SUPPLIER); }catch(e){}
+  localStorage.removeItem("rml_validated_supplier_v1");
+  if(typeof goRecap === "function"){
+    setTimeout(()=>goRecap(),100);
+  }
+
+  localStorage.removeItem(VALIDATED_SUPPLIER);
+  alert("Commande supprimée du récapitulatif.");
 }
 
 
@@ -2076,8 +2086,7 @@ function goHome(){
 
 function openSupplier(index){
   const suppliers = getSuppliers();
-  const supplier = suppliers[index];
-  currentSupplierName = supplier ? supplier.name : "";
+  const supplier = suppliers[index]; currentSupplierName = supplier.name;
   if(!supplier) return;
   document.getElementById("home").classList.add("hidden");
   document.getElementById("supplier").classList.remove("hidden");
@@ -2100,14 +2109,10 @@ function openSupplier(index){
       <button class="btn" style="background:#0a8454;color:#fff;border-color:#0a8454" onclick="goRecap()">Récapitulatif</button>
     </div>
     <div class="section-title">Fournisseur : ${esc(supplier.name)}</div>
-    <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn" style="background:#c62828;color:#fff;border-color:#c62828;flex:1 1 240px" onclick="setValidatedSupplier(currentSupplierName); alert('Commande validée pour ' + currentSupplierName);">
-        Valider la commande
-      </button>
-      <button class="btn neutral" style="flex:1 1 180px" onclick="clearValidatedSupplier(); goRecap();">
-        Supprimer
-      </button>
-    </div>
+<div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap">
+<button class="btn" style="background:#c62828;color:#fff;flex:1 1 260px" onclick="setValidatedSupplier(currentSupplierName)">Valider la commande</button>
+<button class="btn neutral" style="flex:1 1 260px" onclick="clearValidatedSupplier()">Supprimer la commande validée</button>
+</div>
     ${buttons ? `<div class="grid">${buttons}</div>` : `<div class="empty">Aucun produit affecté pour l’instant à ce fournisseur.</div>`}
     <p class="note">Sélectionnez ensuite une famille pour saisir les quantités.</p>
     <div style="height:220px"></div>`;
@@ -2251,7 +2256,6 @@ function stepQty(key, delta){
 }
 
 function buildGroups(){
-  const activeSupplier = getValidatedSupplier();
   const groups = [];
   for(const fam of getFamilies()){
     const lines = [];
