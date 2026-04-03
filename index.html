@@ -613,8 +613,11 @@ function setValidatedSupplier(name){
 function getValidatedSupplier(){
   try{ return String(localStorage.getItem(VALIDATED_SUPPLIER) || "").trim(); }catch(e){ return ""; }
 }
-function clearValidatedSupplier(){
+function clearValidatedSupplier(showMessage){
   try{ localStorage.removeItem(VALIDATED_SUPPLIER); }catch(e){}
+  if(showMessage !== false){
+    alert("Commande supprimée du récapitulatif.");
+  }
 }
 
 
@@ -2105,7 +2108,7 @@ function openSupplier(index){
         Valider la commande
       </button>
       <button class="btn neutral" style="flex:1 1 180px" onclick="clearValidatedSupplier(); goRecap();">
-        Supprimer
+        Supprimer la commande
       </button>
     </div>
     ${buttons ? `<div class="grid">${buttons}</div>` : `<div class="empty">Aucun produit affecté pour l’instant à ce fournisseur.</div>`}
@@ -2251,7 +2254,6 @@ function stepQty(key, delta){
 }
 
 function buildGroups(){
-  const activeSupplier = getValidatedSupplier();
   const groups = [];
   for(const fam of getFamilies()){
     const lines = [];
@@ -2992,9 +2994,32 @@ function goRecap(){
   document.getElementById("supplier").classList.add("hidden");
   document.getElementById("family").classList.add("hidden");
   document.getElementById("recap").classList.remove("hidden");
-  const groups = buildGroups();
+
+  const validatedSupplier = getValidatedSupplier();
+  const allGroups = buildGroups();
+
+  let groups = [];
+  if(validatedSupplier){
+    const supplier = getSuppliers().find(s => s.name === validatedSupplier);
+    const allowedFamilies = new Set(((supplier && supplier.families) || []).map(obj => String((obj.fam && obj.fam.name) || "").trim()));
+    groups = allGroups.filter(g => allowedFamilies.has(String(g.family || "").trim()));
+  }
+
   const showPrices = getShowPrices();
   const hasCommande = groups.length > 0;
+  const validatedHeader = validatedSupplier ? `
+    <div class="summary">
+      <p class="title">Commande validée : ${esc(validatedSupplier)}</p>
+      <p class="note">Seule la commande du fournisseur validé apparaît ici.</p>
+      <div class="toolbar" style="margin-top:10px">
+        <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="clearValidatedSupplier(); goRecap();">Supprimer cette commande du récapitulatif</button>
+      </div>
+    </div>` : `
+    <div class="summary" style="text-align:center">
+      <p class="title">Aucune commande validée</p>
+      <p class="note">Validez une commande depuis un fournisseur pour l'afficher ici.</p>
+    </div>`;
+
   const content = hasCommande ? groups.map(g => `
     <div class="section-title" style="color:${g.color}">${esc(g.family)}</div>
     <table>
@@ -3009,48 +3034,20 @@ function goRecap(){
             ${showPrices ? `<td>${esc(formatMoneyFR(line.price))}</td><td>${esc(formatMoneyFR(line.total))}</td>` : ""}
           </tr>`).join("")}
       </tbody>
-    </table>`).join("") : `
-    <div class="summary" style="text-align:center">
-      <p class="title" style="margin-bottom:8px">Aucune commande en cours</p>
-      <p class="meta" style="margin-bottom:0">Ajoute au moins un produit pour afficher le récapitulatif, le PDF et le mail fournisseur.</p>
-    </div>`;
-  const commandSummary = hasCommande ? `
-    <div class="summary" id="commande-box">
-      <p class="title">${esc(getCompanyName())}</p>
-      <p class="meta">${esc(getCompanyMetaLine(" • "))}</p>
-      <p class="meta"><strong>Commande n° ${getOrderNumber()}</strong></p>
-      <p class="meta"><strong>Commande du ${getTodayFR()}</strong></p>
-      <p class="meta">${linesCount()} ligne(s) commandée(s) • quantité totale : ${totalQty()}</p>
-      ${orderMessage && orderMessage.trim() ? `<p class="meta"><strong>Message :</strong> ${esc(orderMessage)}</p>` : ""}
-      ${getShowPrices() ? `<p class="meta"><strong>Total HT :</strong> ${esc(formatMoneyFR(totalHt()))}</p>` : ""}
-      <div style="margin:10px 0 0;padding:12px 14px;border:1px solid #bfdbfe;border-radius:16px;background:#eff6ff;color:#1e3a8a;font-size:13px;line-height:1.45">
-        <strong>Version Pro PDF :</strong> 1) clique sur <strong>Générer le PDF</strong>, 2) enregistre ou partage le PDF, 3) clique sur <strong>Préparer le mail fournisseur</strong> pour ouvrir Mail avec le message déjà rempli, puis joins le PDF généré.<br><span style="font-size:12px">Fiabilisation V11 : les quantités, prix et message sont resynchronisés automatiquement avant l'aperçu, le PDF, le mail et à la fermeture de la page.</span>
-      </div>
-    </div>` : "";
-  const actionButtons = hasCommande ? `
-      <button class="btn" style="background:#2563eb;color:#fff;border-color:#2563eb" onclick="generatePdfPro()">📄 Générer le PDF</button>
-      <button class="btn neutral" onclick="previewPdf()">👁️ Prévisualiser le PDF</button>
-      <button class="btn neutral" onclick="sendEmailWithPdfGuide()">📧 Préparer le mail fournisseur</button>
-      <button class="btn neutral" onclick="shareCommande()">Partager / enregistrer le PDF</button>` : "";
-  const pdfPreviewBox = hasCommande ? `
-    <div id="pdfPreviewBox" class="card" style="display:none">
-      <div class="toolbar">
-        <button class="btn neutral" onclick="closePdfPreview()">Fermer la prévisualisation</button>
-      </div>
-      <iframe id="pdfPreviewFrame" style="width:100%;height:70vh;border:1px solid var(--line);border-radius:16px;background:#fff" title="Prévisualisation PDF"></iframe>
-    </div>` : "";
+    </table>`).join("") : "";
+
   document.getElementById("recap").innerHTML = `
     <div class="toolbar">
-      <button class="btn neutral" onclick="goHome()">← Retour</button>
-      ${actionButtons}
-      <button class="btn neutral" onclick="showHistory()">Historique des commandes</button>
+      <button class="btn neutral" onclick="goHome()">← Accueil</button>
       <button class="btn neutral" onclick="newOrder()">Nouvelle commande</button>
+      <button class="btn neutral" onclick="copyRecap()">Copier</button>
+      <button class="btn neutral" onclick="downloadTxt()">Télécharger TXT</button>
+      <button class="btn neutral" onclick="printPDF()">Générer PDF</button>
     </div>
-    ${commandSummary}
+    <div class="section-title">Récapitulatif</div>
+    ${validatedHeader}
     ${content}
-    ${pdfPreviewBox}
     <div class="footer-space"></div>`;
-  updateFloatingSaveBar();
 }
 
 function resetAll(){
