@@ -676,8 +676,16 @@ async function savePdfForValidatedSupplier(supplierName){
       alert("Impossible de créer le PDF.");
       return false;
     }
-    const url = URL.createObjectURL(blob);
-window.open(url, "_blank");
+   const fileName = "commande_" + String(supplierName || "fournisseur").replace(/\s+/g, "_") + ".pdf";
+const file = new File([blob], fileName, { type: "application/pdf" });
+
+if(navigator.canShare && navigator.canShare({ files: [file] }) && navigator.share){
+  await navigator.share({
+    files: [file],
+    title: fileName
+  });
+  return true;
+}
     return true;
   });
 }
