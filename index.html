@@ -607,6 +607,110 @@ let currentSupplierName = "";
 
 const VALIDATED_SUPPLIER_ORDERS_KEY = "rml_validated_supplier_orders_v1";
 
+
+function getValidatedOrderBySupplierName(supplierName){
+  const clean = String(supplierName || "").trim();
+  const orders = getValidatedSupplierOrders();
+  return orders[clean] || null;
+}
+
+function getPreviewGroupsOverride(){
+  try{
+    return Array.isArray(window.__rmlPreviewGroups) ? window.__rmlPreviewGroups : null;
+  }catch(e){
+    return null;
+  }
+}
+
+function withPreviewGroups(groups, fn){
+  const prev = getPreviewGroupsOverride();
+  try{
+    window.__rmlPreviewGroups = Array.isArray(groups) ? groups : null;
+    return fn();
+  } finally {
+    if(prev){
+      window.__rmlPreviewGroups = prev;
+    } else {
+      try{ delete window.__rmlPreviewGroups; }catch(e){ window.__rmlPreviewGroups = null; }
+    }
+  }
+}
+
+function getSupplierRecipientsForValidatedOrder(supplierName){
+  try{ syncSupplierEmailInputsFromDom(); }catch(e){}
+  const email = String(getSupplierEmail(supplierName) || "").trim();
+  return email ? [email] : [];
+}
+
+function previewPdfForValidatedSupplier(supplierName){
+  const order = getValidatedOrderBySupplierName(supplierName);
+  if(!order || !Array.isArray(order.groups) || !order.groups.length){
+    alert("Aucune commande validée pour ce fournisseur.");
+    return false;
+  }
+  return withPreviewGroups(order.groups, function(){
+    const modal = document.getElementById('commandPreviewModal');
+    const panel = modal ? modal.querySelector('.preview-panel') : null;
+    const content = document.getElementById('commandPreviewContent');
+    if(!modal || !panel || !content){
+      alert('Aperçu introuvable.');
+      return false;
+    }
+    content.innerHTML = buildCommandPreviewHtml(true);
+    modal.classList.add('show');
+    document.body.classList.add('modal-open');
+    panel.classList.remove('print-mode');
+    return true;
+  });
+}
+
+async function savePdfForValidatedSupplier(supplierName){
+  const order = getValidatedOrderBySupplierName(supplierName);
+  if(!order || !Array.isArray(order.groups) || !order.groups.length){
+    alert("Aucune commande validée pour ce fournisseur.");
+    return false;
+  }
+  return withPreviewGroups(order.groups, async function(){
+    const blob = await buildPdfBlob();
+    if(!blob){
+      alert("Impossible de créer le PDF.");
+      return false;
+    }
+    await downloadPdfFile(blob, "commande_" + String(supplierName || "fournisseur").replace(/\s+/g, "_") + "_" + getOrderNumber() + ".pdf");
+    return true;
+  });
+}
+
+function sendEmailForValidatedSupplier(supplierName){
+  const order = getValidatedOrderBySupplierName(supplierName);
+  if(!order || !Array.isArray(order.groups) || !order.groups.length){
+    alert("Aucune commande validée pour ce fournisseur.");
+    return false;
+  }
+  const recipients = getSupplierRecipientsForValidatedOrder(supplierName);
+  if(!recipients.length){
+    alert("Aucune adresse e-mail n'est renseignée pour " + supplierName + ". Va dans Réglages > Fournisseurs et saisis l'adresse mail du fournisseur.");
+    return false;
+  }
+
+  return withPreviewGroups(order.groups, function(){
+    const firstTo = recipients[0] || '';
+    const ccList = recipients.slice(1).join(',');
+    const subjectText = "Commande n° " + getOrderNumber() + " - " + getCompanyName() + " - " + getTodayFR() + " - " + supplierName;
+    const bodyText = buildProfessionalEmailBody();
+    let mailtoUrl = 'mailto:' + firstTo + '?subject=' + encodeURIComponent(subjectText) + '&body=' + encodeURIComponent(bodyText);
+    if(ccList){
+      mailtoUrl += '&cc=' + encodeURIComponent(ccList);
+    }
+    const ok = openMailto(mailtoUrl);
+    if(!ok){
+      alert("Impossible d'ouvrir Mail sur cet appareil.");
+      return false;
+    }
+    return true;
+  });
+}
+
 function getValidatedSupplierOrders(){
   try{
     const raw = JSON.parse(localStorage.getItem(VALIDATED_SUPPLIER_ORDERS_KEY) || "{}");
@@ -2404,7 +2508,7 @@ function companyHeaderLines(){
 }
 
 function recapText(){
-  const groups = buildGroups();
+  const groups = getPreviewGroupsOverride() || buildGroups();
   let out = companyHeaderLines().join("\n") + "\n\n";
   for(const g of groups){
     out += g.family + "\n";
@@ -2441,7 +2545,7 @@ function savePdfHistory(entries){
 }
 
 function saveCurrentPdfToHistory(){
-  const groups = buildGroups();
+  const groups = getPreviewGroupsOverride() || buildGroups();
   if(!groups.length) return false;
   const entry = {
     orderNumber: getOrderNumber(),
@@ -3163,6 +3267,8 @@ function goRecap(){
         <div class="toolbar" style="margin-top:10px">
           <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="deleteValidatedSupplierOrder('${supplierName.replace(/'/g, "\'")}'); goRecap();">Supprimer du récapitulatif</button>
           <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="if(typeof saveOrderOnly==='function'){saveOrderOnly()}">💾 Sauvegarder la commande</button>
+          <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="previewPdfForValidatedSupplier('${supplierName.replace(/'/g, "\'")}')">Générer PDF</button>
+          <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="sendEmailForValidatedSupplier('${supplierName.replace(/'/g, "\'")}')">Envoyer par email</button>
         </div>
         ${tables}
       </div>
@@ -4000,7 +4106,7 @@ async function copyExportDataToClipboard(){
 }
 
 function buildCommandPreviewHtml(includeHelp){
-  const groups = (typeof buildGroups === 'function') ? buildGroups() : [];
+  const groups = getPreviewGroupsOverride() || ((typeof buildGroups === 'function') ? buildGroups() : []);
   const showPrices = (typeof getShowPrices === 'function') ? getShowPrices() : false;
   const companyName = (typeof getCompanyName === 'function') ? getCompanyName() : 'Commande';
   const companyMeta = (typeof getCompanyMetaLine === 'function') ? getCompanyMetaLine(' • ') : '';
