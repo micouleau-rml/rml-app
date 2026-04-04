@@ -2727,7 +2727,7 @@ async function exportPDF(){
 
 function buildProfessionalEmailBody(){
   syncOrderMessageFromDom();
-  const groups = buildGroups();
+  const groups = getPreviewGroupsOverride() || buildGroups();
   const lines = [];
   lines.push("Bonjour,");
   lines.push("");
