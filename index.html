@@ -3267,7 +3267,7 @@ function goRecap(){
         <div class="toolbar" style="margin-top:10px">
           <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="deleteValidatedSupplierOrder('${supplierName.replace(/'/g, "\'")}'); goRecap();">Supprimer du récapitulatif</button>
           <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="if(typeof saveOrderOnly==='function'){saveOrderOnly()}">💾 Sauvegarder la commande</button>
-          <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="previewPdfForValidatedSupplier('${supplierName.replace(/'/g, "\'")}')">Générer PDF</button>
+          <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="savePdfForValidatedSupplier('${supplierName.replace(/'/g, "\'")}')">Générer PDF</button>
           <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="sendEmailForValidatedSupplier('${supplierName.replace(/'/g, "\'")}')">Envoyer par email</button>
         </div>
         ${tables}
