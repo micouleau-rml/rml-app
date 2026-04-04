@@ -663,8 +663,27 @@ function previewPdfForValidatedSupplier(supplierName){
     return true;
   });
 }
+async function savePdfForValidatedSupplier(supplierName){
+  const order = getValidatedOrderBySupplierName(supplierName);
+  if(!order || !Array.isArray(order.groups) || !order.groups.length){
+    alert("Aucune commande validée pour ce fournisseur.");
+    return false;
+  }
 
-async function sharePdfForValidatedSupplier(supplierName){
+  return withPreviewGroups(order.groups, async function(){
+    const blob = await buildPdfBlob();
+    if(!blob){
+      alert("Impossible de créer le PDF.");
+      return false;
+    }
+
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank");
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    return true;
+  });
+}
+  async function sharePdfForValidatedSupplier(supplierName){
   const order = getValidatedOrderBySupplierName(supplierName);
   if(!order || !Array.isArray(order.groups) || !order.groups.length){
     alert("Aucune commande validée pour ce fournisseur.");
