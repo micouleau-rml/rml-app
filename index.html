@@ -664,7 +664,7 @@ function previewPdfForValidatedSupplier(supplierName){
   });
 }
 
-async function savePdfForValidatedSupplier(supplierName){
+async function sharePdfForValidatedSupplier(supplierName){
   const order = getValidatedOrderBySupplierName(supplierName);
   if(!order || !Array.isArray(order.groups) || !order.groups.length){
     alert("Aucune commande validée pour ce fournisseur.");
