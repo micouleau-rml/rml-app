@@ -3012,13 +3012,27 @@ function goRecap(){
       <p class="title">Commande validée : ${esc(validatedSupplier)}</p>
       <p class="note">Seule la commande du fournisseur validé apparaît ici.</p>
       <div class="toolbar" style="margin-top:10px">
-        <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="clearValidatedSupplier(); goRecap();">Supprimer cette commande du récapitulatif</button>
-      </div>
-    </div>` : `
-    <div class="summary" style="text-align:center">
-      <p class="title">Aucune commande validée</p>
-      <p class="note">Validez une commande depuis un fournisseur pour l'afficher ici.</p>
-    </div>`;
+       
+  <button class="btn neutral" style="width:auto;padding:10px 14px"
+  onclick="deleteValidatedSupplierOrder('${validatedSupplier.replace(/'/g, "\\'")}'); goRecap();">
+  Supprimer du récapitulatif
+</button>
+
+  <button class="btn neutral" style="width:auto;padding:10px 14px"
+    onclick="savePdfForValidatedSupplier('${validatedSupplier.replace(/'/g, "\\'")}')">
+    Afficher PDF
+  </button>
+
+  <button class="btn neutral" style="width:auto;padding:10px 14px"
+    onclick="sharePdfForValidatedSupplier('${validatedSupplier.replace(/'/g, "\\'")}')">
+    Partager PDF
+  </button>
+
+  <button class="btn neutral" style="width:auto;padding:10px 14px"
+    onclick="sendEmailForValidatedSupplier('${validatedSupplier.replace(/'/g, "\\'")}')">
+    Envoyer par email
+  </button>
+</div>
 
   const content = hasCommande ? groups.map(g => `
     <div class="section-title" style="color:${g.color}">${esc(g.family)}</div>
