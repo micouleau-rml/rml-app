@@ -676,7 +676,8 @@ async function savePdfForValidatedSupplier(supplierName){
       alert("Impossible de créer le PDF.");
       return false;
     }
-    await downloadPdfFile(blob, "commande_" + String(supplierName || "fournisseur").replace(/\s+/g, "_") + "_" + getOrderNumber() + ".pdf");
+    const url = URL.createObjectURL(blob);
+window.open(url, "_blank");
     return true;
   });
 }
