@@ -672,6 +672,18 @@ function validateCurrentSupplierOrder(){
   saveValidatedSupplierOrders(orders);
   alert("Commande validée pour " + supplierName + ".");
 }
+function refreshSupplierDisplayAfterReset(supplierName){
+  const cleanName = String(supplierName || "").trim();
+  if(!cleanName) return;
+  const idx = getSuppliers().findIndex(s => s.name === cleanName);
+  if(idx >= 0){
+    openSupplier(idx);
+  }
+  try{
+    if(typeof renderHome === "function") renderHome();
+  }catch(e){}
+}
+
 function clearSupplierQuantitiesOnly(supplierName){
   const cleanName = String(supplierName || "").trim();
   if(!cleanName) return false;
@@ -703,6 +715,7 @@ function deleteValidatedSupplierOrder(supplierName, silent){
   delete orders[clean];
   saveValidatedSupplierOrders(orders);
   clearSupplierQuantitiesOnly(clean);
+  refreshSupplierDisplayAfterReset(clean);
   if(!silent) alert("Commande supprimée du récapitulatif.");
 }
 
@@ -721,9 +734,7 @@ function resetSupplierData(supplierName){
   if(!confirm('Remettre à zéro les quantités du fournisseur "' + cleanName + '" ?')) return;
 
   clearSupplierQuantitiesOnly(cleanName);
-
-  const idx = getSuppliers().findIndex(s => s.name === cleanName);
-  if(idx >= 0) openSupplier(idx);
+  refreshSupplierDisplayAfterReset(cleanName);
   alert("Quantités remises à zéro pour " + cleanName + ".");
 }
 
