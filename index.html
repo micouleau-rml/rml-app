@@ -672,12 +672,37 @@ function validateCurrentSupplierOrder(){
   saveValidatedSupplierOrders(orders);
   alert("Commande validée pour " + supplierName + ".");
 }
+function clearSupplierQuantitiesOnly(supplierName){
+  const cleanName = String(supplierName || "").trim();
+  if(!cleanName) return false;
+  const supplier = getSuppliers().find(s => s.name === cleanName);
+  if(!supplier) return false;
+
+  (supplier.families || []).forEach(obj => {
+    const fam = obj.fam;
+    (fam.items || []).forEach(it => {
+      const key = keyOf(fam.name, it.label);
+      if(state[key]){
+        const existing = state[key] || {};
+        state[key] = {
+          ...existing,
+          qty: ""
+        };
+      }
+    });
+  });
+
+  save();
+  return true;
+}
+
 function deleteValidatedSupplierOrder(supplierName, silent){
   const clean = String(supplierName || "").trim();
   if(!clean) return;
   const orders = getValidatedSupplierOrders();
   delete orders[clean];
   saveValidatedSupplierOrders(orders);
+  clearSupplierQuantitiesOnly(clean);
   if(!silent) alert("Commande supprimée du récapitulatif.");
 }
 
@@ -695,21 +720,8 @@ function resetSupplierData(supplierName){
   }
   if(!confirm('Remettre à zéro les quantités du fournisseur "' + cleanName + '" ?')) return;
 
-  (supplier.families || []).forEach(obj => {
-    const fam = obj.fam;
-    (fam.items || []).forEach(it => {
-      const key = keyOf(fam.name, it.label);
-      if(state[key]){
-        const existing = state[key] || {};
-        state[key] = {
-          ...existing,
-          qty: ""
-        };
-      }
-    });
-  });
+  clearSupplierQuantitiesOnly(cleanName);
 
-  save();
   const idx = getSuppliers().findIndex(s => s.name === cleanName);
   if(idx >= 0) openSupplier(idx);
   alert("Quantités remises à zéro pour " + cleanName + ".");
