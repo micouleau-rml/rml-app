@@ -3033,7 +3033,12 @@ function goRecap(){
     Envoyer par email
   </button>
 </div>
-
+` : `
+  <div class="summary" style="text-align:center">
+    <p class="title">Aucune commande validée</p>
+    <p class="note">Validez une commande depuis un fournisseur pour l'afficher ici.</p>
+  </div>
+`;
   const content = hasCommande ? groups.map(g => `
     <div class="section-title" style="color:${g.color}">${esc(g.family)}</div>
     <table>
