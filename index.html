@@ -605,126 +605,19 @@ const DEFAULT_COMPANY_LOGO = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABAAA
 let currentFamily = null;
 let currentSupplierName = "";
 
-const VALIDATED_SUPPLIER_ORDERS_KEY = "rml_validated_supplier_orders_v1";
+const VALIDATED_SUPPLIER = "rml_validated_supplier_v1";
 
-function getValidatedSupplierOrders(){
-  try{
-    const raw = JSON.parse(localStorage.getItem(VALIDATED_SUPPLIER_ORDERS_KEY) || "{}");
-    return raw && typeof raw === "object" ? raw : {};
-  }catch(e){
-    return {};
+function setValidatedSupplier(name){
+  try{ localStorage.setItem(VALIDATED_SUPPLIER, String(name || "")); }catch(e){}
+}
+function getValidatedSupplier(){
+  try{ return String(localStorage.getItem(VALIDATED_SUPPLIER) || "").trim(); }catch(e){ return ""; }
+}
+function clearValidatedSupplier(showMessage){
+  try{ localStorage.removeItem(VALIDATED_SUPPLIER); }catch(e){}
+  if(showMessage !== false){
+    alert("Commande supprimée du récapitulatif.");
   }
-}
-function saveValidatedSupplierOrders(map){
-  try{ localStorage.setItem(VALIDATED_SUPPLIER_ORDERS_KEY, JSON.stringify(map || {})); }catch(e){}
-}
-function buildGroupsForSupplierName(supplierName){
-  const supplier = getSuppliers().find(s => s.name === supplierName);
-  if(!supplier) return [];
-  const groups = [];
-  (supplier.families || []).forEach(obj => {
-    const fam = obj.fam;
-    const lines = [];
-    (fam.items || []).forEach(it => {
-      const entry = state[keyOf(fam.name, it.label)];
-      const qty = Number((entry || {}).qty || 0);
-      const price = Number((entry || {}).price || 0);
-      if(qty > 0){
-        lines.push({
-          variant: it.variant,
-          color: it.color,
-          ref: getSupplierRef(it.color, String((entry || {}).ref || "").trim()),
-          unit: getItemUnit(fam, it),
-          qty: qty,
-          price: price,
-          total: qty * price
-        });
-      }
-    });
-    if(lines.length){
-      groups.push({
-        supplier: supplierName,
-        family: fam.name,
-        color: fam.family_color,
-        lines: lines
-      });
-    }
-  });
-  return groups;
-}
-function validateCurrentSupplierOrder(){
-  const supplierName = String(currentSupplierName || "").trim();
-  if(!supplierName){
-    alert("Aucun fournisseur sélectionné.");
-    return;
-  }
-  const groups = buildGroupsForSupplierName(supplierName);
-  if(!groups.length){
-    alert("Aucune ligne à valider pour ce fournisseur.");
-    return;
-  }
-  const orders = getValidatedSupplierOrders();
-  orders[supplierName] = {
-    supplier: supplierName,
-    validatedAt: new Date().toISOString(),
-    groups: groups
-  };
-  saveValidatedSupplierOrders(orders);
-  alert("Commande validée pour " + supplierName + ".");
-}
-function clearSupplierQuantitiesOnly(supplierName){
-  const cleanName = String(supplierName || "").trim();
-  if(!cleanName) return false;
-  const supplier = getSuppliers().find(s => s.name === cleanName);
-  if(!supplier) return false;
-
-  (supplier.families || []).forEach(obj => {
-    const fam = obj.fam;
-    (fam.items || []).forEach(it => {
-      const key = keyOf(fam.name, it.label);
-      if(state[key]){
-        const existing = state[key] || {};
-        state[key] = {
-          ...existing,
-          qty: ""
-        };
-      }
-    });
-  });
-
-  save();
-  return true;
-}
-
-function deleteValidatedSupplierOrder(supplierName, silent){
-  const clean = String(supplierName || "").trim();
-  if(!clean) return;
-  const orders = getValidatedSupplierOrders();
-  delete orders[clean];
-  saveValidatedSupplierOrders(orders);
-  clearSupplierQuantitiesOnly(clean);
-  if(!silent) alert("Commande supprimée du récapitulatif.");
-}
-
-
-function resetSupplierData(supplierName){
-  const cleanName = String(supplierName || "").trim();
-  if(!cleanName){
-    alert("Aucun fournisseur sélectionné.");
-    return;
-  }
-  const supplier = getSuppliers().find(s => s.name === cleanName);
-  if(!supplier){
-    alert("Fournisseur introuvable.");
-    return;
-  }
-  if(!confirm('Remettre à zéro les quantités du fournisseur "' + cleanName + '" ?')) return;
-
-  clearSupplierQuantitiesOnly(cleanName);
-
-  const idx = getSuppliers().findIndex(s => s.name === cleanName);
-  if(idx >= 0) openSupplier(idx);
-  alert("Quantités remises à zéro pour " + cleanName + ".");
 }
 
 
@@ -2211,8 +2104,12 @@ function openSupplier(index){
     </div>
     <div class="section-title">Fournisseur : ${esc(supplier.name)}</div>
     <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn" style="background:#c62828;color:#fff;border-color:#c62828;flex:1 1 240px" onclick="validateCurrentSupplierOrder()">Valider la commande</button>
-      <button class="btn neutral" style="flex:1 1 240px" onclick="resetSupplierData(currentSupplierName)">Supprimer la commande</button>
+      <button class="btn" style="background:#c62828;color:#fff;border-color:#c62828;flex:1 1 240px" onclick="setValidatedSupplier(currentSupplierName); alert('Commande validée pour ' + currentSupplierName);">
+        Valider la commande
+      </button>
+      <button class="btn neutral" style="flex:1 1 180px" onclick="clearValidatedSupplier(); goRecap();">
+        Supprimer la commande
+      </button>
     </div>
     ${buttons ? `<div class="grid">${buttons}</div>` : `<div class="empty">Aucun produit affecté pour l’instant à ce fournisseur.</div>`}
     <p class="note">Sélectionnez ensuite une famille pour saisir les quantités.</p>
@@ -3098,73 +2995,58 @@ function goRecap(){
   document.getElementById("family").classList.add("hidden");
   document.getElementById("recap").classList.remove("hidden");
 
-  const validatedOrders = Object.values(getValidatedSupplierOrders());
+  const validatedSupplier = getValidatedSupplier();
+  const allGroups = buildGroups();
+
+  let groups = [];
+  if(validatedSupplier){
+    const supplier = getSuppliers().find(s => s.name === validatedSupplier);
+    const allowedFamilies = new Set(((supplier && supplier.families) || []).map(obj => String((obj.fam && obj.fam.name) || "").trim()));
+    groups = allGroups.filter(g => allowedFamilies.has(String(g.family || "").trim()));
+  }
+
   const showPrices = getShowPrices();
-
-  const cards = validatedOrders.length ? validatedOrders.map(order => {
-    const supplierName = order.supplier || "";
-    const validatedDate = order.validatedAt ? new Date(order.validatedAt).toLocaleString("fr-FR") : "";
-    const groups = Array.isArray(order.groups) ? order.groups : [];
-    const totalLines = groups.reduce((n, g) => n + ((g.lines || []).length), 0);
-    const totalQtyValue = groups.reduce((n, g) => n + (g.lines || []).reduce((a, line) => a + Number(line.qty || 0), 0), 0);
-    const totalHtValue = groups.reduce((n, g) => n + (g.lines || []).reduce((a, line) => a + Number(line.total || 0), 0), 0);
-
-    const tables = groups.map(g => `
-      <div class="section-title" style="color:${g.color}">${esc(g.family)}</div>
-      <table>
-        <thead>
-          <tr>
-            <th>Produit</th>
-            <th>Couleur</th>
-            <th>Unités</th>
-            <th>Quantité</th>
-            ${showPrices ? "<th>Prix HT</th><th>Total HT</th>" : ""}
-          </tr>
-        </thead>
-        <tbody>
-          ${(g.lines || []).map(line => `
-            <tr>
-              <td>${esc(line.variant)}</td>
-              <td>${esc(line.color)}</td>
-              <td>${esc(line.unit)}</td>
-              <td>${esc(line.qty)}</td>
-              ${showPrices ? `<td>${esc(formatMoneyFR(line.price))}</td><td>${esc(formatMoneyFR(line.total))}</td>` : ""}
-            </tr>
-          `).join("")}
-        </tbody>
-      </table>
-    `).join("");
-
-    return `
-      <div class="summary">
-        <p class="title">Fournisseur : ${esc(supplierName)}</p>
-        <p class="meta">Commande validée le ${esc(validatedDate)} • ${totalLines} ligne(s) • quantité totale : ${esc(totalQtyValue)}</p>
-        ${showPrices ? `<p class="meta"><strong>Total HT :</strong> ${esc(formatMoneyFR(totalHtValue))}</p>` : ""}
-        <div class="toolbar" style="margin-top:10px">
-          <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="deleteValidatedSupplierOrder('${supplierName.replace(/'/g, "\'")}'); goRecap();">Supprimer du récapitulatif</button>
-          <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="if(typeof saveOrderOnly==='function'){saveOrderOnly()}">💾 Sauvegarder la commande</button>
-        </div>
-        ${tables}
+  const hasCommande = groups.length > 0;
+  const validatedHeader = validatedSupplier ? `
+    <div class="summary">
+      <p class="title">Commande validée : ${esc(validatedSupplier)}</p>
+      <p class="note">Seule la commande du fournisseur validé apparaît ici.</p>
+      <div class="toolbar" style="margin-top:10px">
+        <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="clearValidatedSupplier(); goRecap();">Supprimer cette commande du récapitulatif</button>
       </div>
-    `;
-  }).join("") : `
+    </div>` : `
     <div class="summary" style="text-align:center">
-      <p class="title" style="margin-bottom:8px">Aucune commande validée</p>
-      <p class="meta" style="margin-bottom:0">Valide une commande depuis la fiche fournisseur pour l'afficher ici.</p>
-    </div>
-  `;
+      <p class="title">Aucune commande validée</p>
+      <p class="note">Validez une commande depuis un fournisseur pour l'afficher ici.</p>
+    </div>`;
+
+  const content = hasCommande ? groups.map(g => `
+    <div class="section-title" style="color:${g.color}">${esc(g.family)}</div>
+    <table>
+      <thead><tr><th>Produit</th><th>Couleur</th><th>Unités</th><th>Quantité</th>${showPrices ? "<th>Prix HT</th><th>Total HT</th>" : ""}</tr></thead>
+      <tbody>
+        ${g.lines.map(line => `
+          <tr>
+            <td>${esc(line.variant)}</td>
+            <td>${esc(line.color)}</td>
+            <td>${esc(line.unit)}</td>
+            <td>${esc(line.qty)}</td>
+            ${showPrices ? `<td>${esc(formatMoneyFR(line.price))}</td><td>${esc(formatMoneyFR(line.total))}</td>` : ""}
+          </tr>`).join("")}
+      </tbody>
+    </table>`).join("") : "";
 
   document.getElementById("recap").innerHTML = `
     <div class="toolbar">
       <button class="btn neutral" onclick="goHome()">← Accueil</button>
       <button class="btn neutral" onclick="newOrder()">Nouvelle commande</button>
-      <button class="btn neutral" onclick="if(typeof copyRecap==='function'){copyRecap()}">Copier</button>
-      <button class="btn neutral" onclick="if(typeof downloadTxt==='function'){downloadTxt()}">Télécharger TXT</button>
-      <button class="btn neutral" onclick="if(typeof printPDF==='function'){printPDF()}">Générer PDF</button>
-      <button class="btn neutral" onclick="if(typeof sendByEmail==='function'){sendByEmail()} else if(typeof sendEmail==='function'){sendEmail()}">Envoyer par email</button>
+      <button class="btn neutral" onclick="copyRecap()">Copier</button>
+      <button class="btn neutral" onclick="downloadTxt()">Télécharger TXT</button>
+      <button class="btn neutral" onclick="printPDF()">Générer PDF</button>
     </div>
     <div class="section-title">Récapitulatif</div>
-    ${cards}
+    ${validatedHeader}
+    ${content}
     <div class="footer-space"></div>`;
 }
 
