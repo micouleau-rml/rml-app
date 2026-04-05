@@ -2702,7 +2702,62 @@ function sendEmail(){
   const firstTo = recipients[0] || '';
   const ccList = recipients.slice(1).join(',');
   const subjectText = "Commande n° " + getOrderNumber() + " - " + getCompanyName() + " - " + getTodayFR();
-  const bodyText = buildProfessionalEmailBody();
+  
+async function savePdfForValidatedSupplier(supplierName){
+  const order = getValidatedOrderBySupplierName(supplierName);
+  if(!order || !Array.isArray(order.groups) || !order.groups.length){
+    alert("Aucune commande validée pour ce fournisseur.");
+    return false;
+  }
+
+  return withPreviewGroups(order.groups, async function(){
+    const blob = await buildPdfBlob();
+    if(!blob){
+      alert("Impossible de créer le PDF.");
+      return false;
+    }
+
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank");
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    return true;
+  });
+}
+
+
+async function sharePdfForValidatedSupplier(supplierName){
+  const order = getValidatedOrderBySupplierName(supplierName);
+  if(!order || !Array.isArray(order.groups) || !order.groups.length){
+    alert("Aucune commande validée pour ce fournisseur.");
+    return false;
+  }
+
+  return withPreviewGroups(order.groups, async function(){
+    const blob = await buildPdfBlob();
+    if(!blob){
+      alert("Impossible de créer le PDF.");
+      return false;
+    }
+
+    const fileName = "commande_" + String(supplierName || "fournisseur").replace(/\s+/g, "_") + ".pdf";
+    const file = new File([blob], fileName, { type: "application/pdf" });
+
+    if(navigator.canShare && navigator.canShare({ files: [file] }) && navigator.share){
+      await navigator.share({
+        files: [file],
+        title: fileName
+      });
+      return true;
+    }
+
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank");
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    return true;
+  });
+}
+
+const bodyText = buildProfessionalEmailBody();
   let mailtoUrl = 'mailto:' + firstTo + '?subject=' + encodeURIComponent(subjectText) + '&body=' + encodeURIComponent(bodyText);
   if(ccList){
     mailtoUrl += '&cc=' + encodeURIComponent(ccList);
