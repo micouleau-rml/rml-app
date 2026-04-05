@@ -2107,7 +2107,7 @@ function openSupplier(index){
       <button class="btn" style="background:#c62828;color:#fff;border-color:#c62828;flex:1 1 240px" onclick="setValidatedSupplier(currentSupplierName); alert('Commande validée pour ' + currentSupplierName);">
         Valider la commande
       </button>
-      <button class="btn neutral" style="flex:1 1 180px" onclick="clearValidatedSupplier(); goRecap();">
+      <button class="btn neutral" style="flex:1 1 180px" onclick="resetSupplierData(currentSupplierName)">
         Supprimer la commande
       </button>
     </div>
