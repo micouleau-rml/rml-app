@@ -987,6 +987,7 @@ function flushAllInputsToState(){
     });
     syncSupplierEmailInputsFromDom();
     syncOrderMetaInputs();
+    syncCustomProductPricesToState();
     save();
   }catch(e){}
 }
@@ -1265,10 +1266,8 @@ function onHeaderLogoSelected(input){
 
 
 function getCustomProductsForSupplier(supplierName){
-  const target = normalizeSupplierName(supplierName || DEFAULT_SUPPLIER);
-  return getCustomProducts().filter(p =>
-    normalizeSupplierName((p && p.supplier) || DEFAULT_SUPPLIER) === target
-  );
+  const target = String(supplierName || "").trim();
+  return getCustomProducts().filter(p => String((p && p.supplier) || DEFAULT_SUPPLIER).trim() === target);
 }
 function getCustomProductIndexById(productId){
   const list = getCustomProducts();
@@ -1877,9 +1876,19 @@ function getFamilies(){
     copy.visible = ov.visible !== false;
     return copy;
   }).filter(f => f.visible !== false && !isRemovedSupplierFamily(f));
+
+  const baseKeys = new Set(
+    base.map(f => normalizeSupplierName(getSupplierName(f)) + "||" + String((f && f.name) || "").trim().toUpperCase())
+  );
+
   const custom = getCustomProducts()
     .filter(p => String((p && p.name) || "").trim() && p.visible !== false && inferSupplierFromProduct(p) !== "Sodifab")
+    .filter(p => {
+      const key = normalizeSupplierName(inferSupplierFromProduct(p)) + "||" + String((p && p.name) || "").trim().toUpperCase();
+      return !baseKeys.has(key);
+    })
     .map(customProductToFamily);
+
   return base.concat(custom);
 }
 function getCustomProductsSettingsHtml(){
@@ -1974,26 +1983,6 @@ function getPdfHeaderTextRgb(){
   const color = (getHeaderBg() || "#ffffff").toLowerCase();
   if(color === "#ffffff" || color === "#9aa0a6") return [24,33,43];
   return [255,255,255];
-}
-
-function syncCustomProductPricesToStateForSupplier(supplierName){
-  try{
-    const target = normalizeSupplierName(supplierName || DEFAULT_SUPPLIER);
-    const products = getCustomProductsForSupplier(target);
-    products.forEach(p => {
-      const name = String((p && p.name) || "").trim();
-      if(!name) return;
-      const unit = ((p.unit || "U").toUpperCase() === "ML") ? "ML" : "U";
-      const key = keyOf(name, name + "||" + unit);
-      const defaultValue = p.default_price || p.price || "";
-      if(!state[key]) state[key] = { qty:"", unit:unit, price:"", ref:"" };
-      state[key].price = resolveDefaultPriceForKey(key, defaultValue);
-      state[key].unit = unit;
-      if(defaultValue !== ""){
-        updateStoredPriceByKey(key, defaultValue);
-      }
-    });
-  }catch(e){}
 }
 
 function syncCustomProductPricesToState(){
