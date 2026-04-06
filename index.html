@@ -1,4 +1,3 @@
-<!-- V7 FIX -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -7,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="RML GOUTTIÈRE ALU">
-<title>RML GOUTTIÈRE ALU • V39 synchronisée • Sodifab supprimé v2</title>
+<title>RML GOUTTIÈRE ALU • V39 synchronisée</title>
 <style>
 :root{--bg:#f4f6f9;--card:#fff;--line:#d8e0ea;--text:#18212b;--muted:#627182;--btn-accent:#334155;}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
@@ -18,7 +17,7 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,B
 .top-text{min-width:0;text-align:center}
 .top h1{margin:0;font-size:30px;font-weight:900;letter-spacing:2px;line-height:1.1}
 .top p{margin:10px auto 0;color:var(--header-text);opacity:.82;font-size:13px;line-height:1.4;max-width:520px}
-.wrap{max-width:1080px;margin:0 auto;padding:14px 14px 180px 14px}
+.wrap{max-width:1080px;margin:0 auto;padding:14px}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
 .btn{display:block;width:100%;border:none;border-radius:999px;padding:16px 18px;background:#fff;border:1px solid var(--line);box-shadow:0 2px 10px rgba(0,0,0,.05);text-align:left;font-size:16px;font-weight:800;color:var(--text)}
 .btn small{display:block;margin-top:4px;font-size:12px;font-weight:600;color:rgba(255,255,255,.92)}
@@ -154,16 +153,6 @@ th{background:#f8fafc}
 
 .sync-card{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .sync-status{margin-top:8px;color:#627182;font-size:13px}
-
-.supplier-accordion-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;cursor:pointer}
-.supplier-accordion-toggle{font-weight:900;font-size:22px;line-height:1}
-.supplier-accordion-body{margin-top:10px}
-
-
-.supplier-sub-head{display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid var(--line);border-radius:14px;background:#fff}
-.supplier-sub-body{margin-top:8px}
-.supplier-sub-toggle{font-weight:900;font-size:18px;line-height:1}
-
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -296,90 +285,9 @@ const DEFAULT_COMPANY_PHONE = "05 56 67 33 89";
 const DEFAULT_COMPANY_EMAIL = "";
 const CUSTOM_PRODUCTS_KEY = "rml_custom_products";
 const SHOW_PRICES_KEY = "rml_show_prices";
-const DEFAULT_SUPPLIER = "GUTTERFRANCE";
-const DEFAULT_SUPPLIER_OPTIONS = ["GUTTERFRANCE", "GUTTERKEL", "GUTTI", "ALMET"];
-
-function normalizeSupplierName(value){
-  return String(value || "").trim().replace(/\s+/g, " ").toUpperCase();
-}
-
-function normalizeSupplierMapKeys(map){
-  const out = {};
-  Object.keys(map || {}).forEach(key => {
-    const nk = normalizeSupplierName(key);
-    if(nk) out[nk] = map[key];
-  });
-  return out;
-}
-
-function normalizeSupplierDataOnce(){
-  const FLAG = "rml_supplier_normalize_v8_done";
-  try{
-    if(localStorage.getItem(FLAG) === "1") return;
-  }catch(e){}
-
-  try{
-    const raw = JSON.parse(localStorage.getItem(SUPPLIERS_KEY) || "[]");
-    const clean = Array.isArray(raw) ? raw.map(normalizeSupplierName).filter(Boolean) : [];
-    localStorage.setItem(SUPPLIERS_KEY, JSON.stringify([...new Set(clean)]));
-  }catch(e){}
-
-  try{
-    const raw = JSON.parse(localStorage.getItem(SUPPLIER_ORDER_KEY) || "[]");
-    const clean = Array.isArray(raw) ? raw.map(normalizeSupplierName).filter(Boolean) : [];
-    localStorage.setItem(SUPPLIER_ORDER_KEY, JSON.stringify([...new Set(clean)]));
-  }catch(e){}
-
-  try{
-    const raw = JSON.parse(localStorage.getItem(SUPPLIER_EMAILS_KEY) || "{}") || {};
-    localStorage.setItem(SUPPLIER_EMAILS_KEY, JSON.stringify(normalizeSupplierMapKeys(raw)));
-  }catch(e){}
-
-  try{
-    const raw = JSON.parse(localStorage.getItem(SUPPLIER_COLORS_KEY) || "{}") || {};
-    localStorage.setItem(SUPPLIER_COLORS_KEY, JSON.stringify(normalizeSupplierMapKeys(raw)));
-  }catch(e){}
-
-  try{
-    const openMap = JSON.parse(localStorage.getItem("rml_supplier_open_map_v1") || "{}") || {};
-    const normalized = {};
-    Object.keys(openMap).forEach(k => {
-      normalized[normalizeSupplierName(k)] = openMap[k];
-    });
-    localStorage.setItem("rml_supplier_open_map_v1", JSON.stringify(normalized));
-  }catch(e){}
-
-  try{
-    const innerMap = JSON.parse(localStorage.getItem("rml_supplier_inner_open_map_v1") || "{}") || {};
-    const normalized = {};
-    Object.keys(innerMap).forEach(k => {
-      const parts = String(k).split("||");
-      if(parts.length >= 2){
-        normalized[normalizeSupplierName(parts[0]) + "||" + parts.slice(1).join("||")] = innerMap[k];
-      }else{
-        normalized[normalizeSupplierName(k)] = innerMap[k];
-      }
-    });
-    localStorage.setItem("rml_supplier_inner_open_map_v1", JSON.stringify(normalized));
-  }catch(e){}
-
-  try{
-    const list = getCustomProducts();
-    list.forEach(p => {
-      if(p && typeof p === "object"){
-        if("supplier" in p) p.supplier = normalizeSupplierName(p.supplier || DEFAULT_SUPPLIER);
-        if("supplierName" in p && p.supplierName) p.supplierName = normalizeSupplierName(p.supplierName);
-        if("supplierId" in p && p.supplierId) p.supplierId = normalizeSupplierName(p.supplierId);
-      }
-    });
-    saveCustomProducts(list);
-  }catch(e){}
-
-  try{ localStorage.setItem(FLAG, "1"); }catch(e){}
-}
-
+const DEFAULT_SUPPLIER = "Gutterfrance";
+const DEFAULT_SUPPLIER_OPTIONS = ["Gutterfrance", "Gutterkel", "Gutti", "Sodifab"];
 const SUPPLIERS_KEY = "rml_suppliers";
-cleanupSodifabOnce();
 const SUPPLIER_EMAILS_KEY = "rml_supplier_emails";
 function getSupplierEmails(){
   try{
@@ -395,13 +303,13 @@ function saveSupplierEmails(map){
   }catch(e){}
 }
 function getSupplierEmail(name){
-  const map = normalizeSupplierMapKeys(getSupplierEmails());
-  return map[normalizeSupplierName(name)] || "";
+  const map = getSupplierEmails();
+  return map[String(name || "").trim()] || "";
 }
 function updateSupplierEmail(name, email){
-  const cleanName = normalizeSupplierName(name);
+  const cleanName = String(name || "").trim();
   if(!cleanName) return;
-  const map = normalizeSupplierMapKeys(getSupplierEmails());
+  const map = getSupplierEmails();
   map[cleanName] = String(email || "").trim();
   saveSupplierEmails(map);
 }
@@ -411,15 +319,15 @@ const SUPPLIER_ORDER_KEY = "supplier_order";
 function getSupplierOrder(){
   try{
     const raw = JSON.parse(localStorage.getItem(SUPPLIER_ORDER_KEY) || "[]");
-    return Array.isArray(raw) ? raw.map(normalizeSupplierName).filter(Boolean) : [];
+    return Array.isArray(raw) ? raw.map(v => String(v || "").trim()).filter(Boolean) : [];
   }catch(e){
     return [];
   }
 }
 function saveSupplierOrder(list){
   try{
-    const clean = Array.isArray(list) ? list.map(normalizeSupplierName).filter(Boolean) : [];
-    localStorage.setItem(SUPPLIER_ORDER_KEY, JSON.stringify([...new Set(clean)]));
+    const clean = Array.isArray(list) ? list.map(v => String(v || "").trim()).filter(Boolean) : [];
+    localStorage.setItem(SUPPLIER_ORDER_KEY, JSON.stringify(clean));
   }catch(e){}
 }
 function normalizeSupplierOrder(list){
@@ -444,105 +352,18 @@ function moveSupplier(name, direction){
   goSettings();
 }
 
-
-
-function cleanupSodifabOnce(){
-  const FLAG = "rml_cleanup_sodifab_done_v1";
-  try{
-    if(localStorage.getItem(FLAG) === "1") return;
-  }catch(e){}
-
-  try{
-    // remove custom products linked to Sodifab
-    const products = getCustomProducts().filter(p => inferSupplierFromProduct(p) !== "Sodifab");
-    saveCustomProducts(products);
-  }catch(e){}
-
-  try{
-    // remove supplier from saved options/order
-    const raw = JSON.parse(localStorage.getItem("rml_suppliers") || "[]");
-    const cleaned = Array.isArray(raw) ? raw.filter(name => String(name || "").trim() !== "Sodifab") : [];
-    localStorage.setItem("rml_suppliers", JSON.stringify(cleaned));
-  }catch(e){}
-
-  try{
-    const emails = JSON.parse(localStorage.getItem("rml_supplier_emails") || "{}") || {};
-    delete emails["Sodifab"];
-    localStorage.setItem("rml_supplier_emails", JSON.stringify(emails));
-  }catch(e){}
-
-  try{
-    const colors = JSON.parse(localStorage.getItem("rml_supplier_colors") || "{}") || {};
-    delete colors["Sodifab"];
-    localStorage.setItem("rml_supplier_colors", JSON.stringify(colors));
-  }catch(e){}
-
-  try{
-    const openMap = JSON.parse(localStorage.getItem("rml_supplier_open_map_v1") || "{}") || {};
-    delete openMap["Sodifab"];
-    localStorage.setItem("rml_supplier_open_map_v1", JSON.stringify(openMap));
-  }catch(e){}
-
-  try{
-    const innerMap = JSON.parse(localStorage.getItem("rml_supplier_inner_open_map_v1") || "{}") || {};
-    Object.keys(innerMap).forEach(k => {
-      if(String(k).startsWith("Sodifab||")) delete innerMap[k];
-    });
-    localStorage.setItem("rml_supplier_inner_open_map_v1", JSON.stringify(innerMap));
-  }catch(e){}
-
-  try{ localStorage.setItem(FLAG, "1"); }catch(e){}
-}
-
-function inferSupplierNameFromText(value){
-  const upper = String(value || "").toUpperCase();
-  if(
-    upper.includes("ALMET") ||
-    upper.includes("COUVERTINES") ||
-    upper.includes("CROCHETS COUVERTINES") ||
-    upper.includes("ANGLES COUVERTINES") ||
-    upper.includes("DAUPHINS ALU") ||
-    upper.includes("DAUPHINS GALVA") ||
-    upper.includes("VIS COULEUR ET PEINTURE")
-  ) return "ALMET";
-  if(upper.includes("SODIFAB")) return "SODIFAB";
-  if(upper.includes("GUTTERKEL")) return "GUTTERKEL";
-  if(upper.includes("GUTTI")) return "GUTTI";
-  if(upper.includes("GUTTERFRANCE")) return "GUTTERFRANCE";
-  return "";
-}
-function inferSupplierFromProduct(p){
-  const direct = normalizeSupplierName((p && p.supplier) || "");
-  if(direct) return direct;
-  const fields = [
-    (p && p.supplierName) || "",
-    (p && p.supplierId) || "",
-    (p && p.family_name) || "",
-    (p && p.family_label) || "",
-    (p && p.name) || "",
-    (p && p.product_color) || "",
-    (p && p.supplier_ref) || ""
-  ];
-  for(const field of fields){
-    const guess = inferSupplierNameFromText(field);
-    if(guess) return guess;
-  }
-  return DEFAULT_SUPPLIER;
-}
-
 function getSupplierOptionsRaw(){
   try{
     const raw = JSON.parse(localStorage.getItem(SUPPLIERS_KEY) || "[]");
-    const list = Array.isArray(raw) ? raw.map(normalizeSupplierName).filter(Boolean) : [];
+    const list = Array.isArray(raw) ? raw.map(v => String(v || "").trim()).filter(Boolean) : [];
     const merged = [...DEFAULT_SUPPLIER_OPTIONS];
-    list.forEach(name => {
-      if(!merged.includes(name)) merged.push(name);
-    });
+    list.forEach(name => { if(!merged.includes(name)) merged.push(name); });
+    // also merge suppliers already present on custom products
     getCustomProducts().forEach(p => {
-      const s = inferSupplierFromProduct(p);
+      const s = String((p && p.supplier) || "").trim();
       if(s && !merged.includes(s)) merged.push(s);
     });
-    return [...new Set(merged.map(normalizeSupplierName).filter(Boolean))];
+    return merged;
   }catch(e){
     return DEFAULT_SUPPLIER_OPTIONS.slice();
   }
@@ -552,14 +373,14 @@ function getSupplierOptions(){
 }
 function saveSupplierOptions(list){
   try{
-    const clean = Array.isArray(list) ? list.map(normalizeSupplierName).filter(Boolean) : [];
-    localStorage.setItem(SUPPLIERS_KEY, JSON.stringify([...new Set(clean)]));
+    const clean = Array.isArray(list) ? list.map(v => String(v || "").trim()).filter(Boolean) : [];
+    localStorage.setItem(SUPPLIERS_KEY, JSON.stringify(clean));
   }catch(e){}
 }
 function addSupplier(){
   const input = document.getElementById("newSupplierInput");
   if(!input) return;
-  const clean = normalizeSupplierName(input.value || "");
+  const clean = String(input.value || "").trim();
   if(!clean){
     alert("Merci de saisir un nom de fournisseur.");
     return;
@@ -573,12 +394,11 @@ function addSupplier(){
   list.push(clean);
   saveSupplierOptions(list);
   input.value = "";
-  alert("Fournisseur ajouté en majuscules.");
+  alert("Fournisseur ajouté.");
   goSettings();
-  setSettingsSection('fournisseurs');
 }
 function deleteSupplier(name){
-  const clean = normalizeSupplierName(name);
+  const clean = String(name || "").trim();
   if(!clean) return;
   if(DEFAULT_SUPPLIER_OPTIONS.includes(clean)){
     alert("Ce fournisseur de base ne peut pas être supprimé.");
@@ -604,11 +424,10 @@ const DEFAULT_COMPANY_LOGO = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABAAA
 
 let currentFamily = null;
 let currentSupplierName = "";
-
 const VALIDATED_SUPPLIER = "rml_validated_supplier_v1";
 
 function setValidatedSupplier(name){
-  try{ localStorage.setItem(VALIDATED_SUPPLIER, String(name || "")); }catch(e){}
+  try{ localStorage.setItem(VALIDATED_SUPPLIER, String(name || "").trim()); }catch(e){}
 }
 function getValidatedSupplier(){
   try{ return String(localStorage.getItem(VALIDATED_SUPPLIER) || "").trim(); }catch(e){ return ""; }
@@ -618,6 +437,79 @@ function clearValidatedSupplier(showMessage){
   if(showMessage !== false){
     alert("Commande supprimée du récapitulatif.");
   }
+}
+
+function clearSupplierQuantitiesOnly(supplierName){
+  const cleanName = String(supplierName || "").trim();
+  if(!cleanName) return false;
+  const supplier = getSuppliers().find(s => s.name === cleanName);
+  if(!supplier) return false;
+
+  (supplier.families || []).forEach(obj => {
+    const fam = obj.fam;
+    (fam.items || []).forEach(it => {
+      const key = keyOf(fam.name, it.label);
+      if(state[key]){
+        const existing = state[key] || {};
+        state[key] = { ...existing, qty: "" };
+      }
+    });
+  });
+
+  try{
+    document.querySelectorAll(".js-qty-input").forEach(input => {
+      const key = input.getAttribute("data-key") || "";
+      if(state[key] && (state[key].qty === "" || state[key].qty === 0)){
+        input.value = "";
+      }
+    });
+  }catch(e){}
+
+  save();
+  return true;
+}
+
+function resetSupplierData(supplierName){
+  const cleanName = String(supplierName || "").trim();
+  if(!cleanName){
+    alert("Aucun fournisseur sélectionné.");
+    return;
+  }
+  const supplier = getSuppliers().find(s => s.name === cleanName);
+  if(!supplier){
+    alert("Fournisseur introuvable.");
+    return;
+  }
+  if(!confirm('Remettre à zéro les quantités du fournisseur "' + cleanName + '" ?')) return;
+
+  clearSupplierQuantitiesOnly(cleanName);
+
+  const idx = getSuppliers().findIndex(s => s.name === cleanName);
+  if(idx >= 0) openSupplier(idx);
+  alert("Quantités remises à zéro pour " + cleanName + ".");
+}
+
+function validateCurrentSupplierOrder(){
+  const cleanName = String(currentSupplierName || "").trim();
+  if(!cleanName){
+    alert("Aucun fournisseur sélectionné.");
+    return;
+  }
+  const supplier = getSuppliers().find(s => s.name === cleanName);
+  if(!supplier){
+    alert("Fournisseur introuvable.");
+    return;
+  }
+  const hasQty = (supplier.families || []).some(obj => {
+    const fam = obj.fam;
+    return (fam.items || []).some(it => Number((state[keyOf(fam.name, it.label)] || {}).qty || 0) > 0);
+  });
+  if(!hasQty){
+    alert("Aucune ligne à valider pour ce fournisseur.");
+    return;
+  }
+  setValidatedSupplier(cleanName);
+  goRecap();
 }
 
 
@@ -971,12 +863,12 @@ function getSupplierColors(){
   try{ return JSON.parse(localStorage.getItem(SUPPLIER_COLORS_KEY) || "{}") || {}; }catch(e){ return {}; }
 }
 function getSupplierColor(name, fallback){
-  const map = normalizeSupplierMapKeys(getSupplierColors());
-  return map[normalizeSupplierName(name)] || fallback || "#334155";
+  const map = getSupplierColors();
+  return map[name] || fallback || "#334155";
 }
 function updateSupplierColor(name, value){
-  const map = normalizeSupplierMapKeys(getSupplierColors());
-  map[normalizeSupplierName(name)] = value || "#334155";
+  const map = getSupplierColors();
+  map[name] = value || "#334155";
   localStorage.setItem(SUPPLIER_COLORS_KEY, JSON.stringify(map));
 }
 function getAppBg(){ return localStorage.getItem(APP_BG_KEY) || "#f4f6f9"; }
@@ -1086,394 +978,6 @@ function onHeaderLogoSelected(input){
     goHome();
   };
   reader.readAsDataURL(file);
-}
-
-
-
-function getCustomProductsForSupplier(supplierName){
-  const target = String(supplierName || "").trim();
-  return getCustomProducts().filter(p => String((p && p.supplier) || DEFAULT_SUPPLIER).trim() === target);
-}
-function getCustomProductIndexById(productId){
-  const list = getCustomProducts();
-  return list.findIndex(p => String((p && p.id) || "") === String(productId || ""));
-}
-function updateCustomProductById(productId, field, value){
-  const idx = getCustomProductIndexById(productId);
-  if(idx < 0) return;
-  updateCustomProduct(idx, field, value);
-}
-
-
-function duplicateCustomProductById(productId){
-  const idx = getCustomProductIndexById(productId);
-  if(idx < 0) return;
-  const list = getCustomProducts();
-  const source = list[idx] || {};
-  const copy = JSON.parse(JSON.stringify(source));
-  copy.id = "dup_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,8);
-  copy.name = String(copy.name || "") + " copie";
-  list.push(copy);
-  saveCustomProducts(list);
-  try{ if(typeof syncCustomProductPricesToState === "function") syncCustomProductPricesToState(); }catch(e){}
-  goSettings();
-  setSettingsSection('fournisseurs');
-}
-
-function confirmDeleteProductById(productId){
-  const ok = confirm("Supprimer ce produit ?");
-  if(!ok) return;
-  deleteCustomProductById(productId);
-}
-function confirmDeleteSupplierByName(name){
-  const supplierName = String(name || "").trim();
-  if(!supplierName) return;
-  const count = getCustomProductsForSupplier(supplierName).length;
-  const msg = count > 0
-    ? "Supprimer le fournisseur \"" + supplierName + "\" et ses " + count + " produit(s) ?"
-    : "Supprimer le fournisseur \"" + supplierName + "\" ?";
-  const ok = confirm(msg);
-  if(!ok) return;
-  deleteSupplier(supplierName);
-}
-
-function deleteCustomProductById(productId){
-  const idx = getCustomProductIndexById(productId);
-  if(idx < 0) return;
-  deleteCustomProduct(idx);
-  goSettings();
-  setSettingsSection('fournisseurs');
-}
-function openProductModalForSupplier(supplierName){
-  openProductModal();
-  const el = document.getElementById("newProductSupplier");
-  if(el) el.value = normalizeSupplierName(supplierName || DEFAULT_SUPPLIER);
-}
-
-
-function isRemovedSupplierFamily(fam){
-  const txt = ((fam && fam.name) || "") + " " + ((fam && fam.family_label) || "");
-  return txt.toUpperCase().includes("SODIFAB");
-}
-
-function getFamilySupplierName(fam){
-  const direct = normalizeSupplierName((fam && fam.supplier) || "");
-  if(direct) return direct;
-  const txt = ((fam && fam.name) || "") + " " + ((fam && fam.family_label) || "");
-  const upper = txt.toUpperCase();
-
-  if(
-    upper.includes("ALMET") ||
-    upper.includes("COUVERTINES") ||
-    upper.includes("CROCHETS COUVERTINES") ||
-    upper.includes("ANGLES COUVERTINES") ||
-    upper.includes("DAUPHINS ALU") ||
-    upper.includes("DAUPHINS GALVA") ||
-    upper.includes("VIS COULEUR ET PEINTURE")
-  ) return "ALMET";
-
-  if(upper.includes("GUTTERKEL")) return "GUTTERKEL";
-  if(upper.includes("GUTTI")) return "GUTTI";
-  if(upper.includes("SODIFAB")) return "SODIFAB";
-  return "GUTTERFRANCE";
-}
-function getBuiltInSupplierProducts(name){
-  const supplierName = String(name || "").trim();
-  const list = [];
-  try{
-    (DATA.families || []).forEach(fam => {
-    if(isRemovedSupplierFamily(fam)) return;
-      if(isRemovedSupplierFamily(fam)) return;
-      if(getFamilySupplierName(fam) !== supplierName) return;
-      (fam.items || []).forEach((it, idx) => {
-        const variant = String((it && it.variant) || (it && it.label) || "").trim();
-        if(!variant) return;
-        const productColor = String((it && it.color) || "").trim();
-        const unit = (typeof getItemUnit === "function" ? getItemUnit(fam, it) : "") || fam.unit_default || "U";
-        const supplierRef = typeof getSupplierRef === "function" ? getSupplierRef(productColor, "") : "";
-        list.push({
-          id: "builtin_" + (fam.name || "fam") + "_" + idx + "_" + variant,
-          builtin: true,
-          supplier: supplierName,
-          family_name: fam.name || "",
-          family_label: fam.family_label || "",
-          name: variant,
-          unit: unit,
-          default_price: it.default_price || fam.default_price || "",
-          price: it.default_price || fam.default_price || "",
-          color: fam.family_color || "#334155",
-          product_color: productColor,
-          supplier_ref: supplierRef,
-          visible: false
-        });
-      });
-    });
-  }catch(e){}
-  return list;
-}
-
-function migrateBuiltInSupplierProducts(name){
-  const supplierName = String(name || "").trim();
-  const builtins = getBuiltInSupplierProducts(supplierName);
-  if(!builtins.length){
-    alert("Aucun produit catalogue à importer pour ce fournisseur.");
-    return;
-  }
-
-  const ok = confirm("Importer " + builtins.length + " produit(s) du catalogue dans la fiche " + supplierName + " ?");
-  if(!ok) return;
-
-  const current = getCustomProducts();
-  let added = 0;
-
-  builtins.forEach((p, idx) => {
-    const exists = current.some(x =>
-      inferSupplierFromProduct(x) === supplierName &&
-      String((x && x.name) || "").trim() === String(p.name || "").trim() &&
-      String((x && x.product_color) || "").trim() === String(p.product_color || "").trim() &&
-      String((x && x.supplier_ref) || "").trim() === String(p.supplier_ref || "").trim()
-    );
-    if(exists) return;
-
-    current.push({
-      id: "imp_" + supplierName.replace(/\s+/g, "_").toLowerCase() + "_" + Date.now().toString(36) + "_" + idx + "_" + Math.random().toString(36).slice(2,7),
-      supplier: supplierName,
-      name: p.name || "",
-      unit: p.unit || "U",
-      product_color: p.product_color || "",
-      supplier_ref: p.supplier_ref || "",
-      default_price: p.default_price || p.price || "",
-      price: p.price || p.default_price || "",
-      family_name: p.family_name || "",
-      family_label: p.family_label || "",
-      color: p.color || "#334155",
-      visible: false,
-      from_catalog: true
-    });
-    added++;
-  });
-
-  saveCustomProducts(current);
-  try{ if(typeof syncCustomProductPricesToState === "function") syncCustomProductPricesToState(); }catch(e){}
-
-  alert(added + " produit(s) importé(s) dans " + supplierName + ".");
-  goSettings();
-  setSettingsSection('fournisseurs');
-
-  setTimeout(function(){
-    try{
-      const currentSection = document.querySelector('[data-settings-section="fournisseurs"]');
-      if(currentSection){
-        const heads = currentSection.querySelectorAll('.supplier-accordion-head');
-        heads.forEach(head => {
-          if(head.textContent && head.textContent.toUpperCase().includes(supplierName.toUpperCase())){
-            head.click();
-          }
-        });
-      }
-    }catch(e){}
-  }, 150);
-}
-
-
-
-
-function getSupplierDisplayProducts(name){
-  const custom = getCustomProductsForSupplier(name);
-  const builtins = getBuiltInSupplierProducts(name);
-  const seen = new Set();
-  const out = [];
-
-  custom.forEach(p => {
-    const key = [String(p.name||"").trim(), String(p.product_color||"").trim(), String(p.supplier_ref||"").trim()].join("||");
-    seen.add(key);
-    out.push({ ...p, _source: "custom" });
-  });
-
-  builtins.forEach(p => {
-    const key = [String(p.name||"").trim(), String(p.product_color||"").trim(), String(p.supplier_ref||"").trim()].join("||");
-    if(!seen.has(key)){
-      out.push({ ...p, _source: "catalog" });
-    }
-  });
-
-  return out;
-}
-
-
-
-function getSupplierProductsSettingsHtml(name){
-  const products = getCustomProductsForSupplier(name);
-  const safeName = String(name).replace(/'/g, "\\'");
-  const builtinsCount = getBuiltInSupplierProducts(name).length;
-  const showMigrate = builtinsCount > 0;
-
-  const rows = products.map(p => `
-      <div class="card" style="padding:10px;margin:8px 0 0 0;background:#f8fafc">
-        <div style="display:grid;grid-template-columns:1.25fr .7fr .9fr 1fr auto;gap:8px;align-items:center">
-          <input class="search" style="height:44px;margin:0" placeholder="Nom du produit" value="${esc(p.name || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'name', this.value)">
-          <select class="select-user" style="margin:0;height:44px" onchange="updateCustomProductById('${esc(p.id || "")}', 'unit', this.value)">
-            <option value="U" ${(p.unit || "U") === "U" ? "selected" : ""}>U</option>
-            <option value="ML" ${(p.unit || "") === "ML" ? "selected" : ""}>ML</option>
-          </select>
-          <input class="search" style="height:44px;margin:0" placeholder="Produit / couleur" value="${esc(p.product_color || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'product_color', this.value)">
-          <input class="search" style="height:44px;margin:0" placeholder="Réf fournisseur" value="${esc(p.supplier_ref || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'supplier_ref', this.value)">
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="duplicateCustomProductById('${esc(p.id || "")}')">Dupliquer</button>
-            <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="confirmDeleteProductById('${esc(p.id || "")}')">Supprimer</button>
-          </div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center;margin-top:8px">
-          <input class="search" style="height:44px;margin:0" placeholder="Prix HT" value="${esc(p.default_price || p.price || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'default_price', this.value)">
-          <input class="search" style="height:44px;margin:0" placeholder="Famille d'origine" value="${esc(p.family_name || "")}" onchange="updateCustomProductById('${esc(p.id || "")}', 'family_name', this.value)">
-        </div>
-        <div style="display:flex;gap:10px;align-items:center;margin:8px 0 2px 0;flex-wrap:wrap">
-          <label style="display:flex;align-items:center;gap:8px;font-weight:700">
-            <input type="checkbox" ${p.visible !== false ? "checked" : ""} onchange="updateCustomProductById('${esc(p.id || "")}', 'visible', this.checked)">
-            Visible sur l’accueil
-          </label>
-          ${p.from_catalog ? '<div class="note">Importé du catalogue</div>' : ''}
-        </div>
-      </div>
-    `).join("");
-
-  const note = showMigrate
-    ? `<div class="note" style="margin-top:8px">Les produits visibles sur l’accueil ne sont pas encore dans la fiche fournisseur. Clique sur “Importer le catalogue” pour les copier réellement dans ce fournisseur, puis ils apparaîtront ici et tu pourras les modifier ou les supprimer.</div>`
-    : '';
-
-  return `
-    <div style="margin-top:10px">
-      <div class="note" style="margin-bottom:8px">Produits du fournisseur</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-        <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="openProductModalForSupplier('${safeName}')">+ Ajouter un produit</button>
-        ${showMigrate ? `<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="migrateBuiltInSupplierProducts('${safeName}')">Importer le catalogue ${safeName} (${builtinsCount})</button>` : ''}
-      </div>
-      ${note}
-      ${rows || '<div class="note">Aucun produit réellement rattaché à ce fournisseur pour le moment.</div>'}
-    </div>
-  `;
-}
-
-
-
-
-function getSupplierOpenMap(){
-  try{
-    return JSON.parse(localStorage.getItem("rml_supplier_open_map_v1") || "{}") || {};
-  }catch(e){
-    return {};
-  }
-}
-function isSupplierOpen(name){
-  const map = getSupplierOpenMap();
-  if(Object.prototype.hasOwnProperty.call(map, name)) return !!map[name];
-  return false;
-}
-function setSupplierOpen(name, isOpen){
-  const map = getSupplierOpenMap();
-  map[name] = !!isOpen;
-  try{ localStorage.setItem("rml_supplier_open_map_v1", JSON.stringify(map)); }catch(e){}
-}
-function toggleSupplierCard(name){
-  setSupplierOpen(name, !isSupplierOpen(name));
-  goSettings();
-  setSettingsSection('fournisseurs');
-}
-
-function getSupplierInnerOpenMap(){
-  try{
-    return JSON.parse(localStorage.getItem("rml_supplier_inner_open_map_v1") || "{}") || {};
-  }catch(e){
-    return {};
-  }
-}
-function getSupplierInnerKey(name, section){
-  return String(name || "") + "||" + String(section || "");
-}
-function isSupplierInnerOpen(name, section){
-  const map = getSupplierInnerOpenMap();
-  const key = getSupplierInnerKey(name, section);
-  if(Object.prototype.hasOwnProperty.call(map, key)) return !!map[key];
-  return section === "infos";
-}
-function setSupplierInnerOpen(name, section, isOpen){
-  const map = getSupplierInnerOpenMap();
-  map[getSupplierInnerKey(name, section)] = !!isOpen;
-  try{ localStorage.setItem("rml_supplier_inner_open_map_v1", JSON.stringify(map)); }catch(e){}
-}
-function toggleSupplierInner(name, section){
-  setSupplierInnerOpen(name, section, !isSupplierInnerOpen(name, section));
-  if(typeof goSettings === "function"){
-    goSettings();
-    setSettingsSection('fournisseurs');
-  }
-}
-
-
-function getSupplierAccordionHtml(name){
-  const safeName = String(name || "").replace(/'/g, "\\'");
-  const productsCount = getCustomProductsForSupplier(name).length;
-  const open = isSupplierOpen(name);
-  const infosOpen = isSupplierInnerOpen(name, "infos");
-  const productsOpen = isSupplierInnerOpen(name, "produits");
-  const safeDeleteButton = DEFAULT_SUPPLIER_OPTIONS.includes(name)
-    ? '<div class="note" style="display:flex;align-items:center;padding:0 6px">Fournisseur de base</div>'
-    : '<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="event.stopPropagation();confirmDeleteSupplierByName(\'' + safeName + '\')">Supprimer</button>';
-
-  let bodyHtml = '';
-  if(open){
-    let infosBody = '';
-    if(infosOpen){
-      infosBody = ''
-        + '<div class="supplier-sub-body">'
-        +   '<div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">'
-        +     '<div style="display:flex;gap:8px;flex-wrap:wrap">'
-        +       '<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="event.stopPropagation();moveSupplier(\'' + safeName + '\', -1)">▲ Monter</button>'
-        +       '<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="event.stopPropagation();moveSupplier(\'' + safeName + '\', 1)">▼ Descendre</button>'
-        +       safeDeleteButton
-        +     '</div>'
-        +   '</div>'
-        +   '<input class="search" data-supplier-email-input="' + esc(name) + '" style="height:44px;margin:0 0 10px 0" placeholder="Mail du fournisseur" value="' + esc(getSupplierEmail(name)) + '" oninput="updateSupplierEmail(\'' + safeName + '\', this.value)" onchange="updateSupplierEmail(\'' + safeName + '\', this.value)">'
-        +   '<div class="color-picker-row" style="justify-content:flex-start">'
-        +     '<select class="select-user" style="margin:0;height:44px;flex:1 1 140px" onchange="updateSupplierColor(\'' + safeName + '\', this.value); goSettings(); setSettingsSection(\'fournisseurs\')">'
-        +       getColorOptionsHtml(getSupplierColor(name, "#334155"))
-        +     '</select>'
-        +     '<input type="color" value="' + esc(getSupplierColor(name, "#334155")) + '" onchange="updateSupplierColor(\'' + safeName + '\', this.value); goSettings(); setSettingsSection(\'fournisseurs\')">'
-        +   '</div>'
-        + '</div>';
-    }
-
-    let productsBody = '';
-    if(productsOpen){
-      productsBody = '<div class="supplier-sub-body">' + getSupplierProductsSettingsHtml(name) + '</div>';
-    }
-
-    bodyHtml = ''
-      + '<div class="supplier-accordion-body">'
-      +   '<div class="supplier-sub-head" onclick="event.stopPropagation();toggleSupplierInner(\'' + safeName + '\', \'infos\')">'
-      +     '<div style="font-weight:800">Infos fournisseur</div>'
-      +     '<div class="supplier-sub-toggle">' + (infosOpen ? '−' : '+') + '</div>'
-      +   '</div>'
-      +   infosBody
-      +   '<div class="supplier-sub-head" style="margin-top:10px" onclick="event.stopPropagation();toggleSupplierInner(\'' + safeName + '\', \'produits\')">'
-      +     '<div style="font-weight:800">Produits</div>'
-      +     '<div class="supplier-sub-toggle">' + (productsOpen ? '−' : '+') + '</div>'
-      +   '</div>'
-      +   productsBody
-      + '</div>';
-  }
-
-  return ''
-    + '<div class="card" style="padding:10px;margin:0">'
-    +   '<div class="supplier-accordion-head" onclick="toggleSupplierCard(\'' + safeName + '\')">'
-    +     '<div style="font-weight:800;font-size:18px">' + esc(name) + '</div>'
-    +     '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
-    +       '<div class="note">' + productsCount + ' produit(s)</div>'
-    +       '<div class="supplier-accordion-toggle">' + (open ? '−' : '+') + '</div>'
-    +     '</div>'
-    +   '</div>'
-    +   bodyHtml
-    + '</div>';
 }
 
 
@@ -1611,10 +1115,10 @@ function customProductToFamily(p){
 
 function inferSupplierFromFamily(fam){
   const hay = ((((fam && fam.name) || "") + " " + ((fam && fam.family_label) || "")).toLowerCase());
-  if(hay.includes("gutterkel")) return "GUTTERKEL";
-  if(hay.includes("gutti")) return "GUTTI";
-  if(hay.includes("sodifab")) return "SODIFAB";
-  return "GUTTERFRANCE";
+  if(hay.includes("gutterkel")) return "Gutterkel";
+  if(hay.includes("gutti")) return "Gutti";
+  if(hay.includes("sodifab")) return "Sodifab";
+  return "Gutterfrance";
 }
 function getSupplierName(fam){
   if(fam && fam.supplier && String(fam.supplier).trim()) return String(fam.supplier).trim();
@@ -1685,9 +1189,9 @@ function getFamilies(){
     copy.name = String(ov.name || f.name || "").trim();
     copy.visible = ov.visible !== false;
     return copy;
-  }).filter(f => f.visible !== false && !isRemovedSupplierFamily(f));
+  }).filter(f => f.visible !== false);
   const custom = getCustomProducts()
-    .filter(p => String((p && p.name) || "").trim() && p.visible !== false && inferSupplierFromProduct(p) !== "Sodifab")
+    .filter(p => String((p && p.name) || "").trim() && p.visible !== false)
     .map(customProductToFamily);
   return base.concat(custom);
 }
@@ -1828,8 +1332,7 @@ function setSettingsMode(active){
 const SETTINGS_SECTION_KEY = "settings_section";
 
 function getSettingsSection(){
-  const value = localStorage.getItem(SETTINGS_SECTION_KEY) || "entete";
-  return value === "produits" ? "fournisseurs" : value;
+  return localStorage.getItem(SETTINGS_SECTION_KEY) || "entete";
 }
 function setSettingsSection(section){
   try{ localStorage.setItem(SETTINGS_SECTION_KEY, section || "entete"); }catch(e){}
@@ -1844,11 +1347,6 @@ function setSettingsSection(section){
     btn.style.transform = active ? "scale(1.02)" : "scale(1)";
     btn.style.fontWeight = active ? "900" : "800";
   });
-  if(section === "sync"){
-    setTimeout(function(){
-      try{ loadCloudHistoryIntoPanel(); }catch(e){}
-    }, 80);
-  }
 }
 
 function goSettings(){
@@ -1877,6 +1375,8 @@ function goSettings(){
       <button class="btn neutral" data-settings-btn="apparence" onclick="setSettingsSection('apparence')">Apparence</button>
       <button class="btn neutral" data-settings-btn="prix" onclick="setSettingsSection('prix')">Prix</button>
       <button class="btn neutral" data-settings-btn="fournisseurs" onclick="setSettingsSection('fournisseurs')">Fournisseurs</button>
+      <button class="btn neutral" data-settings-btn="sodifab" onclick="setSettingsSection('sodifab')">SODIFAB</button>
+      <button class="btn neutral" data-settings-btn="produits" onclick="setSettingsSection('produits')">Produits</button>
       <button class="btn neutral" data-settings-btn="sync" onclick="setSettingsSection('sync')">Sync cloud</button>
       <button class="btn neutral" data-settings-btn="sauvegarde" onclick="setSettingsSection('sauvegarde')">Sauvegarde</button>
     </div>
@@ -1947,18 +1447,74 @@ function goSettings(){
     <div class="card">
       <p class="title">Fournisseurs</p>
       <div class="user-label">Ajouter un nouveau fournisseur</div>
-      <div class="note" style="margin-bottom:8px">Chaque fournisseur contient maintenant directement ses produits. L’onglet Produits séparé a été supprimé.</div>
+      <div class="note" style="margin-bottom:8px">Tu peux maintenant choisir une couleur d’affichage pour chaque fournisseur et personnaliser leur ordre.</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
-        <input id="newSupplierInput" class="search" style="height:44px;flex:1 1 260px" placeholder="Nom du fournisseur (sera mis en MAJUSCULES)">
+        <input id="newSupplierInput" class="search" style="height:44px;flex:1 1 260px" placeholder="Nom du fournisseur">
         <button class="btn neutral" style="width:auto" onclick="addSupplier()">+ Ajouter</button>
         <button class="btn neutral" style="width:auto" onclick="saveSuppliersSettings()">Enregistrer</button>
       </div>
       <div style="display:grid;gap:8px">
-        ${getSupplierOptions().map(name => getSupplierAccordionHtml(name)).join("")}
+        ${getSupplierOptions().map(name => `
+          <div class="card" style="padding:10px;margin:0">
+            <div style="display:grid;grid-template-columns:1fr;gap:10px;align-items:center">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+                <div style="font-weight:800">${esc(name)}</div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="moveSupplier('${String(name).replace(/'/g,"\'")}', -1)">▲ Monter</button>
+                  <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="moveSupplier('${String(name).replace(/'/g,"\'")}', 1)">▼ Descendre</button>
+                  ${DEFAULT_SUPPLIER_OPTIONS.includes(name) ? '<div class="note" style="display:flex;align-items:center;padding:0 6px">Fournisseur de base</div>' : `<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="deleteSupplier('${String(name).replace(/'/g,"\'")}')">Supprimer</button>`}
+                </div>
+              </div>
+              <input class="search" data-supplier-email-input="${esc(name)}" style="height:44px;margin:0" placeholder="Mail du fournisseur" value="${esc(getSupplierEmail(name))}" oninput="updateSupplierEmail('${String(name).replace(/'/g,"\'")}', this.value)" onchange="updateSupplierEmail('${String(name).replace(/'/g,"\'")}', this.value)">
+              <div class="color-picker-row" style="justify-content:flex-start">
+                <select class="select-user" style="margin:0;height:44px;flex:1 1 140px" onchange="updateSupplierColor('${String(name).replace(/'/g,"\'")}', this.value); goSettings()">
+                  ${getColorOptionsHtml(getSupplierColor(name, "#334155"))}
+                </select>
+                <input type="color" value="${esc(getSupplierColor(name, "#334155"))}" onchange="updateSupplierColor('${String(name).replace(/'/g,"\'")}', this.value); goSettings()">
+              </div>
+            </div>
+          </div>`).join("")}
       </div>
     </div>
     </div>
 
+    <div class="settings-section" data-settings-section="sodifab">
+    <div class="card">
+      <p class="title">Familles SODIFAB</p>
+      <div class="note" style="margin-bottom:10px">Catalogue SODIFAB préchargé à partir du tarif fourni. Tu peux renommer ou masquer chaque famille.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+        <button class="btn neutral" style="width:auto" onclick="restoreSodifabFamilies()">Réinitialiser les familles SODIFAB</button>
+      </div>
+      <div style="display:grid;gap:8px">
+        ${DATA.families.filter(f => (f.supplier || "").toLowerCase() === "sodifab").map(f => {
+          const original = String(f.name || "").trim();
+          const ov = getBaseFamilyOverrides()[original] || {};
+          const displayName = String(ov.name || original);
+          const visible = ov.visible !== false;
+          return `
+            <div class="card" style="padding:10px;margin:0">
+              <div style="display:grid;grid-template-columns:1.6fr auto auto;gap:10px;align-items:center">
+                <input class="search" style="height:44px;margin:0" value="${esc(displayName)}" onchange="updateBaseFamilyName('${String(original).replace(/'/g,"\'")}', this.value)">
+                <label style="display:flex;align-items:center;gap:8px;font-weight:700">
+                  <input type="checkbox" ${visible ? "checked" : ""} onchange="updateBaseFamilyVisible('${String(original).replace(/'/g,"\'")}', this.checked); goSettings();">
+                  Visible
+                </label>
+                <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="hideBaseFamily('${String(original).replace(/'/g,"\'")}')">Masquer</button>
+              </div>
+              <div class="note" style="margin-top:8px">${esc(f.family_label)} • ${f.items.length} produits</div>
+            </div>`;
+        }).join("")}
+      </div>
+    </div>
+    </div>
+
+    <div class="settings-section" data-settings-section="produits">
+    <div class="card">
+      ${getCustomProductsSettingsHtml()}
+    </div>
+    </div>
+
+    
     <div class="settings-section" data-settings-section="sync">
     <div class="card">
       <p class="title">Synchronisation cloud</p>
@@ -1968,15 +1524,6 @@ function goSettings(){
         <button class="btn neutral" style="width:auto" onclick="loadCloudNow()">Recharger depuis le cloud</button>
       </div>
       <div id="syncStatus" class="sync-status">Prêt.</div>
-      <div class="note" style="margin-top:8px">Sync iPhone/Mac corrigée sur cette version.</div>
-      <div class="card" style="margin-top:12px;background:#f8fafc">
-        <p class="title">Historique des sauvegardes</p>
-        <p class="note">Les 5 dernières sauvegardes cloud. Tu peux restaurer une version précédente si besoin.</p>
-        <div id="cloudHistoryList" style="margin-top:10px"><div class="note">Aucune sauvegarde d’historique disponible.</div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-          <button class="btn neutral" style="width:auto" onclick="loadCloudHistoryIntoPanel()">Actualiser l’historique</button>
-        </div>
-      </div>
     </div>
     </div>
 
@@ -2104,12 +1651,8 @@ function openSupplier(index){
     </div>
     <div class="section-title">Fournisseur : ${esc(supplier.name)}</div>
     <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn" style="background:#c62828;color:#fff;border-color:#c62828;flex:1 1 240px" onclick="setValidatedSupplier(currentSupplierName); alert('Commande validée pour ' + currentSupplierName);">
-        Valider la commande
-      </button>
-      <button class="btn neutral" style="flex:1 1 180px" onclick="clearValidatedSupplier(); goRecap();">
-        Supprimer la commande
-      </button>
+      <button class="btn" style="background:#c62828;color:#fff;border-color:#c62828;flex:1 1 240px" onclick="validateCurrentSupplierOrder()">Valider la commande</button>
+      <button class="btn neutral" style="flex:1 1 240px" onclick="resetSupplierData(currentSupplierName)">Supprimer la commande</button>
     </div>
     ${buttons ? `<div class="grid">${buttons}</div>` : `<div class="empty">Aucun produit affecté pour l’instant à ce fournisseur.</div>`}
     <p class="note">Sélectionnez ensuite une famille pour saisir les quantités.</p>
@@ -2370,7 +1913,9 @@ async function buildPdfBlob(){
   doc.text("Commande n° " + getOrderNumber(), 14, y); y += 5;
   doc.text("Commande du " + getTodayFR() + "\nPersonne : " + (orderUser || "-"), 14, y); y += 7;
   doc.setFont("helvetica","normal");
-  y += 3;
+  doc.text("Total lignes : " + linesCount() + "   Quantité totale : " + totalQty(), 14, y); y += 5;
+  if(getShowPrices()){ doc.text("Total HT : " + formatMoneyFR(totalHt()), 14, y); y += 5; }
+  else { y += 3; }
   if(orderMessage && orderMessage.trim()){
     doc.setFont("helvetica","bold");
     doc.text("Message :", 14, y); y += 5;
@@ -2450,15 +1995,6 @@ async function buildPdfBlob(){
     }
     y += 4;
   }
-
-  if(y > 272){ doc.addPage(); y = 14; }
-
-  doc.setFont("helvetica","bold");
-  doc.setFontSize(10);
-  doc.setTextColor(30,30,30);
-  doc.text("Total lignes : " + linesCount(), 14, y + 4);
-  doc.text("Quantité totale : " + totalQty(), 70, y + 4);
-  y += 10;
 
   if(getShowPrices()){
     if(y > 282){ doc.addPage(); y = 14; }
@@ -2570,7 +2106,6 @@ async function previewPdf(){
     alert("Impossible de créer le PDF.");
     return;
   }
-  try{ saveCurrentOrderToHistory(); }catch(e){}
   const previewBox = document.getElementById("pdfPreviewBox");
   const frame = document.getElementById("pdfPreviewFrame");
   if(!previewBox || !frame){
@@ -2617,8 +2152,6 @@ async function shareCommande(){
     alert("Impossible de créer le PDF.");
     return;
   }
-
-  try{ saveCurrentOrderToHistory(); }catch(e){}
 
   const filename = "commande_" + getOrderNumber() + ".pdf";
   const file = new File([blob], filename, { type: "application/pdf" });
@@ -2717,7 +2250,6 @@ function sendEmail(){
 }
 
 function sendEmailWithPdfGuide(){
-  try{ syncVisibleInputs(); saveCurrentOrderToHistory(); }catch(e){}
   const ok = sendEmail();
   if(ok){
     setTimeout(function(){
@@ -2750,7 +2282,7 @@ function showHistory(){
     "07":"Juillet","08":"Août","09":"Septembre","10":"Octobre","11":"Novembre","12":"Décembre"
   };
 
-  let content = '<div class="empty">Aucune commande enregistrée. Utilise Partager / enregistrer le PDF ou Préparer le mail depuis le récapitulatif.</div>';
+  let content = '<div class="empty">Aucune commande enregistrée.</div>';
 
   if(history.length){
     const groups = {};
@@ -2994,32 +2526,22 @@ function goRecap(){
   document.getElementById("supplier").classList.add("hidden");
   document.getElementById("family").classList.add("hidden");
   document.getElementById("recap").classList.remove("hidden");
-
+  let groups = buildGroups();
   const validatedSupplier = getValidatedSupplier();
-  const allGroups = buildGroups();
-
-  let groups = [];
   if(validatedSupplier){
     const supplier = getSuppliers().find(s => s.name === validatedSupplier);
     const allowedFamilies = new Set(((supplier && supplier.families) || []).map(obj => String((obj.fam && obj.fam.name) || "").trim()));
-    groups = allGroups.filter(g => allowedFamilies.has(String(g.family || "").trim()));
+    groups = groups.filter(g => allowedFamilies.has(String(g.family || "").trim()));
   }
-
   const showPrices = getShowPrices();
   const hasCommande = groups.length > 0;
   const validatedHeader = validatedSupplier ? `
     <div class="summary">
       <p class="title">Commande validée : ${esc(validatedSupplier)}</p>
-      <p class="note">Seule la commande du fournisseur validé apparaît ici.</p>
       <div class="toolbar" style="margin-top:10px">
-        <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="clearValidatedSupplier(); goRecap();">Supprimer cette commande du récapitulatif</button>
+        <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="clearValidatedSupplier(); goRecap();">Supprimer du récapitulatif</button>
       </div>
-    </div>` : `
-    <div class="summary" style="text-align:center">
-      <p class="title">Aucune commande validée</p>
-      <p class="note">Validez une commande depuis un fournisseur pour l'afficher ici.</p>
-    </div>`;
-
+    </div>` : "";
   const content = hasCommande ? groups.map(g => `
     <div class="section-title" style="color:${g.color}">${esc(g.family)}</div>
     <table>
@@ -3034,20 +2556,49 @@ function goRecap(){
             ${showPrices ? `<td>${esc(formatMoneyFR(line.price))}</td><td>${esc(formatMoneyFR(line.total))}</td>` : ""}
           </tr>`).join("")}
       </tbody>
-    </table>`).join("") : "";
-
+    </table>`).join("") : `
+    <div class="summary" style="text-align:center">
+      <p class="title" style="margin-bottom:8px">Aucune commande en cours</p>
+      <p class="meta" style="margin-bottom:0">Ajoute au moins un produit pour afficher le récapitulatif, le PDF et le mail fournisseur.</p>
+    </div>`;
+  const commandSummary = hasCommande ? `
+    <div class="summary" id="commande-box">
+      <p class="title">${esc(getCompanyName())}</p>
+      <p class="meta">${esc(getCompanyMetaLine(" • "))}</p>
+      <p class="meta"><strong>Commande n° ${getOrderNumber()}</strong></p>
+      <p class="meta"><strong>Commande du ${getTodayFR()}</strong></p>
+      <p class="meta">${linesCount()} ligne(s) commandée(s) • quantité totale : ${totalQty()}</p>
+      ${orderMessage && orderMessage.trim() ? `<p class="meta"><strong>Message :</strong> ${esc(orderMessage)}</p>` : ""}
+      ${getShowPrices() ? `<p class="meta"><strong>Total HT :</strong> ${esc(formatMoneyFR(totalHt()))}</p>` : ""}
+      <div style="margin:10px 0 0;padding:12px 14px;border:1px solid #bfdbfe;border-radius:16px;background:#eff6ff;color:#1e3a8a;font-size:13px;line-height:1.45">
+        <strong>Version Pro PDF :</strong> 1) clique sur <strong>Générer le PDF</strong>, 2) enregistre ou partage le PDF, 3) clique sur <strong>Préparer le mail fournisseur</strong> pour ouvrir Mail avec le message déjà rempli, puis joins le PDF généré.<br><span style="font-size:12px">Fiabilisation V11 : les quantités, prix et message sont resynchronisés automatiquement avant l'aperçu, le PDF, le mail et à la fermeture de la page.</span>
+      </div>
+    </div>` : "";
+  const actionButtons = hasCommande ? `
+      <button class="btn" style="background:#2563eb;color:#fff;border-color:#2563eb" onclick="generatePdfPro()">📄 Générer le PDF</button>
+      <button class="btn neutral" onclick="previewPdf()">👁️ Prévisualiser le PDF</button>
+      <button class="btn neutral" onclick="sendEmailWithPdfGuide()">📧 Préparer le mail fournisseur</button>
+      <button class="btn neutral" onclick="shareCommande()">Partager / enregistrer le PDF</button>` : "";
+  const pdfPreviewBox = hasCommande ? `
+    <div id="pdfPreviewBox" class="card" style="display:none">
+      <div class="toolbar">
+        <button class="btn neutral" onclick="closePdfPreview()">Fermer la prévisualisation</button>
+      </div>
+      <iframe id="pdfPreviewFrame" style="width:100%;height:70vh;border:1px solid var(--line);border-radius:16px;background:#fff" title="Prévisualisation PDF"></iframe>
+    </div>` : "";
   document.getElementById("recap").innerHTML = `
     <div class="toolbar">
-      <button class="btn neutral" onclick="goHome()">← Accueil</button>
+      <button class="btn neutral" onclick="goHome()">← Retour</button>
+      ${actionButtons}
+      <button class="btn neutral" onclick="showHistory()">Historique des commandes</button>
       <button class="btn neutral" onclick="newOrder()">Nouvelle commande</button>
-      <button class="btn neutral" onclick="copyRecap()">Copier</button>
-      <button class="btn neutral" onclick="downloadTxt()">Télécharger TXT</button>
-      <button class="btn neutral" onclick="printPDF()">Générer PDF</button>
     </div>
-    <div class="section-title">Récapitulatif</div>
+    ${commandSummary}
     ${validatedHeader}
     ${content}
+    ${pdfPreviewBox}
     <div class="footer-space"></div>`;
+  updateFloatingSaveBar();
 }
 
 function resetAll(){
@@ -3305,73 +2856,22 @@ function isLikelyEmbeddedViewer(){
 
 const SUPABASE_URL = "https://dbsibzcqhtecknpkkuxa.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_WE_zFh9O23cF7zEDie4L3w_JUsSb9ao";
-
 const CLOUD_ROW_ID_KEY = "rml_cloud_row_id";
 const CLOUD_TABLE = "rml-data";
-const CLOUD_HISTORY_TABLE = "rml-data-history";
-const CLOUD_SHARED_KEY = "RML-ALU-01";
 const supabaseCloud = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY) : null;
 
 function setSyncStatus(message){
-  const text = message || "";
   const el = document.getElementById("syncStatus");
-  if(el) el.textContent = text;
-  const home = document.getElementById("homeSyncStatus");
-  if(home) home.textContent = text;
-}
-
-async function findSharedCloudRow(){
-  if(!supabaseCloud) throw new Error("Supabase non chargé.");
-  const { data, error } = await supabaseCloud
-    .from(CLOUD_TABLE)
-    .select("id,data,updated_at")
-    .order("updated_at", { ascending: false });
-  if(error) throw error;
-  const rows = Array.isArray(data) ? data : [];
-
-  // 1) row already migrated to shared key
-  const shared = rows.find(row => row && row.data && row.data.sharedKey === CLOUD_SHARED_KEY);
-  if(shared) return shared;
-
-  // 2) fallback: most recent legacy row for this app
-  const legacy = rows.find(row => row && row.data && row.data.app === "RML GOUTTIERE ALU");
-  return legacy || null;
+  if(el) el.textContent = message || "";
 }
 
 async function ensureCloudRow(){
-  if(!supabaseCloud) throw new Error("Supabase non chargé.");
-
   const existingId = localStorage.getItem(CLOUD_ROW_ID_KEY);
-  if(existingId){
-    try{
-      const { data, error } = await supabaseCloud
-        .from(CLOUD_TABLE)
-        .select("id,data")
-        .eq("id", existingId)
-        .single();
-      if(!error && data && data.id){
-        return data.id;
-      }
-    }catch(e){}
-  }
-
-  const sharedRow = await findSharedCloudRow();
-  if(sharedRow && sharedRow.id){
-    localStorage.setItem(CLOUD_ROW_ID_KEY, sharedRow.id);
-    return sharedRow.id;
-  }
-
-  const initialPayload = {
-    app: "RML GOUTTIERE ALU",
-    version: "v39-sync-fix-mac-iphone",
-    sharedKey: CLOUD_SHARED_KEY,
-    savedAt: new Date().toISOString(),
-    storage: {}
-  };
-
+  if(existingId) return existingId;
+  if(!supabaseCloud) throw new Error("Supabase non chargé.");
   const { data, error } = await supabaseCloud
     .from(CLOUD_TABLE)
-    .insert([{ data: initialPayload, updated_at: new Date().toISOString() }])
+    .insert([{ data: {} }])
     .select("id")
     .single();
   if(error) throw error;
@@ -3390,8 +2890,7 @@ function buildCloudPayload(){
   });
   return {
     app: "RML GOUTTIERE ALU",
-    sharedKey: CLOUD_SHARED_KEY,
-    version: "v39-sync-fix-mac-iphone",
+    version: "v39-sync",
     savedAt: new Date().toISOString(),
     storage
   };
@@ -3400,138 +2899,23 @@ function buildCloudPayload(){
 function applyCloudPayload(payload){
   const storage = payload && payload.storage ? payload.storage : null;
   if(!storage || typeof storage !== "object") throw new Error("Sauvegarde cloud invalide.");
-
-  const preserved = {};
-  [CLOUD_ROW_ID_KEY, "cloud_last_save_at", "cloud_last_load_at", "backup_before_cloud"].forEach(key => {
-    try{
-      const value = localStorage.getItem(key);
-      if(value !== null) preserved[key] = value;
-    }catch(e){}
-  });
-
-  try{
-    const exportKeys = getExportStorageKeys();
-    exportKeys.forEach(key => {
-      try{ localStorage.removeItem(key); }catch(e){}
-    });
-  }catch(e){}
-
   Object.keys(storage).forEach(key => {
     try{ localStorage.setItem(key, storage[key]); }catch(e){}
   });
-
-  Object.keys(preserved).forEach(key => {
-    try{ localStorage.setItem(key, preserved[key]); }catch(e){}
-  });
-}
-
-async function saveCloudHistoryEntry(payload, note){
-  if(!supabaseCloud) return;
-  try{
-    await supabaseCloud.from(CLOUD_HISTORY_TABLE).insert([{
-      data: payload,
-      note: note || "Sauvegarde manuelle",
-      created_at: new Date().toISOString()
-    }]);
-  }catch(err){
-    console.error("Historique cloud indisponible:", err);
-  }
-}
-
-async function loadCloudHistoryIntoPanel(){
-  const host = document.getElementById("cloudHistoryList");
-  if(!host || !supabaseCloud) return;
-  host.innerHTML = '<div style="font-size:12px;color:#64748b">Chargement...</div>';
-  try{
-    const { data, error } = await supabaseCloud
-      .from(CLOUD_HISTORY_TABLE)
-      .select("id,created_at,note,data")
-      .order("created_at", { ascending: false })
-      .limit(5);
-    if(error) throw error;
-    const rows = Array.isArray(data) ? data : [];
-    if(!rows.length){
-      host.innerHTML = '<div style="font-size:13px;color:#64748b">Aucune sauvegarde d’historique disponible.</div>';
-      return;
-    }
-    host.innerHTML = rows.map(row => {
-      let productsCount = 0;
-      try{
-        const storage = row.data && row.data.storage ? row.data.storage : {};
-        const raw = storage["rml_custom_products"] || storage["commande_fournisseur_custom_products_v1"] || "[]";
-        productsCount = JSON.parse(raw).length || 0;
-      }catch(err){}
-      const dt = row.created_at ? new Date(row.created_at).toLocaleString() : "";
-      const note = row.note || "Sauvegarde";
-      return `
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 0;border-top:1px solid #e2e8f0">
-          <div>
-            <div style="font-weight:800">${dt}</div>
-            <div style="font-size:13px;color:#64748b">${productsCount} produit(s) • ${note}</div>
-          </div>
-          <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="restoreCloudHistoryVersion('${row.id}')">Restaurer</button>
-        </div>
-      `;
-    }).join("");
-  }catch(err){
-    console.error(err);
-    host.innerHTML = '<div style="font-size:13px;color:#b91c1c">Historique indisponible. Vérifie la table Supabase rml-data-history.</div>';
-  }
-}
-
-async function restoreCloudHistoryVersion(id){
-  try{
-    const ok = confirm("⚠️ Restaurer cette sauvegarde va écraser les données locales actuelles. Continuer ?");
-    if(!ok) return;
-    const { data, error } = await supabaseCloud
-      .from(CLOUD_HISTORY_TABLE)
-      .select("data")
-      .eq("id", id)
-      .single();
-    if(error) throw error;
-    if(!data || !data.data) throw new Error("Sauvegarde historique introuvable.");
-    applyCloudPayload(data.data);
-    try{ localStorage.setItem("cloud_last_load_at", new Date().toLocaleString()); }catch(e){}
-    setSyncStatus("Historique restauré. Mise à jour...");
-    setTimeout(() => location.reload(), 350);
-  }catch(err){
-    console.error(err);
-    alert("Erreur restauration : " + (err.message || err));
-  }
 }
 
 async function saveCloudNow(){
   try{
     setSyncStatus("Sauvegarde cloud en cours...");
     if(typeof flushAllInputsToState === "function") flushAllInputsToState();
-
-    try{
-      const backup = {};
-      for(let i = 0; i < localStorage.length; i++){
-        const k = localStorage.key(i);
-        if(k) backup[k] = localStorage.getItem(k);
-      }
-      localStorage.setItem("backup_before_cloud", JSON.stringify({
-        date: new Date().toISOString(),
-        data: backup
-      }));
-    }catch(e){}
-
     const rowId = await ensureCloudRow();
     const payload = buildCloudPayload();
-    payload.sharedKey = CLOUD_SHARED_KEY;
-
     const { error } = await supabaseCloud
       .from(CLOUD_TABLE)
       .update({ data: payload, updated_at: new Date().toISOString() })
       .eq("id", rowId);
     if(error) throw error;
-
-    try{ await saveCloudHistoryEntry(payload, "Sauvegarde manuelle"); }catch(e){}
-    try{ localStorage.setItem("cloud_last_save_at", new Date().toLocaleString()); }catch(e){}
-    localStorage.setItem(CLOUD_ROW_ID_KEY, rowId);
-    setSyncStatus("✅ Sauvegarde cloud OK.");
-    try{ await loadCloudHistoryIntoPanel(); }catch(e){}
+    setSyncStatus("Sauvegarde cloud OK.");
   }catch(err){
     console.error(err);
     setSyncStatus("Erreur sauvegarde cloud : " + (err.message || err));
@@ -3542,41 +2926,24 @@ async function saveCloudNow(){
 async function loadCloudNow(){
   try{
     setSyncStatus("Chargement cloud en cours...");
-
-    let rowId = localStorage.getItem(CLOUD_ROW_ID_KEY);
-    let row = null;
-
-    if(rowId){
-      try{
-        const { data, error } = await supabaseCloud
-          .from(CLOUD_TABLE)
-          .select("id,data")
-          .eq("id", rowId)
-          .single();
-        if(!error && data && data.data){
-          row = data;
-        }
-      }catch(e){}
-    }
-
-    if(!row){
-      row = await findSharedCloudRow();
-      if(row && row.id){
-        rowId = row.id;
-        localStorage.setItem(CLOUD_ROW_ID_KEY, rowId);
-      }
-    }
-
-    if(!row || !row.data){
+    const rowId = localStorage.getItem(CLOUD_ROW_ID_KEY);
+    if(!rowId){
       setSyncStatus("Aucune sauvegarde cloud enregistrée.");
       return;
     }
-
-    applyCloudPayload(row.data);
-    try{ localStorage.setItem("cloud_last_load_at", new Date().toLocaleString()); }catch(e){}
-    if(rowId) localStorage.setItem(CLOUD_ROW_ID_KEY, rowId);
-    setSyncStatus("🔄 Rechargement cloud réussi. Mise à jour...");
-    setTimeout(() => location.reload(), 350);
+    const { data, error } = await supabaseCloud
+      .from(CLOUD_TABLE)
+      .select("data")
+      .eq("id", rowId)
+      .single();
+    if(error) throw error;
+    if(!data || !data.data){
+      setSyncStatus("Aucune donnée cloud trouvée.");
+      return;
+    }
+    applyCloudPayload(data.data);
+    setSyncStatus("Chargement cloud OK. Rechargement...");
+    setTimeout(() => location.reload(), 250);
   }catch(err){
     console.error(err);
     setSyncStatus("Erreur chargement cloud : " + (err.message || err));
@@ -3585,42 +2952,22 @@ async function loadCloudNow(){
 }
 
 window.addEventListener("load", function(){
-  normalizeSupplierDataOnce();
-  cleanupSodifabOnce();
   setTimeout(function(){
-    const lastSave = localStorage.getItem("cloud_last_save_at") || "";
-    const lastLoad = localStorage.getItem("cloud_last_load_at") || "";
-    if(lastSave){
-      setSyncStatus("Dernière sauvegarde cloud : " + lastSave);
-    }else if(lastLoad){
-      setSyncStatus("Dernier rechargement cloud : " + lastLoad);
-    }else{
-      const rowId = localStorage.getItem(CLOUD_ROW_ID_KEY);
-      if(rowId) setSyncStatus("Cloud connecté.");
-      else setSyncStatus("Cloud prêt.");
-    }
-    try{ loadCloudHistoryIntoPanel(); }catch(e){}
+    const rowId = localStorage.getItem(CLOUD_ROW_ID_KEY);
+    if(rowId) setSyncStatus("Cloud connecté.");
   }, 300);
 });
 
 
-
 function getExportStorageKeys(){
-  // Export allégé compatible iPhone.
-  // On garde les clés actuelles + les anciennes pour rester compatible.
+  // Export allégé compatible iPhone :
+  // on garde uniquement les données utiles à la personnalisation et au catalogue
+  // et on exclut l'historique PDF, les jetons, et les blocs trop lourds.
   return [
     "commande_fournisseur_state_v1",
     "commande_fournisseur_custom_products_v1",
     "commande_fournisseur_supplier_emails_v1",
     "commande_fournisseur_suppliers_v1",
-    "rml_custom_products",
-    "rml_supplier_emails",
-    "rml_suppliers",
-    "rml_supplier_colors",
-    "rml_supplier_open_map_v1",
-    "rml_supplier_inner_open_map_v1",
-    "rml_cleanup_sodifab_done_v1",
-    "rml_supplier_normalize_v8_done",
     "supplier_order",
     "supplier_colors",
     "base_family_overrides",
