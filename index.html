@@ -381,6 +381,8 @@ function normalizeSupplierDataOnce(){
 const SUPPLIERS_KEY = "rml_suppliers";
 cleanupSodifabOnce();
 const SUPPLIER_EMAILS_KEY = "rml_supplier_emails";
+const SUPPLIER_ADDRESSES_KEY = "rml_supplier_addresses";
+
 function getSupplierEmails(){
   try{
     const raw = JSON.parse(localStorage.getItem(SUPPLIER_EMAILS_KEY) || "{}");
@@ -404,6 +406,30 @@ function updateSupplierEmail(name, email){
   const map = normalizeSupplierMapKeys(getSupplierEmails());
   map[cleanName] = String(email || "").trim();
   saveSupplierEmails(map);
+}
+function saveSupplierAddresses(map){
+  try{
+    localStorage.setItem(SUPPLIER_ADDRESSES_KEY, JSON.stringify(map || {}));
+  }catch(e){}
+}
+function getSupplierAddresses(){
+  try{
+    const raw = JSON.parse(localStorage.getItem(SUPPLIER_ADDRESSES_KEY) || "{}");
+    return raw && typeof raw === "object" ? raw : {};
+  }catch(e){
+    return {};
+  }
+}
+function getSupplierAddress(name){
+  const map = normalizeSupplierMapKeys(getSupplierAddresses());
+  return map[normalizeSupplierName(name)] || "";
+}
+function updateSupplierAddress(name, address){
+  const cleanName = normalizeSupplierName(name);
+  if(!cleanName) return;
+  const map = normalizeSupplierMapKeys(getSupplierAddresses());
+  map[cleanName] = String(address || "").trim();
+  saveSupplierAddresses(map);
 }
 
 const SUPPLIER_ORDER_KEY = "supplier_order";
@@ -1549,6 +1575,7 @@ function getSupplierAccordionHtml(name){
         +     '</div>'
         +   '</div>'
         +   '<input class="search" data-supplier-email-input="' + esc(name) + '" style="height:44px;margin:0 0 10px 0" placeholder="Mail du fournisseur" value="' + esc(getSupplierEmail(name)) + '" oninput="updateSupplierEmail(\'' + safeName + '\', this.value)" onchange="updateSupplierEmail(\'' + safeName + '\', this.value)">'
+        +   '<textarea class="search" data-supplier-address-input="' + esc(name) + '" style="height:88px;padding-top:12px;padding-bottom:12px;margin:0 0 10px 0;border-radius:16px;resize:vertical" placeholder="Adresse complète du fournisseur" oninput="updateSupplierAddress(\'' + safeName + '\', this.value)" onchange="updateSupplierAddress(\'' + safeName + '\', this.value)">' + esc(getSupplierAddress(name)) + '</textarea>'
         +   '<div class="color-picker-row" style="justify-content:flex-start">'
         +     '<select class="select-user" style="margin:0;height:44px;flex:1 1 140px" onchange="updateSupplierColor(\'' + safeName + '\', this.value); goSettings(); setSettingsSection(\'fournisseurs\')">'
         +       getColorOptionsHtml(getSupplierColor(name, "#334155"))
@@ -1682,6 +1709,9 @@ function saveSuppliersSettings(){
   try{
     saveSupplierEmails(getSupplierEmails());
   }catch(e){}
+  try{
+    saveSupplierAddresses(getSupplierAddresses());
+  }catch(e){}
   alert("Fournisseurs enregistrés.");
   goSettings();
 }
@@ -1695,6 +1725,17 @@ function syncSupplierEmailInputsFromDom(){
       map[name] = String(input.value || '').trim();
     });
     saveSupplierEmails(map);
+  }catch(e){}
+}
+function syncSupplierAddressInputsFromDom(){
+  try{
+    const map = getSupplierAddresses();
+    document.querySelectorAll('[data-supplier-address-input]').forEach(input => {
+      const name = String(input.getAttribute('data-supplier-address-input') || '').trim();
+      if(!name) return;
+      map[name] = String(input.value || '').trim();
+    });
+    saveSupplierAddresses(map);
   }catch(e){}
 }
 
@@ -2386,7 +2427,7 @@ function companyHeaderLines(){
   if(getCompanyPhone()) contact += getCompanyPhone();
   if(getCompanyEmail()) contact += (contact ? " • " : "") + getCompanyEmail();
   if(contact) lines.push(contact);
-  lines.push((window.__rmlSupplierName ? window.__rmlSupplierName + " " : "") + "commande n° " + getOrderNumber());
+  lines.push("Commande n° " + getOrderNumber());
   lines.push("Commande du " + getTodayFR());
   return lines;
 }
@@ -2400,27 +2441,16 @@ function getPreviewGroupsOverride(){
   }
 }
 
-function withPreviewGroups(groups, fn, supplierName){
+function withPreviewGroups(groups, fn){
   const previous = getPreviewGroupsOverride();
-  const previousSupplierName = (typeof window !== "undefined" && typeof window.__rmlSupplierName !== "undefined")
-    ? window.__rmlSupplierName
-    : undefined;
   try{
     window.__rmlPreviewGroups = Array.isArray(groups) ? groups : null;
-    if(typeof supplierName !== "undefined"){
-      window.__rmlSupplierName = String(supplierName || "").trim();
-    }
     return fn();
   } finally {
     if(previous){
       window.__rmlPreviewGroups = previous;
     } else {
       try{ delete window.__rmlPreviewGroups; }catch(e){ window.__rmlPreviewGroups = null; }
-    }
-    if(typeof previousSupplierName !== "undefined"){
-      window.__rmlSupplierName = previousSupplierName;
-    } else {
-      try{ delete window.__rmlSupplierName; }catch(e){ window.__rmlSupplierName = ""; }
     }
   }
 }
@@ -2472,7 +2502,7 @@ async function sharePdfForValidatedSupplier(supplierName){
     a.remove();
     setTimeout(()=>URL.revokeObjectURL(url), 2000);
     return true;
-  }, supplierName);
+  });
 }
 
 function saveValidatedOrderToHistory(supplierName){
@@ -2499,12 +2529,21 @@ function saveValidatedOrderToHistory(supplierName){
     saveHistory(history);
     alert("Commande enregistrée dans l'historique.");
     return true;
-  }, supplierName);
+  });
 }
 
 function recapText(){
+  syncSupplierEmailInputsFromDom();
+  syncSupplierAddressInputsFromDom();
   const groups = getPreviewGroupsOverride() || buildGroups();
   let out = companyHeaderLines().join("\n") + "\n\n";
+  const currentSupplierName = String(window.__rmlSupplierName || "").trim();
+  const currentSupplierEmail = currentSupplierName ? String(getSupplierEmail(currentSupplierName) || "").trim() : "";
+  const currentSupplierAddress = currentSupplierName ? String(getSupplierAddress(currentSupplierName) || "").trim() : "";
+  if(currentSupplierName) out += "Fournisseur : " + currentSupplierName + "\n";
+  if(currentSupplierAddress) out += "Adresse : " + currentSupplierAddress + "\n";
+  if(currentSupplierEmail) out += "Email : " + currentSupplierEmail + "\n";
+  if(currentSupplierName || currentSupplierAddress || currentSupplierEmail) out += "\n";
   for(const g of groups){
     out += g.family + "\n";
     for(const line of g.lines){
@@ -2588,8 +2627,23 @@ async function buildPdfBlob(){
     doc.text(contactLines, 14, y); y += contactLines.length * 5;
   }
   y += 2;
+  const currentSupplierName = String(window.__rmlSupplierName || "").trim();
+  const currentSupplierEmail = currentSupplierName ? String(getSupplierEmail(currentSupplierName) || "").trim() : "";
+  const currentSupplierAddress = currentSupplierName ? String(getSupplierAddress(currentSupplierName) || "").trim() : "";
   doc.setFont("helvetica","bold");
-  doc.text((window.__rmlSupplierName ? window.__rmlSupplierName + " " : "") + "commande n° " + getOrderNumber(), 14, y); y += 5;
+  doc.text("Commande n° " + getOrderNumber(), 14, y); y += 5;
+  if(currentSupplierName){
+    doc.text("Fournisseur : " + currentSupplierName, 14, y); y += 5;
+  }
+  doc.setFont("helvetica","normal");
+  if(currentSupplierAddress){
+    const supplierAddrLines = doc.splitTextToSize("Adresse : " + currentSupplierAddress, 180);
+    doc.text(supplierAddrLines, 14, y); y += supplierAddrLines.length * 5;
+  }
+  if(currentSupplierEmail){
+    doc.text("Email : " + currentSupplierEmail, 14, y); y += 5;
+  }
+  doc.setFont("helvetica","bold");
   doc.text("Commande du " + getTodayFR() + "\nPersonne : " + (orderUser || "-"), 14, y); y += 7;
   doc.setFont("helvetica","normal");
   y += 3;
