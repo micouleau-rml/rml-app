@@ -2104,6 +2104,11 @@ function openSupplier(index){
     </div>
     <div class="section-title">Fournisseur : ${esc(supplier.name)}</div>
     <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" style="flex:1 1 260px" onclick="saveOrderOnly()">
+        💾 Sauvegarder la commande
+      </button>
+    </div>
+    <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn" style="background:#c62828;color:#fff;border-color:#c62828;flex:1 1 240px" onclick="setValidatedSupplier(currentSupplierName); alert('Commande validée pour ' + currentSupplierName);">
         Valider la commande
       </button>
@@ -3013,6 +3018,7 @@ function goRecap(){
       <p class="note">Seule la commande du fournisseur validé apparaît ici.</p>
       <div class="toolbar" style="margin-top:10px">
         <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="clearValidatedSupplier(); goRecap();">Supprimer cette commande du récapitulatif</button>
+        <button class="btn" style="width:auto;padding:10px 14px;margin-left:8px" onclick="saveOrderOnly()">💾 Sauvegarder</button></button>
       </div>
     </div>` : `
     <div class="summary" style="text-align:center">
