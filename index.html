@@ -2417,8 +2417,8 @@ function withPreviewGroups(groups, fn){
 function getValidatedOrderBySupplierName(supplierName){
   const clean = String(supplierName || "").trim();
   if(!clean) return null;
-  const orders = getValidatedSupplierOrders();
-  const order = orders[clean] || null;
+  const orders = (typeof getValidatedSupplierOrders === "function") ? getValidatedSupplierOrders() : {};
+  const order = orders && orders[clean] ? orders[clean] : null;
   if(!order || !Array.isArray(order.groups) || !order.groups.length) return null;
   return order;
 }
@@ -4089,7 +4089,7 @@ async function copyExportDataToClipboard(){
 }
 
 function buildCommandPreviewHtml(includeHelp){
-  const groups = (typeof buildGroups === 'function') ? buildGroups() : [];
+  const groups = getPreviewGroupsOverride() || ((typeof buildGroups === 'function') ? buildGroups() : []);
   const showPrices = (typeof getShowPrices === 'function') ? getShowPrices() : false;
   const companyName = (typeof getCompanyName === 'function') ? getCompanyName() : 'Commande';
   const companyMeta = (typeof getCompanyMetaLine === 'function') ? getCompanyMetaLine(' • ') : '';
