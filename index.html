@@ -1266,8 +1266,10 @@ function onHeaderLogoSelected(input){
 
 
 function getCustomProductsForSupplier(supplierName){
-  const target = String(supplierName || "").trim();
-  return getCustomProducts().filter(p => String((p && p.supplier) || DEFAULT_SUPPLIER).trim() === target);
+  const target = normalizeSupplierName(supplierName || DEFAULT_SUPPLIER);
+  return getCustomProducts().filter(p =>
+    normalizeSupplierName((p && p.supplier) || DEFAULT_SUPPLIER) === target
+  );
 }
 function getCustomProductIndexById(productId){
   const list = getCustomProducts();
