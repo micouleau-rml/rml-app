@@ -2386,7 +2386,7 @@ function companyHeaderLines(){
   if(getCompanyPhone()) contact += getCompanyPhone();
   if(getCompanyEmail()) contact += (contact ? " • " : "") + getCompanyEmail();
   if(contact) lines.push(contact);
-  lines.push("Commande ${window.__rmlSupplierName ? window.__rmlSupplierName + ' ' : ''}n° " + getOrderNumber());
+  lines.push("Commande n° " + getOrderNumber());
   lines.push("Commande du " + getTodayFR());
   return lines;
 }
@@ -2404,7 +2404,6 @@ function withPreviewGroups(groups, fn){
   const previous = getPreviewGroupsOverride();
   try{
     window.__rmlPreviewGroups = Array.isArray(groups) ? groups : null;
-    window.__rmlSupplierName = arguments[0] && arguments[0].supplierName ? arguments[0].supplierName : window.__rmlSupplierName;
     return fn();
   } finally {
     if(previous){
@@ -2431,7 +2430,6 @@ async function sharePdfForValidatedSupplier(supplierName){
     return false;
   }
 
-  window.__rmlSupplierName = supplierName;
   return withPreviewGroups(order.groups, async function(){
     const blob = await buildPdfBlob();
     if(!blob){
@@ -2473,7 +2471,6 @@ function saveValidatedOrderToHistory(supplierName){
     return false;
   }
 
-  window.__rmlSupplierName = supplierName;
   return withPreviewGroups(order.groups, function(){
     const now = new Date();
     const monthKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
@@ -2581,7 +2578,7 @@ async function buildPdfBlob(){
   }
   y += 2;
   doc.setFont("helvetica","bold");
-  doc.text("Commande ${window.__rmlSupplierName ? window.__rmlSupplierName + ' ' : ''}n° " + getOrderNumber(), 14, y); y += 5;
+  doc.text("Commande n° " + getOrderNumber(), 14, y); y += 5;
   doc.text("Commande du " + getTodayFR() + "\nPersonne : " + (orderUser || "-"), 14, y); y += 7;
   doc.setFont("helvetica","normal");
   y += 3;
@@ -2866,7 +2863,7 @@ async function generatePdfPro(){
       try{
         await navigator.share({
           files:[file],
-          title:"Commande ${window.__rmlSupplierName ? window.__rmlSupplierName + ' ' : ''}n° " + getOrderNumber(),
+          title:"Commande n° " + getOrderNumber(),
           text:"PDF de la commande prêt à être joint au mail fournisseur."
         });
         return;
@@ -2915,7 +2912,7 @@ function sendEmail(){
 
   const firstTo = recipients[0] || '';
   const ccList = recipients.slice(1).join(',');
-  const subjectText = "Commande ${window.__rmlSupplierName ? window.__rmlSupplierName + ' ' : ''}n° " + getOrderNumber() + " - " + getCompanyName() + " - " + getTodayFR();
+  const subjectText = "Commande n° " + getOrderNumber() + " - " + getCompanyName() + " - " + getTodayFR();
   const bodyText = buildProfessionalEmailBody();
   let mailtoUrl = 'mailto:' + firstTo + '?subject=' + encodeURIComponent(subjectText) + '&body=' + encodeURIComponent(bodyText);
   if(ccList){
@@ -2988,7 +2985,7 @@ function showHistory(){
         const globalIndex = history.indexOf(entry);
         return `
           <div class="summary" style="margin-bottom:12px">
-            <p class="title">Commande ${window.__rmlSupplierName ? window.__rmlSupplierName + ' ' : ''}n° ${esc(entry.orderNumber || "")}</p>
+            <p class="title">Commande n° ${esc(entry.orderNumber || "")}</p>
             <p class="meta">Date : ${esc(entry.date || "")}</p>
             <div class="toolbar">
               <button class="btn neutral" onclick="historyDownload(${globalIndex})">Télécharger</button>
@@ -4109,7 +4106,7 @@ function buildCommandPreviewHtml(includeHelp){
   }
   html += '<h2>' + esc(companyName) + '</h2>';
   if(companyMeta) html += '<p class="preview-meta">' + esc(companyMeta) + '</p>';
-  html += '<p class="preview-meta"><strong>Commande ${window.__rmlSupplierName ? window.__rmlSupplierName + ' ' : ''}n° ' + esc(String(orderNumber)) + '</strong></p>';
+  html += '<p class="preview-meta"><strong>Commande n° ' + esc(String(orderNumber)) + '</strong></p>';
   html += '<p class="preview-meta"><strong>Commande du ' + esc(String(today)) + '</strong></p>';
   html += '<p class="preview-meta">' + esc(String(lines)) + ' ligne(s) commandée(s) • quantité totale : ' + esc(String(qty)) + '</p>';
   if(showPrices) html += '<p class="preview-meta"><strong>Total HT :</strong> ' + esc(String(total)) + '</p>';
