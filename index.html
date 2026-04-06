@@ -987,7 +987,6 @@ function flushAllInputsToState(){
     });
     syncSupplierEmailInputsFromDom();
     syncOrderMetaInputs();
-    syncCustomProductPricesToState();
     save();
   }catch(e){}
 }
@@ -1975,6 +1974,26 @@ function getPdfHeaderTextRgb(){
   const color = (getHeaderBg() || "#ffffff").toLowerCase();
   if(color === "#ffffff" || color === "#9aa0a6") return [24,33,43];
   return [255,255,255];
+}
+
+function syncCustomProductPricesToStateForSupplier(supplierName){
+  try{
+    const target = normalizeSupplierName(supplierName || DEFAULT_SUPPLIER);
+    const products = getCustomProductsForSupplier(target);
+    products.forEach(p => {
+      const name = String((p && p.name) || "").trim();
+      if(!name) return;
+      const unit = ((p.unit || "U").toUpperCase() === "ML") ? "ML" : "U";
+      const key = keyOf(name, name + "||" + unit);
+      const defaultValue = p.default_price || p.price || "";
+      if(!state[key]) state[key] = { qty:"", unit:unit, price:"", ref:"" };
+      state[key].price = resolveDefaultPriceForKey(key, defaultValue);
+      state[key].unit = unit;
+      if(defaultValue !== ""){
+        updateStoredPriceByKey(key, defaultValue);
+      }
+    });
+  }catch(e){}
 }
 
 function syncCustomProductPricesToState(){
