@@ -4172,9 +4172,10 @@ function buildCommandPreviewHtml(includeHelp){
   const companyMeta = (typeof getCompanyMetaLine === 'function') ? getCompanyMetaLine(' • ') : '';
   const orderNumber = (typeof getOrderNumber === 'function') ? getOrderNumber() : '-';
   const today = (typeof getTodayFR === 'function') ? getTodayFR() : '';
-  const lines = (typeof linesCount === 'function') ? linesCount() : 0;
-  const qty = (typeof totalQty === 'function') ? totalQty() : 0;
-  const total = (showPrices && typeof totalHt === 'function' && typeof formatMoneyFR === 'function') ? formatMoneyFR(totalHt()) : '';
+  const lines = groups.reduce((n, g) => n + ((g.lines || []).length), 0);
+  const qty = groups.reduce((n, g) => n + (g.lines || []).reduce((a, line) => a + Number(line.qty || 0), 0), 0);
+  const totalValue = groups.reduce((n, g) => n + (g.lines || []).reduce((a, line) => a + Number(line.total || 0), 0), 0);
+  const total = (showPrices && typeof formatMoneyFR === 'function') ? formatMoneyFR(totalValue) : '';
   const message = (typeof orderMessage !== 'undefined' && orderMessage && String(orderMessage).trim()) ? String(orderMessage).trim() : '';
   let html = '';
   if(includeHelp){
