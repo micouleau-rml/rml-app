@@ -2391,8 +2391,108 @@ function companyHeaderLines(){
   return lines;
 }
 
+
+function getPreviewGroupsOverride(){
+  try{
+    return Array.isArray(window.__rmlPreviewGroups) ? window.__rmlPreviewGroups : null;
+  }catch(e){
+    return null;
+  }
+}
+
+function withPreviewGroups(groups, fn){
+  const previous = getPreviewGroupsOverride();
+  try{
+    window.__rmlPreviewGroups = Array.isArray(groups) ? groups : null;
+    return fn();
+  } finally {
+    if(previous){
+      window.__rmlPreviewGroups = previous;
+    } else {
+      try{ delete window.__rmlPreviewGroups; }catch(e){ window.__rmlPreviewGroups = null; }
+    }
+  }
+}
+
+function getValidatedOrderBySupplierName(supplierName){
+  const clean = String(supplierName || "").trim();
+  if(!clean) return null;
+  const orders = getValidatedSupplierOrders();
+  const order = orders[clean] || null;
+  if(!order || !Array.isArray(order.groups) || !order.groups.length) return null;
+  return order;
+}
+
+async function sharePdfForValidatedSupplier(supplierName){
+  const order = getValidatedOrderBySupplierName(supplierName);
+  if(!order){
+    alert("Aucune commande validée pour ce fournisseur.");
+    return false;
+  }
+
+  return withPreviewGroups(order.groups, async function(){
+    const blob = await buildPdfBlob();
+    if(!blob){
+      alert("Impossible de créer le PDF.");
+      return false;
+    }
+
+    const fileName = "commande_" + String(supplierName || "fournisseur").replace(/\s+/g, "_") + "_" + getOrderNumber() + ".pdf";
+    const file = new File([blob], fileName, { type: "application/pdf" });
+
+    if(navigator.canShare && navigator.canShare({ files: [file] }) && navigator.share){
+      try{
+        await navigator.share({
+          files: [file],
+          title: fileName
+        });
+        return true;
+      }catch(e){
+        return false;
+      }
+    }
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 2000);
+    return true;
+  });
+}
+
+function saveValidatedOrderToHistory(supplierName){
+  const order = getValidatedOrderBySupplierName(supplierName);
+  if(!order){
+    alert("Aucune commande à enregistrer.");
+    return false;
+  }
+
+  return withPreviewGroups(order.groups, function(){
+    const now = new Date();
+    const monthKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+    const entry = {
+      orderNumber: getOrderNumber(),
+      date: getTodayFR(),
+      createdAt: now.toISOString(),
+      monthKey: monthKey,
+      supplier: String(supplierName || "").trim(),
+      text: recapText(),
+      groups: order.groups
+    };
+    const history = getHistory();
+    history.unshift(entry);
+    saveHistory(history);
+    alert("Commande enregistrée dans l'historique.");
+    return true;
+  });
+}
+
 function recapText(){
-  const groups = buildGroups();
+  const groups = getPreviewGroupsOverride() || buildGroups();
   let out = companyHeaderLines().join("\n") + "\n\n";
   for(const g of groups){
     out += g.family + "\n";
@@ -2429,7 +2529,7 @@ function savePdfHistory(entries){
 }
 
 function saveCurrentPdfToHistory(){
-  const groups = buildGroups();
+  const groups = getPreviewGroupsOverride() || buildGroups();
   if(!groups.length) return false;
   const entry = {
     orderNumber: getOrderNumber(),
@@ -2451,7 +2551,7 @@ async function buildPdfBlob(){
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "mm", format: "a4" });
-  const groups = buildGroups();
+  const groups = getPreviewGroupsOverride() || buildGroups();
   let y = 14;
 
   const headerRgb = getPdfHeaderRgb();
@@ -2611,7 +2711,7 @@ async function exportPDF(){
 
 function buildProfessionalEmailBody(){
   syncOrderMessageFromDom();
-  const groups = buildGroups();
+  const groups = getPreviewGroupsOverride() || buildGroups();
   const lines = [];
   lines.push("Bonjour,");
   lines.push("");
@@ -3149,8 +3249,9 @@ function goRecap(){
         <p class="meta">Commande validée le ${esc(validatedDate)} • ${totalLines} ligne(s) • quantité totale : ${esc(totalQtyValue)}</p>
         ${showPrices ? `<p class="meta"><strong>Total HT :</strong> ${esc(formatMoneyFR(totalHtValue))}</p>` : ""}
         <div class="toolbar" style="margin-top:10px">
-          <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="deleteValidatedSupplierOrder('${supplierName.replace(/'/g, "\'")}'); goRecap();">Supprimer du récapitulatif</button>
-          <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="if(typeof saveOrderOnly==='function'){saveOrderOnly()}">💾 Sauvegarder la commande</button>
+          <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="sharePdfForValidatedSupplier('${supplierName.replace(/'/g, "\'")}')">Enregistrer / Partager PDF</button>
+          <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="saveValidatedOrderToHistory('${supplierName.replace(/'/g, "\'")}')">Enregistrer dans l'historique</button>
+          <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="deleteValidatedSupplierOrder('${supplierName.replace(/'/g, "\'")}'); goRecap();">Supprimer la commande</button>
         </div>
         ${tables}
       </div>
@@ -3268,7 +3369,7 @@ function saveHistory(entries){
 }
 
 function saveCurrentOrderToHistory(){
-  const groups = buildGroups();
+  const groups = getPreviewGroupsOverride() || buildGroups();
   if(!groups.length){
     alert("Aucune commande à enregistrer.");
     return false;
