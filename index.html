@@ -299,6 +299,37 @@ const SHOW_PRICES_KEY = "rml_show_prices";
 const DEFAULT_SUPPLIER = "GUTTERFRANCE";
 const DEFAULT_SUPPLIER_OPTIONS = ["GUTTERFRANCE", "GUTTERKEL", "GUTTI", "ALMET"];
 
+const PRICE_STORE_KEY = "rml_price_store";
+
+function getPriceStore(){
+  try{
+    const raw = JSON.parse(localStorage.getItem(PRICE_STORE_KEY) || "{}");
+    return raw && typeof raw === "object" ? raw : {};
+  }catch(e){
+    return {};
+  }
+}
+function savePriceStore(map){
+  try{ localStorage.setItem(PRICE_STORE_KEY, JSON.stringify(map || {})); }catch(e){}
+}
+function getStoredPriceByKey(key){
+  const map = getPriceStore();
+  return Object.prototype.hasOwnProperty.call(map, key) ? map[key] : "";
+}
+function updateStoredPriceByKey(key, value){
+  const cleanKey = String(key || "").trim();
+  if(!cleanKey) return;
+  const map = getPriceStore();
+  const normalized = normalizePriceValue(value);
+  if(normalized === ""){
+    delete map[cleanKey];
+  }else{
+    map[cleanKey] = normalized;
+  }
+  savePriceStore(map);
+}
+
+
 function normalizeSupplierName(value){
   return String(value || "").trim().replace(/\s+/g, " ").toUpperCase();
 }
@@ -652,9 +683,10 @@ function buildGroupsForSupplierName(supplierName){
     const fam = obj.fam;
     const lines = [];
     (fam.items || []).forEach(it => {
-      const entry = state[keyOf(fam.name, it.label)];
+      const lineKey = keyOf(fam.name, it.label);
+      const entry = state[lineKey];
       const qty = Number((entry || {}).qty || 0);
-      const price = Number((entry || {}).price || 0);
+      const price = Number(((entry || {}).price !== undefined && String((entry || {}).price).trim() !== "" ? (entry || {}).price : resolveDefaultPriceForKey(lineKey, it.default_price || fam.default_price || "")) || 0);
       if(qty > 0){
         lines.push({
           variant: it.variant,
@@ -904,6 +936,8 @@ function findItemContextByKey(key){
   return null;
 }
 function resolveDefaultPriceForKey(key, fallback){
+  const stored = getStoredPriceByKey(key);
+  if(stored !== undefined && stored !== null && String(stored).trim() !== "") return stored;
   if(fallback !== undefined && fallback !== null && String(fallback).trim() !== "") return fallback;
   const found = findItemContextByKey(key);
   return found ? (found.defaultPrice || "") : "";
@@ -1900,7 +1934,17 @@ function updateCustomProduct(index, field, value){
   const list = getCustomProducts();
   if(!list[index]) return;
   list[index][field] = value;
-  if(field === "default_price"){ list[index].price = value; }
+  if(field === "default_price"){
+    list[index].price = value;
+    try{
+      const p = list[index];
+      const name = String((p && p.name) || "").trim();
+      const unit = ((p.unit || "U").toUpperCase() === "ML") ? "ML" : "U";
+      if(name){
+        updateStoredPriceByKey(keyOf(name, name + "||" + unit), value);
+      }
+    }catch(e){}
+  }
   saveCustomProducts(list);
 }
 function deleteCustomProduct(index){
@@ -1939,11 +1983,13 @@ function syncCustomProductPricesToState(){
       if(!name) return;
       const unit = ((p.unit || "U").toUpperCase() === "ML") ? "ML" : "U";
       const key = keyOf(name, name + "||" + unit);
+      const defaultValue = p.default_price || p.price || "";
       if(!state[key]) state[key] = { qty:"", unit:unit, price:"", ref:"" };
-      if((!state[key].price && state[key].price !== 0) || String(state[key].price).trim() === ""){
-        state[key].price = p.default_price || p.price || "";
-      }
+      state[key].price = resolveDefaultPriceForKey(key, defaultValue);
       state[key].unit = unit;
+      if(defaultValue !== ""){
+        updateStoredPriceByKey(key, defaultValue);
+      }
     });
     save();
   }catch(e){}
@@ -2355,17 +2401,22 @@ function setPrice(key, value, unitDefault, defaultPrice, skipRender){
   const price = normalizePriceValue(value);
   const currentQty = Number((state[key] || {}).qty || 0);
   const currentRef = String((state[key] && state[key].ref) || "").trim();
+  const finalPrice = price === "" ? resolvedDefaultPrice : price;
+
   if(currentQty > 0){
-    state[key] = { qty: currentQty, unit: unitDefault, price: price === "" ? resolvedDefaultPrice : price, ref: currentRef };
-  }else if(price !== ""){
-    state[key] = { qty: "", unit: unitDefault, price: price, ref: currentRef };
-  }else if(resolvedDefaultPrice !== ""){
-    state[key] = { qty: "", unit: unitDefault, price: resolvedDefaultPrice, ref: currentRef };
+    state[key] = { qty: currentQty, unit: unitDefault, price: finalPrice, ref: currentRef };
+  }else if(finalPrice !== ""){
+    state[key] = { qty: "", unit: unitDefault, price: finalPrice, ref: currentRef };
   }else if(currentRef){
     state[key] = { qty: "", unit: unitDefault, price: "", ref: currentRef };
   }else{
     delete state[key];
   }
+
+  if(finalPrice !== ""){
+    updateStoredPriceByKey(key, finalPrice);
+  }
+
   save();
   if(!skipRender) renderItems();
 }
@@ -2477,7 +2528,7 @@ function getValidatedOrderBySupplierName(supplierName){
 
 async function sharePdfForValidatedSupplier(supplierName){
   const order = getValidatedOrderBySupplierName(supplierName);
-  if(!order){
+  if(!order || !Array.isArray(order.groups) || !order.groups.some(g => Array.isArray(g.lines) && g.lines.some(line => Number(line.qty || 0) > 0))){
     alert("Aucune commande validée pour ce fournisseur.");
     return false;
   }
@@ -2518,7 +2569,7 @@ async function sharePdfForValidatedSupplier(supplierName){
 
 function saveValidatedOrderToHistory(supplierName){
   const order = getValidatedOrderBySupplierName(supplierName);
-  if(!order){
+  if(!order || !Array.isArray(order.groups) || !order.groups.some(g => Array.isArray(g.lines) && g.lines.some(line => Number(line.qty || 0) > 0))){
     alert("Aucune commande à enregistrer.");
     return false;
   }
@@ -3282,7 +3333,7 @@ function goRecap(){
   document.getElementById("family").classList.add("hidden");
   document.getElementById("recap").classList.remove("hidden");
 
-  const validatedOrders = Object.values(getValidatedSupplierOrders());
+  const validatedOrders = Object.values(cleanupValidatedSupplierOrders());
   const showPrices = getShowPrices();
 
   const cards = validatedOrders.length ? validatedOrders.map(order => {
