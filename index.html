@@ -1327,6 +1327,54 @@ function getBuiltInSupplierProducts(name){
   return list;
 }
 
+
+function autoImportBuiltInCatalogToSettingsOnce(){
+  const FLAG = "rml_catalog_import_to_settings_v1";
+  try{
+    if(localStorage.getItem(FLAG) === "1") return;
+  }catch(e){}
+
+  try{
+    const current = getCustomProducts();
+    const list = Array.isArray(current) ? current.slice() : [];
+    let added = 0;
+
+    getSupplierOptions().forEach(supplierName => {
+      const builtins = getBuiltInSupplierProducts(supplierName);
+      builtins.forEach((p, idx) => {
+        const exists = list.some(x =>
+          inferSupplierFromProduct(x) === supplierName &&
+          String((x && x.name) || "").trim() === String(p.name || "").trim() &&
+          String((x && x.product_color) || "").trim() === String(p.product_color || "").trim() &&
+          String((x && x.supplier_ref) || "").trim() === String(p.supplier_ref || "").trim()
+        );
+        if(exists) return;
+
+        list.push({
+          id: "auto_" + supplierName.replace(/\s+/g, "_").toLowerCase() + "_" + idx + "_" + Math.random().toString(36).slice(2,7),
+          supplier: supplierName,
+          name: p.name || "",
+          unit: p.unit || "U",
+          product_color: p.product_color || "",
+          supplier_ref: p.supplier_ref || "",
+          default_price: p.default_price || p.price || "",
+          price: p.price || p.default_price || "",
+          family_name: p.family_name || "",
+          family_label: p.family_label || "",
+          color: p.color || "#475569",
+          visible: false
+        });
+        added += 1;
+      });
+    });
+
+    if(added > 0){
+      saveCustomProducts(list);
+    }
+    try{ localStorage.setItem(FLAG, "1"); }catch(e){}
+  }catch(e){}
+}
+
 function migrateBuiltInSupplierProducts(name){
   const supplierName = String(name || "").trim();
   const builtins = getBuiltInSupplierProducts(supplierName);
@@ -3301,6 +3349,7 @@ function resetAll(){
   applyHeaderBg(getHeaderBg());
   refreshHeaderBranding();
   migrateUnits();
+autoImportBuiltInCatalogToSettingsOnce();
   if(getDropboxToken()){
     await syncHistoryFromDropbox();
   }
