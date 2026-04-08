@@ -381,18 +381,27 @@ function normalizeSupplierDataOnce(){
 const SUPPLIERS_KEY = "rml_suppliers";
 cleanupSodifabOnce();
 const SUPPLIER_EMAILS_KEY = "rml_supplier_emails";
+const SUPPLIER_ADDRESSES_KEY = "rml_supplier_addresses";
+
+const SUPPLIER_EMAILS_CODE = {
+  GUTTERFRANCE: "grc-gutterfrance@orange.fr",
+  GUTTERKEL: "",
+  GUTTI: "",
+  ALMET: ""
+};
+
+const SUPPLIER_ADDRESSES_CODE = {
+  GUTTERFRANCE: ``,
+  GUTTERKEL: ``,
+  GUTTI: ``,
+  ALMET: ``
+};
+
 function getSupplierEmails(){
-  try{
-    const raw = JSON.parse(localStorage.getItem(SUPPLIER_EMAILS_KEY) || "{}");
-    return raw && typeof raw === "object" ? raw : {};
-  }catch(e){
-    return {};
-  }
+  return SUPPLIER_EMAILS_CODE;
 }
 function saveSupplierEmails(map){
-  try{
-    localStorage.setItem(SUPPLIER_EMAILS_KEY, JSON.stringify(map || {}));
-  }catch(e){}
+  return;
 }
 function getSupplierEmail(name){
   const map = normalizeSupplierMapKeys(getSupplierEmails());
@@ -401,9 +410,22 @@ function getSupplierEmail(name){
 function updateSupplierEmail(name, email){
   const cleanName = normalizeSupplierName(name);
   if(!cleanName) return;
-  const map = normalizeSupplierMapKeys(getSupplierEmails());
-  map[cleanName] = String(email || "").trim();
-  saveSupplierEmails(map);
+  SUPPLIER_EMAILS_CODE[cleanName] = String(email || "").trim();
+}
+function getSupplierAddresses(){
+  return SUPPLIER_ADDRESSES_CODE;
+}
+function saveSupplierAddresses(map){
+  return;
+}
+function getSupplierAddress(name){
+  const map = normalizeSupplierMapKeys(getSupplierAddresses());
+  return map[normalizeSupplierName(name)] || "";
+}
+function updateSupplierAddress(name, address){
+  const cleanName = normalizeSupplierName(name);
+  if(!cleanName) return;
+  SUPPLIER_ADDRESSES_CODE[cleanName] = String(address || "").trim();
 }
 
 const SUPPLIER_ORDER_KEY = "supplier_order";
@@ -1327,54 +1349,6 @@ function getBuiltInSupplierProducts(name){
   return list;
 }
 
-
-function autoImportBuiltInCatalogToSettingsOnce(){
-  const FLAG = "rml_catalog_import_to_settings_v1";
-  try{
-    if(localStorage.getItem(FLAG) === "1") return;
-  }catch(e){}
-
-  try{
-    const current = getCustomProducts();
-    const list = Array.isArray(current) ? current.slice() : [];
-    let added = 0;
-
-    getSupplierOptions().forEach(supplierName => {
-      const builtins = getBuiltInSupplierProducts(supplierName);
-      builtins.forEach((p, idx) => {
-        const exists = list.some(x =>
-          inferSupplierFromProduct(x) === supplierName &&
-          String((x && x.name) || "").trim() === String(p.name || "").trim() &&
-          String((x && x.product_color) || "").trim() === String(p.product_color || "").trim() &&
-          String((x && x.supplier_ref) || "").trim() === String(p.supplier_ref || "").trim()
-        );
-        if(exists) return;
-
-        list.push({
-          id: "auto_" + supplierName.replace(/\s+/g, "_").toLowerCase() + "_" + idx + "_" + Math.random().toString(36).slice(2,7),
-          supplier: supplierName,
-          name: p.name || "",
-          unit: p.unit || "U",
-          product_color: p.product_color || "",
-          supplier_ref: p.supplier_ref || "",
-          default_price: p.default_price || p.price || "",
-          price: p.price || p.default_price || "",
-          family_name: p.family_name || "",
-          family_label: p.family_label || "",
-          color: p.color || "#475569",
-          visible: false
-        });
-        added += 1;
-      });
-    });
-
-    if(added > 0){
-      saveCustomProducts(list);
-    }
-    try{ localStorage.setItem(FLAG, "1"); }catch(e){}
-  }catch(e){}
-}
-
 function migrateBuiltInSupplierProducts(name){
   const supplierName = String(name || "").trim();
   const builtins = getBuiltInSupplierProducts(supplierName);
@@ -1597,6 +1571,7 @@ function getSupplierAccordionHtml(name){
         +     '</div>'
         +   '</div>'
         +   '<input class="search" data-supplier-email-input="' + esc(name) + '" style="height:44px;margin:0 0 10px 0" placeholder="Mail du fournisseur" value="' + esc(getSupplierEmail(name)) + '" oninput="updateSupplierEmail(\'' + safeName + '\', this.value)" onchange="updateSupplierEmail(\'' + safeName + '\', this.value)">'
+        +   '<textarea class="search" data-supplier-address-input="' + esc(name) + '" style="height:88px;padding-top:12px;padding-bottom:12px;margin:0 0 10px 0;border-radius:16px;resize:vertical" placeholder="Adresse complète du fournisseur" oninput="updateSupplierAddress(\'' + safeName + '\', this.value)" onchange="updateSupplierAddress(\'' + safeName + '\', this.value)">' + esc(getSupplierAddress(name)) + '</textarea>'
         +   '<div class="color-picker-row" style="justify-content:flex-start">'
         +     '<select class="select-user" style="margin:0;height:44px;flex:1 1 140px" onchange="updateSupplierColor(\'' + safeName + '\', this.value); goSettings(); setSettingsSection(\'fournisseurs\')">'
         +       getColorOptionsHtml(getSupplierColor(name, "#334155"))
@@ -3349,7 +3324,6 @@ function resetAll(){
   applyHeaderBg(getHeaderBg());
   refreshHeaderBranding();
   migrateUnits();
-autoImportBuiltInCatalogToSettingsOnce();
   if(getDropboxToken()){
     await syncHistoryFromDropbox();
   }
