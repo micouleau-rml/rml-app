@@ -2442,7 +2442,47 @@ function stepQty(key, delta){
   renderItems();
 }
 
-function buildGroups(){
+function setQtyDirect(key, value){
+  const fam = getFamilies()[currentFamily];
+  const raw = String(value ?? "").replace(",", ".").trim();
+  const qty = raw === "" ? 0 : Number(raw);
+
+  let matchedItem = null;
+  for (const it of fam.items) {
+    if (keyOf(fam.name, it.label) === key) {
+      matchedItem = it;
+      break;
+    }
+  }
+
+  const itemUnit = matchedItem ? getItemUnit(fam, matchedItem) : fam.unit_default;
+  const defaultPrice = resolveDefaultPriceForKey(
+    key,
+    matchedItem ? (matchedItem.default_price || fam.default_price || "") : ""
+  );
+
+  const currentPrice =
+    (state[key] && state[key].price !== undefined && state[key].price !== "")
+      ? state[key].price
+      : defaultPrice;
+
+  const currentRef = String((state[key] && state[key].ref) || "").trim();
+
+  if (!isNaN(qty) && qty > 0) {
+    state[key] = { qty: qty, unit: itemUnit, price: currentPrice, ref: currentRef };
+  } else if (
+    state[key] &&
+    ((state[key].price !== undefined && state[key].price !== "") || currentRef)
+  ) {
+    state[key] = { qty: "", unit: itemUnit, price: state[key].price, ref: currentRef };
+  } else {
+    delete state[key];
+  }
+
+  save();
+}  
+ 
+  function buildGroups(){
   const groups = [];
   for(const fam of getFamilies()){
     const lines = [];
