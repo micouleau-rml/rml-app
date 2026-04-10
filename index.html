@@ -2807,30 +2807,16 @@ async function buildPdfBlob(){
     doc.text("TOTAL HT : " + formatMoneyFR(totalHt()), 14, y + 4);
   }
 
-  return doc.output("blob");
+  return doc.output("dataurlstring");
 }
 
 async function exportPDF(){
-  const blob = await buildPdfBlob();
-  if(!blob) return;
+  const pdfData = await buildPdfBlob();
+  if(!pdfData) return;
+  
   saveCurrentPdfToHistory();
 
-  const file = new File([blob], "commande_" + getOrderNumber() + ".pdf", { type: "application/pdf" });
-
-  if(navigator.canShare && navigator.canShare({ files: [file] }) && navigator.share){
-    try{
-      await navigator.share({
-        files: [file],
-        title: "Commande " + getOrderNumber(),
-        text: "Commande " + getCompanyName()
-      });
-      return;
-    }catch(e){}
-  }
-
-  const url = URL.createObjectURL(blob);
-  window.open(url, "_blank");
-  setTimeout(() => URL.revokeObjectURL(url), 60000);  
+  window.location.href = pdfData;
 }
 
 function buildProfessionalEmailBody(){
