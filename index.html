@@ -3288,8 +3288,11 @@ function updateFloatingSaveBar(){
 }
 
 function goRecap(){
+  syncInputs();
+  save();  
+  
   setSettingsMode(false);
-  syncVisibleInputs();
+  
   document.getElementById("home").classList.add("hidden");
   document.getElementById("supplier").classList.add("hidden");
   document.getElementById("family").classList.add("hidden");
