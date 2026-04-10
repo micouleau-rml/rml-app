@@ -2185,6 +2185,9 @@ function goSettings(){
 }
 
 function goHome(){
+  syncInputs();
+  save();  
+  
   setSettingsMode(false);
   refreshHeaderBranding();
   document.getElementById("home").classList.remove("hidden");
