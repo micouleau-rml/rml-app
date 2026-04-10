@@ -2271,20 +2271,25 @@ function openSupplier(index){
   }).join("");
 
   document.getElementById("supplier").innerHTML = `
-    <div class="toolbar">
-      <button class="btn neutral" onclick="goHome()">← Retour</button>
-      <button class="btn" style="background:#0a8454;color:#fff;border-color:#0a8454" onclick="goRecap()">Récapitulatif</button>
-    </div>
-    <div class="section-title">Fournisseur : ${esc(supplier.name)}</div>
-    <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn" style="background:#c62828;color:#fff;border-color:#c62828;flex:1 1 240px" onclick="validateCurrentSupplierOrder()">Valider la commande</button>
-      <button class="btn neutral" style="flex:1 1 240px" onclick="resetSupplierData(currentSupplierName)">Supprimer la commande</button>
-    </div>
-    ${buttons ? `<div class="grid">${buttons}</div>` : `<div class="empty">Aucun produit affecté pour l’instant à ce fournisseur.</div>`}
-    <p class="note">Sélectionnez ensuite une famille pour saisir les quantités.</p>
-    <div style="height:220px"></div>`;
+  <div class="toolbar">
+    <button class="btn neutral" onclick="goHome()">← Retour</button>
+    <button class="btn" style="background:#0a8454;color:#fff;border-color:#0a8454" onclick="goRecap()">Récapitulatif</button>
+  </div>
+  <div class="section-title">Fournisseur : ${esc(supplier.name)}</div>
+  <div class="note" style="margin-bottom:10px">
+    Email : ${esc(getSupplierEmail(supplier.name))}
+  </div>
+  <div class="note" style="margin-bottom:10px;white-space:pre-line">
+    ${esc(getSupplierAddress(supplier.name))}
+  </div>
+  <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn" style="background:#c62828;color:#fff;border-color:#c62828;flex:1 1 240px" onclick="validateCurrentSupplierOrder()">Valider la commande</button>
+    <button class="btn neutral" style="flex:1 1 240px" onclick="resetSupplierData(currentSupplierName)">Supprimer la commande</button>
+  </div>
+  ${buttons ? `<div class="grid">${buttons}</div>` : `<div class="empty">Aucun produit affecté pour l’instant à ce fournisseur.</div>`}
+  <p class="note">Sélectionnez ensuite une famille pour saisir les quantités.</p>
+  <div style="height:220px"></div>`;
 }
-
 
 function openSupplierByFamily(familyIndex){
   const fam = getFamilies()[familyIndex];
