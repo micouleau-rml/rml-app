@@ -2829,13 +2829,8 @@ async function exportPDF(){
   }
 
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "commande_" + getOrderNumber() + ".pdf";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 3000);
+  window.open(url, "_blank");
+  setTimeout(() => URL.revokeObjectURL(url), 60000);  
 }
 
 function buildProfessionalEmailBody(){
