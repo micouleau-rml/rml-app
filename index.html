@@ -2807,16 +2807,36 @@ async function buildPdfBlob(){
     doc.text("TOTAL HT : " + formatMoneyFR(totalHt()), 14, y + 4);
   }
 
-  return doc.output("dataurlstring");
+  return doc.output("blob");
 }
 
 async function exportPDF(){
-  const pdfData = await buildPdfBlob();
-  if(!pdfData) return;
-  
+  const blob = await buildPdfBlob();
+  if(!blob) return;
+
   saveCurrentPdfToHistory();
 
-  window.location.href = pdfData;
+  const fileName = "commande_" + getOrderNumber() + ".pdf";
+  const file = new File([blob], fileName, { type: "application/pdf" });
+
+  if (
+    navigator.share &&
+    navigator.canShare &&
+    navigator.canShare({ files: [file] })
+  ) {
+    try {
+      await navigator.share({
+        files: [file],
+        title: "Commande " + getOrderNumber(),
+        text: "Commande " + getCompanyName()
+      });
+      return;
+    } catch (e) {
+      return;
+    }
+  }
+
+  alert("Le partage PDF n'est pas disponible sur cet appareil.");
 }
 
 function buildProfessionalEmailBody(){
