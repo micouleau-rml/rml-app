@@ -2336,7 +2336,7 @@ function renderItems(){
       <div class="row">
         <div class="pill">${esc(displayUnit)}</div>
         <button class="qbtn" onmousedown="return startHold('${key}', -${step}, event)" onmouseup="stopHold()" onmouseleave="stopHold()" ontouchstart="return startHold('${key}', -${step}, event)" ontouchend="stopHold()" ontouchcancel="stopHold()">−</button>
-        <input class="qinput js-qty-input" data-key="${esc(key)}" data-unit="${esc(itemUnit)}" data-default-price="${esc(String(it.default_price || fam.default_price || ""))}" inputmode="decimal" value="${esc(entry.qty)}" oninput="setQty('${key}', this.value, getItemUnit(fam, it))">
+        <input class="qinput js-qty-input" data-key="${esc(key)}" data-unit="${esc(itemUnit)}" data-default-price="${esc(String(it.default_price || fam.default_price || ""))}" inputmode="decimal" value="${esc(entry.qty)}" oninput="setQty('${key}', this.value, getItemUnit(fam, it), this.dataset.defaultPrice)">
         <button class="qbtn" onmousedown="return startHold('${key}', ${step}, event)" onmouseup="stopHold()" onmouseleave="stopHold()" ontouchstart="return startHold('${key}', ${step}, event)" ontouchend="stopHold()" ontouchcancel="stopHold()">+</button>
       </div>
       <div class="row" style="margin-top:8px">
