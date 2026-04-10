@@ -2566,30 +2566,34 @@ async function sharePdfForValidatedSupplier(supplierName){
       return false;
     }
 
-    const fileName = "commande_" + String(supplierName || "fournisseur").replace(/\s+/g, "_") + "_" + getOrderNumber() + ".pdf";
+    const fileName =
+      "commande_" +
+      String(supplierName || "fournisseur").replace(/\s+/g, "_") +
+      "_" +
+      getOrderNumber() +
+      ".pdf";
+
     const file = new File([blob], fileName, { type: "application/pdf" });
 
-    if(navigator.canShare && navigator.canShare({ files: [file] }) && navigator.share){
+    if (
+      navigator.share &&
+      navigator.canShare &&
+      navigator.canShare({ files: [file] })
+    ) {
       try{
         await navigator.share({
           files: [file],
           title: fileName
         });
         return true;
-      }catch(e){
-        return false;
+      } catch(e) {
+        // si l'utilisateur annule, on ne force rien
+        if (e && e.name === "AbortError") return false;
       }
     }
 
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url), 2000);
-    return true;
+    alert("Le partage PDF n'est pas disponible sur cet appareil.");
+    return false;
   }, supplierName);
 }
 
