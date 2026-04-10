@@ -2391,7 +2391,20 @@ function setPrice(key, value, unitDefault, defaultPrice, skipRender){
   if(!skipRender) renderItems();
 }
 
-function setRef(key, value, unitDefault, defaultPrice, skipRender){
+function syncInputs() {
+  document.querySelectorAll('.js-qty-input').forEach(input => {
+    setQty(
+      input.dataset.key,
+      input.value,
+      input.dataset.unit,
+      input.dataset.defaultPrice,
+      true
+    );
+  });
+
+  save();
+}  
+  function setRef(key, value, unitDefault, defaultPrice, skipRender){
   const resolvedDefaultPrice = resolveDefaultPriceForKey(key, defaultPrice);
   const ref = String(value == null ? "" : value).trim();
   const currentQty = Number((state[key] || {}).qty || 0);
