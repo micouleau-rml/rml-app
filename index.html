@@ -2353,13 +2353,20 @@ function renderItems(){
 }
 
 function setQty(key, value, unitDefault, defaultPrice, skipRender){
-  const qty = normalizeQty(value);
+  const raw = String(value ?? "").replace(",", ".").trim();
+  const qty = raw === "" ? 0 : Number(raw);
   const resolvedDefaultPrice = resolveDefaultPriceForKey(key, defaultPrice);
   const currentPrice = (state[key] && state[key].price !== undefined && state[key].price !== "") ? state[key].price : resolvedDefaultPrice;
   const currentRef = String((state[key] && state[key].ref) || "").trim();
-  if(qty > 0) state[key] = { qty: qty, unit: unitDefault, price: currentPrice, ref: currentRef };
-  else if(state[key] && ((state[key].price !== undefined && state[key].price !== "") || currentRef)) state[key] = { qty: "", unit: unitDefault, price: state[key].price, ref: currentRef };
-  else delete state[key];
+
+  if (!isNaN(qty) && qty > 0) {
+    state[key] = { qty: qty, unit: unitDefault, price: currentPrice, ref: currentRef };
+  } else if (state[key] && ((state[key].price !== undefined && state[key].price !== "") || currentRef)) {
+    state[key] = { qty: "", unit: unitDefault, price: state[key].price, ref: currentRef };
+  } else {
+    delete state[key];
+  }
+
   save();
   if(!skipRender) renderItems();
 }
