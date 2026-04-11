@@ -2565,7 +2565,7 @@ async function sharePdfForValidatedSupplier(supplierName){
   }
 
   return withPreviewGroups(order.groups, async function(){
-    const blob = await buildPdfBlob();
+    const blob = await buildPdfBlob(supplierName);
     if(!blob){
       alert("Impossible de créer le PDF.");
       return false;
