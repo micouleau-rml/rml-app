@@ -2845,7 +2845,7 @@ y += 4;
 }
 
 async function exportPDF(){
-  const blob = await buildPdfBlob();
+  const blob = await buildPdfBlob(currentSupplierName);
   if(!blob) return;
 
   saveCurrentPdfToHistory();
