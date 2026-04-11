@@ -2716,10 +2716,8 @@ if(getCompanyPhone()){
   y += 5;
 }
 
-if(getCompanyEmail()){
-  doc.text("Email : " + String(getCompanyEmail()), 14, y);
-  y += 5;
-}
+doc.text("Email : contact.rml@orange.fr", 14, y);
+y += 5;
 
 y += 2;
 
@@ -2752,17 +2750,7 @@ if(name || supplierEmail || supplierAddress){
   y = Math.max(y, supplierY) + 6;
 }
 
-if(getCompanyPhone()){
-  doc.text(String(getCompanyPhone()), 14, y);
-  y += 5;
-}
-
-if(getCompanyEmail()){
-  doc.text("Email : " + String(getCompanyEmail()), 14, y);
-  y += 5;
-}
-
-y += 2;
+  y += 2;
   doc.setFont("helvetica","bold");
   doc.text((window.__rmlSupplierName ? window.__rmlSupplierName + " " : "") + "commande n° " + getOrderNumber(), 14, y); y += 5;
   doc.text("Commande du " + getTodayFR() + "\nPersonne : " + (orderUser || "-"), 14, y); y += 7;
