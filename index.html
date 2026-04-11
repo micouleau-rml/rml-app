@@ -2739,13 +2739,17 @@ if(name || supplierEmail || supplierAddress){
   y = Math.max(y, supplierY) + 6;
 }
 
-y += 4;  
-  const contactLine = [getCompanyPhone(), getCompanyEmail()].filter(Boolean).join(" • ");
-  if(contactLine){
-    const contactLines = doc.splitTextToSize(String(contactLine), 180);
-    doc.text(contactLines, 14, y); y += contactLines.length * 5;
-  }
-  y += 2;
+if(getCompanyPhone()){
+  doc.text(String(getCompanyPhone()), 14, y);
+  y += 5;
+}
+
+if(getCompanyEmail()){
+  doc.text("Email : " + String(getCompanyEmail()), 14, y);
+  y += 5;
+}
+
+y += 2;
   doc.setFont("helvetica","bold");
   doc.text((window.__rmlSupplierName ? window.__rmlSupplierName + " " : "") + "commande n° " + getOrderNumber(), 14, y); y += 5;
   doc.text("Commande du " + getTodayFR() + "\nPersonne : " + (orderUser || "-"), 14, y); y += 7;
