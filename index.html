@@ -2681,7 +2681,7 @@ function saveCurrentPdfToHistory(){
   return true;
 }
 
-async function buildPdfBlob(){
+async function buildPdfBlob(supplierName){
   if(!(window.jspdf && window.jspdf.jsPDF)){
     alert("Le module PDF n'est pas disponible sur cet appareil.");
     return null;
@@ -2709,6 +2709,31 @@ async function buildPdfBlob(){
     const addrLines = doc.splitTextToSize(String(getCompanyAddress()), 180);
     doc.text(addrLines, 14, y); y += addrLines.length * 5;
   }
+  
+  const name = String(supplierName || currentSupplierName || "").trim();
+const supplierEmail = getSupplierEmail(name);
+const supplierAddress = getSupplierAddress(name);
+
+if(name){
+  y += 6;
+  doc.setFont("helvetica", "bold");
+  doc.text("Fournisseur : " + name, 14, y);
+  doc.setFont("helvetica", "normal");
+  y += 5;
+}
+
+if(supplierEmail){
+  doc.text("Email : " + supplierEmail, 14, y);
+  y += 5;
+}
+
+if(supplierAddress){
+  const addrLines = doc.splitTextToSize(String(supplierAddress), 180);
+  doc.text(addrLines, 14, y);
+  y += addrLines.length * 5;
+}
+
+y += 4;  
   const contactLine = [getCompanyPhone(), getCompanyEmail()].filter(Boolean).join(" • ");
   if(contactLine){
     const contactLines = doc.splitTextToSize(String(contactLine), 180);
