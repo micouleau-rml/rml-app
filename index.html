@@ -2692,35 +2692,40 @@ async function buildPdfBlob(supplierName){
   const groups = getPreviewGroupsOverride() || buildGroups();
   let y = 14;
 
-  const headerRgb = getPdfHeaderRgb();
-  const headerTextRgb = getPdfHeaderTextRgb();
-  doc.setFillColor(headerRgb[0], headerRgb[1], headerRgb[2]);
-  doc.rect(10, 10, 190, 12, "F");
-  doc.setTextColor(headerTextRgb[0], headerTextRgb[1], headerTextRgb[2]);
-  doc.setFont("helvetica","bold");
-  doc.setFontSize(16);
-  doc.text(String(getCompanyName()), 14, 18);
+  const logo = getCompanyLogo();
 
-  y = 30;
-  doc.setTextColor(30,30,30);
-  doc.setFont("helvetica","normal");
-  doc.setFontSize(10);
-if(getCompanyAddress()){
-  const addrLines = doc.splitTextToSize(String(getCompanyAddress()), 180);
-  doc.text(addrLines, 14, y);
-  y += addrLines.length * 5;
+if(logo){
+  try{
+    doc.addImage(logo, "PNG", 88, 8, 35, 18);
+  }catch(e){}
 }
 
-if(getCompanyPhone()){
-  doc.text(String(getCompanyPhone()), 14, y);
-  y += 5;
-}
+doc.setFont("helvetica","bold");
+doc.setFontSize(24);
+doc.text("RML GOUTTIÈRE ALU", 105, 34, { align: "center" });
 
-doc.text("Email : contact.rml@orange.fr", 14, y);
-y += 5;
+doc.setFont("helvetica","bold");
+doc.setFontSize(12);
+doc.text("by Micouleau & Lhérisson", 105, 42, { align: "center" });
 
-y += 2;
+doc.setFont("helvetica","normal");
+doc.setFontSize(10);
+doc.text(
+  "Gouttière - Couvertine - Sous Face - Pliage à façon - Clôture et portail en aluminium laqué",
+  105,
+  50,
+  { align: "center" }
+);
 
+doc.setFontSize(9);
+doc.text(
+  "14 ZA de Calens • 33640 Beautiran • 05 56 67 33 89 • contact.rml@orange.fr",
+  105,
+  58,
+  { align: "center" }
+);
+
+y = 72;
 const name = String(supplierName || currentSupplierName || "").trim();
 const supplierEmail = getSupplierEmail(name);
 const supplierAddress = getSupplierAddress(name);
