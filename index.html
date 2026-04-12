@@ -2691,165 +2691,17 @@ async function buildPdfBlob(supplierName){
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "mm", format: "a4" });
-  const groups = getPreviewGroupsOverride() || buildGroups();
-  let y = 14;
-
-doc.setTextColor(30,30,30);
-doc.setFont("helvetica","bold");
-doc.setFontSize(16);
-doc.text(String(getCompanyName()), 14, 18);
-
-y = 30;
-doc.setFont("helvetica","normal");
-doc.setFontSize(10);
-
-if(getCompanyAddress()){
-  const addrLines = doc.splitTextToSize(String(getCompanyAddress()), 180);
-  doc.text(addrLines, 14, y);
-  y += addrLines.length * 5;
-}
-
-if(getCompanyPhone()){
-  doc.text(String(getCompanyPhone()), 14, y);
-  y += 5;
-}
-
-doc.text("Email : contact.rml@orange.fr", 14, y);
-y += 5;
-const name = String(supplierName || currentSupplierName || "").trim();
-const supplierEmail = getSupplierEmail(name);
-const supplierAddress = getSupplierAddress(name);
-
-if(name || supplierEmail || supplierAddress){
-  let supplierY = 66;
 
   doc.setFont("helvetica", "bold");
-  if(name){
-    doc.text("Fournisseur : " + name, 120, supplierY);
-    supplierY += 5;
-  }
+  doc.setFontSize(20);
+  doc.text("TEST PDF RML", 20, 30);
 
   doc.setFont("helvetica", "normal");
-
-  if(supplierEmail){
-    doc.text("Email : " + supplierEmail, 120, supplierY);
-    supplierY += 5;
-  }
-
-  if(supplierAddress){
-    const addrLines = doc.splitTextToSize(String(supplierAddress), 75);
-    doc.text(addrLines, 120, supplierY);
-    supplierY += addrLines.length * 5;
-  }
-
-  y = Math.max(y, supplierY) + 6;
-}
-
-  y += 2;
-  doc.setFont("helvetica","bold");
-  doc.text((window.__rmlSupplierName ? window.__rmlSupplierName + " " : "") + "commande n° " + getOrderNumber(), 14, y); y += 5;
-  doc.text("Commande du " + getTodayFR() + "\nPersonne : " + (orderUser || "-"), 14, y); y += 7;
-  doc.setFont("helvetica","normal");
-  y += 3;
-  if(orderMessage && orderMessage.trim()){
-    doc.setFont("helvetica","bold");
-    doc.text("Message :", 14, y); y += 5;
-    doc.setFont("helvetica","normal");
-    const msgLines = doc.splitTextToSize(String(orderMessage.trim()), 180);
-    doc.text(msgLines, 14, y);
-    y += (msgLines.length * 4) + 4;
-  }
-
-  for(const g of groups){
-    if(y > 265){ doc.addPage(); y = 14; }
-    doc.setFillColor(240,244,248);
-    doc.rect(14, y-4, 182, 7, "F");
-    doc.setTextColor(11,107,203);
-    doc.setFont("helvetica","bold");
-    doc.setFontSize(11);
-    doc.text(g.family, 16, y); y += 8;
-
-    doc.setTextColor(20,20,20);
-    doc.setFontSize(9);
-    doc.setFont("helvetica","bold");
-    if(getShowPrices()){
-      doc.text("Produit", 16, y);
-      doc.text("Couleur", 70, y);
-      doc.text("Réf", 108, y);
-      doc.text("Unité", 138, y);
-      doc.text("Qté", 152, y);
-      doc.text("Prix HT", 164, y);
-      doc.text("Total HT", 182, y);
-    }else{
-      doc.text("Produit", 16, y);
-      doc.text("Couleur", 82, y);
-      doc.text("Réf", 126, y);
-      doc.text("Unité", 158, y);
-      doc.text("Qté", 176, y);
-    }
-    y += 5;
-    doc.setFont("helvetica","normal");
-
-    for(const line of g.lines){
-      if(y > 280){ doc.addPage(); y = 14; }
-      if(getShowPrices()){
-        const prod = doc.splitTextToSize(String(line.variant), 48);
-        const color = doc.splitTextToSize(String(line.color), 26);
-        const ref = doc.splitTextToSize(String(line.ref || "-"), 24);
-        const unit = doc.splitTextToSize(String(line.unit), 10);
-        const qty = doc.splitTextToSize(String(line.qty), 10);
-        const price = doc.splitTextToSize(String(formatMoneyFR(line.price)), 16);
-        const total = doc.splitTextToSize(String(formatMoneyFR(line.total)), 14);
-        const rowHeight = Math.max(prod.length, color.length, ref.length, unit.length, qty.length, price.length, total.length) * 4 + 1;
-
-        doc.rect(14, y-3.5, 182, rowHeight);
-        doc.text(prod, 16, y);
-        doc.text(color, 70, y);
-        doc.text(ref, 108, y);
-        doc.text(unit, 138, y);
-        doc.text(qty, 152, y);
-        doc.text(price, 164, y);
-        doc.text(total, 182, y);
-        y += rowHeight + 1;
-      }else{
-        const prod = doc.splitTextToSize(String(line.variant), 62);
-        const color = doc.splitTextToSize(String(line.color), 34);
-        const ref = doc.splitTextToSize(String(line.ref || "-"), 28);
-        const unit = doc.splitTextToSize(String(line.unit), 14);
-        const qty = doc.splitTextToSize(String(line.qty), 10);
-        const rowHeight = Math.max(prod.length, color.length, ref.length, unit.length, qty.length) * 4 + 1;
-
-        doc.rect(14, y-3.5, 182, rowHeight);
-        doc.text(prod, 16, y);
-        doc.text(color, 82, y);
-        doc.text(ref, 126, y);
-        doc.text(unit, 158, y);
-        doc.text(qty, 176, y);
-        y += rowHeight + 1;
-      }
-    }
-    y += 4;
-  }
-
-  if(y > 272){ doc.addPage(); y = 14; }
-
-  doc.setFont("helvetica","bold");
-  doc.setFontSize(10);
-  doc.setTextColor(30,30,30);
-  doc.text("Total lignes : " + linesCount(), 14, y + 4);
-  doc.text("Quantité totale : " + totalQty(), 70, y + 4);
-  y += 10;
-
-  if(getShowPrices()){
-    if(y > 282){ doc.addPage(); y = 14; }
-    doc.setFont("helvetica","bold");
-    doc.setFontSize(11);
-    doc.text("TOTAL HT : " + formatMoneyFR(totalHt()), 14, y + 4);
-  }
+  doc.setFontSize(12);
+  doc.text("Si tu vois ce texte, le problème ne vient pas de l'ouverture du PDF.", 20, 45);
 
   return doc.output("blob");
 }
-
 async function exportPDF(){
   const blob = await buildPdfBlob(currentSupplierName);
   if(!blob) return;
