@@ -2694,14 +2694,30 @@ async function buildPdfBlob(supplierName){
   const groups = getPreviewGroupsOverride() || buildGroups();
   let y = 14;
 
-const logo = null;
+let logoData = null;
 
-if(logo){
-  try{
-    doc.addImage(logo, "PNG", 96, 8, 22, 12);
-  }catch(e){}
+try{
+  const response = await fetch(PDF_OFFICIAL_LOGO);
+  const blob = await response.blob();
+
+  logoData = await new Promise((resolve,reject)=>{
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+
+}catch(e){
+  console.error("Chargement logo PDF impossible :", e);
 }
 
+if(logoData){
+  try{
+    doc.addImage(logoData, "PNG", 96, 8, 22, 12);
+  }catch(e){
+    console.error("Insertion logo PDF impossible :", e);
+  }
+}
 doc.setTextColor(30,30,30);
 
 doc.setFont("helvetica","bold");
