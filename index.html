@@ -2700,15 +2700,7 @@ async function buildPdfBlob(){
   doc.setTextColor(30,30,30);
   doc.setFont("helvetica","normal");
   doc.setFontSize(10);
-  if(getCompanyAddress()){
-    const addrLines = doc.splitTextToSize(String(getCompanyAddress()), 180);
-    doc.text(addrLines, 14, y); y += addrLines.length * 5;
-  }
-  const contactLine = [getCompanyPhone(), getCompanyEmail()].filter(Boolean).join(" • ");
-  if(contactLine){
-    const contactLines = doc.splitTextToSize(String(contactLine), 180);
-    doc.text(contactLines, 14, y); y += contactLines.length * 5;
-  }
+  y = 30;
 
   const supplierNamePdf = String(window.__rmlSupplierName || "").trim();
 const supplierEmailPdf = getSupplierEmail(supplierNamePdf);
@@ -2841,6 +2833,22 @@ if(supplierNamePdf || supplierEmailPdf || supplierAddressPdf){
     doc.text("TOTAL HT : " + formatMoneyFR(totalHt()), 14, y + 4);
   }
 
+const footerParts = [
+    getCompanyAddress(),
+    getCompanyPhone(),
+    "contact.rml@orange.fr"
+].filter(Boolean);
+
+const footerText = footerParts.join(" • ");
+
+if(footerText){
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(90, 90, 90);
+
+    doc.line(14, 286, 196, 286);
+    doc.text(footerText, 105, 292, { align: "center" });
+}  
   return doc.output("blob");
 }
 
