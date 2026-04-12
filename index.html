@@ -2692,7 +2692,7 @@ async function buildPdfBlob(supplierName){
   const groups = getPreviewGroupsOverride() || buildGroups();
   let y = 14;
 
-  const logo = getCompanyLogo();
+  const logo = document.getElementById("topLogo")?.src || getCompanyLogo();
 
 if(logo){
   try{
