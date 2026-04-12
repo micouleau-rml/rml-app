@@ -2712,20 +2712,20 @@ if(supplierNamePdf || supplierEmailPdf || supplierAddressPdf){
     doc.setFont("helvetica","bold");
 
     if(supplierNamePdf){
-        doc.text(supplierNamePdf, 120, supplierY);
+        doc.text(supplierNamePdf, 115, supplierY);
         supplierY += 5;
     }
 
     doc.setFont("helvetica","normal");
 
     if(supplierEmailPdf){
-        doc.text("Email : " + supplierEmailPdf, 120, supplierY);
+        doc.text("Email : " + supplierEmailPdf, 115, supplierY);
         supplierY += 5;
     }
 
     if(supplierAddressPdf){
         const addrLinesSupplier = doc.splitTextToSize(String(supplierAddressPdf), 70);
-        doc.text(addrLinesSupplier, 120, supplierY);
+        doc.text(addrLinesSupplier, 115, supplierY);
         supplierY += addrLinesSupplier.length * 5;
     }
 
