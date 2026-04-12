@@ -2709,11 +2709,41 @@ async function buildPdfBlob(){
     const contactLines = doc.splitTextToSize(String(contactLine), 180);
     doc.text(contactLines, 14, y); y += contactLines.length * 5;
   }
-  y += 2;
-  doc.setFont("helvetica","bold");
-  doc.text((window.__rmlSupplierName ? window.__rmlSupplierName + " " : "") + "commande n° " + getOrderNumber(), 14, y); y += 5;
-  doc.text("Commande du " + getTodayFR() + "\nPersonne : " + (orderUser || "-"), 14, y); y += 7;
-  doc.setFont("helvetica","normal");
+
+  const supplierNamePdf = String(window.__rmlSupplierName || "").trim();
+const supplierEmailPdf = getSupplierEmail(supplierNamePdf);
+const supplierAddressPdf = getSupplierAddress(supplierNamePdf);
+
+if(supplierNamePdf || supplierEmailPdf || supplierAddressPdf){
+    let supplierY = 30;
+
+    doc.setFont("helvetica","bold");
+
+    if(supplierNamePdf){
+        doc.text(supplierNamePdf, 120, supplierY);
+        supplierY += 5;
+    }
+
+    doc.setFont("helvetica","normal");
+
+    if(supplierEmailPdf){
+        doc.text("Email : " + supplierEmailPdf, 120, supplierY);
+        supplierY += 5;
+    }
+
+    if(supplierAddressPdf){
+        const addrLinesSupplier = doc.splitTextToSize(String(supplierAddressPdf), 70);
+        doc.text(addrLinesSupplier, 120, supplierY);
+        supplierY += addrLinesSupplier.length * 5;
+    }
+
+    y = Math.max(y, supplierY);
+    }  
+    y += 2;
+    doc.setFont("helvetica","bold");
+    doc.text((window.__rmlSupplierName ? window.__rmlSupplierName + " " : "") + "commande n° " + getOrderNumber(), 14, y); y += 5;
+    doc.text("Commande du " + getTodayFR() + "\nPersonne : " + (orderUser || "-"), 14, y); y += 7;
+    doc.setFont("helvetica","normal");
   y += 3;
   if(orderMessage && orderMessage.trim()){
     doc.setFont("helvetica","bold");
