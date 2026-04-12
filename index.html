@@ -1225,7 +1225,7 @@ function refreshHeaderBranding(){
   if(topName) topName.textContent = getCompanyName();
   if(topMeta) topMeta.textContent = getCompanyMetaLine(" • ");
   if(topLogo){
-    const logo = getCompanyLogo();
+    cconst logo = getCompanyLogo();
     if(logo){
       topLogo.src = logo;
       topLogo.style.display = "";
@@ -2694,7 +2694,7 @@ async function buildPdfBlob(supplierName){
   const groups = getPreviewGroupsOverride() || buildGroups();
   let y = 14;
 
-  const logo = document.getElementById("topLogo")?.src || getCompanyLogo();
+const logo = PDF_OFFICIAL_LOGO;
 
 if(logo){
   try{
