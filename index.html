@@ -2696,27 +2696,29 @@ async function buildPdfBlob(supplierName){
 
 let logoData = null;
 
-try{
-  const response = await fetch(PDF_OFFICIAL_LOGO);
-  const blob = await response.blob();
+try {
+    const img = document.getElementById("topLogo");
 
-  logoData = await new Promise((resolve,reject)=>{
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
+    if (img && img.complete && img.naturalWidth > 0) {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
 
-}catch(e){
-  console.error("Chargement logo PDF impossible :", e);
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0);
+
+        logoData = canvas.toDataURL("image/png");
+    }
+} catch (e) {
+    console.error("Préparation logo PDF impossible :", e);
 }
 
-if(logoData){
-  try{
-    doc.addImage(logoData, "PNG", 96, 8, 22, 12);
-  }catch(e){
-    console.error("Insertion logo PDF impossible :", e);
-  }
+if (logoData) {
+    try {
+        doc.addImage(logoData, "PNG", 96, 8, 22, 12);
+    } catch (e) {
+        console.error("Insertion logo PDF impossible :", e);
+    }
 }
 doc.setTextColor(30,30,30);
 
