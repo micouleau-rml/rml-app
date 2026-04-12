@@ -2696,42 +2696,44 @@ async function buildPdfBlob(supplierName){
 
 if(logo){
   try{
-    doc.addImage(logo, "PNG", 88, 8, 35, 18);
+    doc.addImage(logo, "PNG", 96, 8, 22, 12);
   }catch(e){}
 }
 
-doc.setFont("helvetica","bold");
-doc.setFontSize(24);
-doc.text("RML GOUTTIÈRE ALU", 105, 34, { align: "center" });
+doc.setTextColor(30,30,30);
 
 doc.setFont("helvetica","bold");
-doc.setFontSize(12);
-doc.text("by Micouleau & Lhérisson", 105, 42, { align: "center" });
+doc.setFontSize(20);
+doc.text("RML GOUTTIÈRE ALU", 105, 30, { align: "center" });
+
+doc.setFont("helvetica","bold");
+doc.setFontSize(10);
+doc.text("by Micouleau & Lhérisson", 105, 38, { align: "center" });
 
 doc.setFont("helvetica","normal");
-doc.setFontSize(10);
+doc.setFontSize(8);
 doc.text(
   "Gouttière - Couvertine - Sous Face - Pliage à façon - Clôture et portail en aluminium laqué",
   105,
-  50,
+  46,
   { align: "center" }
 );
 
-doc.setFontSize(9);
+doc.setFontSize(8);
 doc.text(
   "14 ZA de Calens • 33640 Beautiran • 05 56 67 33 89 • contact.rml@orange.fr",
   105,
-  58,
+  54,
   { align: "center" }
 );
 
-y = 72;
+y = 68;
 const name = String(supplierName || currentSupplierName || "").trim();
 const supplierEmail = getSupplierEmail(name);
 const supplierAddress = getSupplierAddress(name);
 
 if(name || supplierEmail || supplierAddress){
-  let supplierY = 30;
+  let supplierY = 66;
 
   doc.setFont("helvetica", "bold");
   if(name){
