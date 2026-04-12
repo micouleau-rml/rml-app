@@ -2731,7 +2731,7 @@ if(supplierNamePdf || supplierEmailPdf || supplierAddressPdf){
 
     y = Math.max(y, supplierY);
     }  
-    y += 2;
+    y += 6;
     doc.setFont("helvetica","bold");
     doc.text((window.__rmlSupplierName ? window.__rmlSupplierName + " " : "") + "commande n° " + getOrderNumber(), 14, y); y += 5;
     doc.text("Commande du " + getTodayFR() + "\nPersonne : " + (orderUser || "-"), 14, y); y += 7;
