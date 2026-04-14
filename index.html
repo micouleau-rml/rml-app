@@ -1786,31 +1786,70 @@ function inferSupplierFromFamily(fam){
   if(hay.includes("sodifab")) return "SODIFAB";
   return "GUTTERFRANCE";
 }
-function getSupplierName(fam){
-  if(fam && fam.supplier && String(fam.supplier).trim()) return String(fam.supplier).trim();
-  return inferSupplierFromFamily(fam);
-}
-function getFamilyByName(name){
-  const target = String(name || '').trim();
-  if(!target) return null;
-  return getFamilies().find(f => String((f && f.name) || '').trim() === target) || null;
-}
 function getSuppliers(){
   const map = new Map();
+
   getSupplierOptions().forEach(name => {
     map.set(name, { name, color: getSupplierColor(name, "#334155"), families: [] });
   });
+
+  const gutterFranceRapidName = "GUTTERFRANCE RAPIDE";
+  const gutterFranceMonthlyName = "GUTTERFRANCE MENSUEL";
+
+  if(!map.has(gutterFranceRapidName)){
+    map.set(gutterFranceRapidName, {
+      name: gutterFranceRapidName,
+      color: getSupplierColor(gutterFranceRapidName, "#334155"),
+      families: []
+    });
+  }
+
+  if(!map.has(gutterFranceMonthlyName)){
+    map.set(gutterFranceMonthlyName, {
+      name: gutterFranceMonthlyName,
+      color: getSupplierColor(gutterFranceMonthlyName, "#334155"),
+      families: []
+    });
+  }
+
   getFamilies().forEach((fam, idx) => {
     const name = getSupplierName(fam);
-    if(!map.has(name)){
-      map.set(name, { name, color: getSupplierColor(name, fam.family_color || "#334155"), families: [] });
+
+    if(name === "GUTTERFRANCE"){
+      const rapidFam = JSON.parse(JSON.stringify(fam));
+      const monthlyFam = JSON.parse(JSON.stringify(fam));
+
+      monthlyFam.name = String(monthlyFam.name || "") + " MENSUEL";
+
+      map.get(gutterFranceRapidName).families.push({
+        index: idx,
+        fam: rapidFam
+      });
+
+      map.get(gutterFranceMonthlyName).families.push({
+        index: idx,
+        fam: monthlyFam
+      });
+
+      return;
     }
+
+    if(!map.has(name)){
+      map.set(name, {
+        name,
+        color: getSupplierColor(name, fam.family_color || "#334155"),
+        families: []
+      });
+    }
+
     if(!getSupplierColor(name, "") && map.get(name).color === "#334155" && fam.family_color){
       map.get(name).color = fam.family_color;
     }
+
     map.get(name).families.push({ index: idx, fam });
   });
-  return Array.from(map.values());
+
+  return Array.from(map.values()).filter(s => s.name !== "GUTTERFRANCE");
 }
 
 const BASE_FAMILY_OVERRIDES_KEY = "base_family_overrides";
