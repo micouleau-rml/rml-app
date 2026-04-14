@@ -1354,12 +1354,13 @@ function getFamilySupplierName(fam){
 }
 function getBuiltInSupplierProducts(name){
   const supplierName = String(name || "").trim();
+  const sourceSupplierName = supplierName === "GUTTERFRANCE EXPRESS" ? "GUTTERFRANCE" : supplierName;
   const list = [];
   try{
     (DATA.families || []).forEach(fam => {
     if(isRemovedSupplierFamily(fam)) return;
       if(isRemovedSupplierFamily(fam)) return;
-      if(getFamilySupplierName(fam) !== supplierName) return;
+      if(getFamilySupplierName(fam) !== sourceSupplierName) return;
       (fam.items || []).forEach((it, idx) => {
         const variant = String((it && it.variant) || (it && it.label) || "").trim();
         if(!variant) return;
