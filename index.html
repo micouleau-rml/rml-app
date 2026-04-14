@@ -1300,6 +1300,31 @@ function confirmDeleteProductById(productId){
   if(!ok) return;
   deleteCustomProductById(productId);
 }
+function clearSupplierProducts(name){
+  const supplierName = String(name || "").trim();
+  if(!supplierName) return;
+
+  const count = getCustomProductsForSupplier(supplierName).length;
+  if(count <= 0){
+    alert("Aucun produit à supprimer pour ce fournisseur.");
+    return;
+  }
+
+  const ok = confirm("Vider entièrement " + supplierName + " (" + count + " produit(s)) ?");
+  if(!ok) return;
+
+  const remaining = getCustomProducts().filter(p => inferSupplierFromProduct(p) !== supplierName);
+  saveCustomProducts(remaining);
+
+  try{
+    if(typeof syncCustomProductPricesToState === "function") syncCustomProductPricesToState();
+  }catch(e){}
+
+  alert("Tous les produits de " + supplierName + " ont été supprimés.");
+  goSettings();
+  setSettingsSection("fournisseurs");
+}  
+  
 function confirmDeleteSupplierByName(name){
   const supplierName = String(name || "").trim();
   if(!supplierName) return;
