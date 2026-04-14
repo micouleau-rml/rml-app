@@ -1482,7 +1482,7 @@ function getSupplierProductsSettingsHtml(name){
   const products = getCustomProductsForSupplier(name);
   const safeName = String(name).replace(/'/g, "\\'");
   const builtinsCount = getBuiltInSupplierProducts(name).length;
-  const showMigrate = builtinsCount > 0;
+  const showMigrate = builtinsCount > 0 && products.length === 0;
 
   const rows = products.map(p => `
       <div class="card" style="padding:10px;margin:8px 0 0 0;background:#f8fafc">
