@@ -1786,6 +1786,15 @@ function inferSupplierFromFamily(fam){
   if(hay.includes("sodifab")) return "SODIFAB";
   return "GUTTERFRANCE";
 }
+function getSupplierName(fam){
+  if(fam && fam.supplier && String(fam.supplier).trim()) return String(fam.supplier).trim();
+  return inferSupplierFromFamily(fam);
+}
+function getFamilyByName(name){
+  const target = String(name || '').trim();
+  if(!target) return null;
+  return getFamilies().find(f => String((f && f.name) || '').trim() === target) || null;
+}
 function getSuppliers(){
   const map = new Map();
   getSupplierOptions().forEach(name => {
