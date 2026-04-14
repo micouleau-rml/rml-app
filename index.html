@@ -1522,7 +1522,7 @@ function getSupplierProductsSettingsHtml(name){
       <div class="note" style="margin-bottom:8px">Produits du fournisseur</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
         <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="openProductModalForSupplier('${safeName}')">+ Ajouter un produit</button>
-        ${showMigrate ? `<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="migrateBuiltInSupplierProducts('${safeName}')">Importer le catalogue ${safeName} (${builtinsCount})</button>` : ''}
+        ${showMigrate ? `<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="migrateBuiltInSupplierProducts('${safeName}')">${safeName === "GUTTERFRANCE EXPRESS" ? `Copier le catalogue GUTTERFRANCE dans EXPRESS (${builtinsCount})` : `Importer le catalogue ${safeName} (${builtinsCount})`}</button>` : ''}
       </div>
       ${note}
       ${rows || '<div class="note">Aucun produit réellement rattaché à ce fournisseur pour le moment.</div>'}
