@@ -908,6 +908,19 @@ function save(){
   }catch(e){}
 }
 function esc(s){ return String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+function displayFamilyName(name){
+  return String(name || "").replace(/__EXP$/, "");
+}  
+function getExpressCatalogFamilies(){
+  return getFamilies()
+    .filter(fam => getSupplierName(fam) === "GUTTERFRANCE")
+    .filter(fam => !String(fam.name || "").endsWith("__EXP"))
+    .map(fam => {
+      const clone = JSON.parse(JSON.stringify(fam));
+      clone.name = String(clone.name || "") + "__EXP";
+      return clone;
+    });
+}  
 function keyOf(family,label){ return family + "||" + label; }
 function linesCount(){ return Object.values(state).filter(v => Number(v.qty||0) > 0).length; }
 function totalQty(){ return Object.values(state).reduce((a,b)=>a + (Number(b.qty)||0), 0); }
