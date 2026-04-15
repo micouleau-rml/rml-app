@@ -1553,6 +1553,7 @@ function getSupplierProductsSettingsHtml(name){
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
         <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="openProductModalForSupplier('${safeName}')">+ Ajouter un produit</button>
         ${safeName === "GUTTERFRANCE EXPRESS" ? `<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="clearSupplierProducts('${safeName}')">Vider entièrement EXPRESS</button>` : ''}        
+        ${safeName === "GUTTERFRANCE EXPRESS" ? `<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="markSupplierProductsVisible('${safeName}')">Tout afficher sur l’accueil</button>` : ''}        
         ${showMigrate ? `<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="migrateBuiltInSupplierProducts('${safeName}')">${safeName === "GUTTERFRANCE EXPRESS" ? `Copier le catalogue GUTTERFRANCE dans EXPRESS (${builtinsCount})` : `Importer le catalogue ${safeName} (${builtinsCount})`}</button>` : ''}
       </div>
       ${note}
