@@ -912,11 +912,10 @@ function displayFamilyName(name){
   return String(name || "").replace(/__EXP$/, "");
 }  
 function getExpressCatalogFamilies(){
-  return getFamilies()
-    .filter(fam => getSupplierName(fam) === "GUTTERFRANCE")
-    .filter(fam => !String(fam.name || "").endsWith("__EXP"))
-    .map(fam => {
-      const clone = JSON.parse(JSON.stringify(fam));
+  return (DATA.families || [])
+    .map(f => {
+      const clone = JSON.parse(JSON.stringify(f));
+      clone.original_name = String((f && f.name) || "").trim();
       clone.name = String(clone.name || "") + "__EXP";
       return clone;
     });
@@ -1806,6 +1805,8 @@ function inferSupplierFromFamily(fam){
 }
 function getSupplierName(fam){
   if(fam && fam.supplier && String(fam.supplier).trim()) return String(fam.supplier).trim();
+  const familyName = String((fam && fam.name) || "").trim();
+  if(familyName.endsWith("__EXP")) return "GUTTERFRANCE EXPRESS";
   return inferSupplierFromFamily(fam);
 }
 function getFamilyByName(name){
@@ -1877,7 +1878,7 @@ function getFamilies(){
   const custom = getCustomProducts()
     .filter(p => String((p && p.name) || "").trim() && p.visible !== false && inferSupplierFromProduct(p) !== "Sodifab")
     .map(customProductToFamily);
-  return base.concat(custom);
+  return base.concat(getExpressCatalogFamilies()).concat(custom);
 }
 function getCustomProductsSettingsHtml(){
   const items = getCustomProducts();
