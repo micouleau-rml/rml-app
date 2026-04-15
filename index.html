@@ -297,7 +297,7 @@ const DEFAULT_COMPANY_EMAIL = "";
 const CUSTOM_PRODUCTS_KEY = "rml_custom_products";
 const SHOW_PRICES_KEY = "rml_show_prices";
 const DEFAULT_SUPPLIER = "GUTTERFRANCE";
-const DEFAULT_SUPPLIER_OPTIONS = ["GUTTERFRANCE", "GUTTERFRANCE EXPRESS", "GUTTERKEL", "GUTTI", "ALMET"];
+const DEFAULT_SUPPLIER_OPTIONS = ["GUTTERFRANCE", "GUTTERKEL", "GUTTI", "ALMET"];
 
 function normalizeSupplierName(value){
   return String(value || "").trim().replace(/\s+/g, " ").toUpperCase();
@@ -385,7 +385,6 @@ const SUPPLIER_ADDRESSES_KEY = "rml_supplier_addresses";
 
 const SUPPLIER_EMAILS_CODE = {
   GUTTERFRANCE: "grc.gutterfrance@orange.fr",
-  "GUTTERFRANCE EXPRESS": "grc.gutterfrance@orange.fr",
   GUTTERKEL: "servicecommercial@gutterkel.fr",
   GUTTI: "gouttieres.mondial@gutti.fr",
   ALMET: "sandra.lechapalain@almet-metal.com",
@@ -397,10 +396,6 @@ const SUPPLIER_ADDRESSES_CODE = {
 60400 NOYON
 Tel : 03 44 44 28 48`,
 
-  "GUTTERFRANCE EXPRESS": `479 rue de l'europe ZI Est n°2
-60400 NOYON
-Tel : 03 44 44 28 48`,
-  
   GUTTERKEL: `282 rue Thomas Edison
 47250 SAMAZAN
 Tel : 05 53 89 63 87`,
@@ -568,7 +563,6 @@ function inferSupplierNameFromText(value){
   if(upper.includes("SODIFAB")) return "SODIFAB";
   if(upper.includes("GUTTERKEL")) return "GUTTERKEL";
   if(upper.includes("GUTTI")) return "GUTTI";
-  if(upper.includes("GUTTERFRANCE EXPRESS")) return "GUTTERFRANCE EXPRESS";  
   if(upper.includes("GUTTERFRANCE")) return "GUTTERFRANCE";
   return "";
 }
@@ -1300,36 +1294,6 @@ function confirmDeleteProductById(productId){
   if(!ok) return;
   deleteCustomProductById(productId);
 }
-function markSupplierProductsVisible(name){
-  const supplierName = String(name || "").trim();
-  if(!supplierName) return;
-
-  const list = getCustomProducts();
-  let changed = 0;
-
-  const updated = list.map(p => {
-    if(inferSupplierFromProduct(p) !== supplierName) return p;
-    if(p.visible === true) return p;
-    changed++;
-    return { ...p, visible: true };
-  });
-
-  if(changed <= 0){
-    alert("Tous les produits de " + supplierName + " sont déjà visibles.");
-    return;
-  }
-
-  saveCustomProducts(updated);
-
-  try{
-    if(typeof syncCustomProductPricesToState === "function") syncCustomProductPricesToState();
-  }catch(e){}
-
-  alert(changed + " produit(s) de " + supplierName + " sont maintenant visibles sur l’accueil.");
-  goSettings();
-  setSettingsSection("fournisseurs");
-}
-  
 function confirmDeleteSupplierByName(name){
   const supplierName = String(name || "").trim();
   if(!supplierName) return;
@@ -1384,13 +1348,12 @@ function getFamilySupplierName(fam){
 }
 function getBuiltInSupplierProducts(name){
   const supplierName = String(name || "").trim();
-  const sourceSupplierName = supplierName === "GUTTERFRANCE EXPRESS" ? "GUTTERFRANCE" : supplierName;
   const list = [];
   try{
     (DATA.families || []).forEach(fam => {
     if(isRemovedSupplierFamily(fam)) return;
       if(isRemovedSupplierFamily(fam)) return;
-      if(getFamilySupplierName(fam) !== sourceSupplierName) return;
+      if(getFamilySupplierName(fam) !== supplierName) return;
       (fam.items || []).forEach((it, idx) => {
         const variant = String((it && it.variant) || (it && it.label) || "").trim();
         if(!variant) return;
@@ -1453,7 +1416,7 @@ function migrateBuiltInSupplierProducts(name){
       family_name: p.family_name || "",
       family_label: p.family_label || "",
       color: p.color || "#334155",
-      visible: supplierName === "GUTTERFRANCE EXPRESS",
+      visible: false,
       from_catalog: true
     });
     added++;
@@ -1512,7 +1475,7 @@ function getSupplierProductsSettingsHtml(name){
   const products = getCustomProductsForSupplier(name);
   const safeName = String(name).replace(/'/g, "\\'");
   const builtinsCount = getBuiltInSupplierProducts(name).length;
-  const showMigrate = builtinsCount > 0 && products.length === 0;
+  const showMigrate = builtinsCount > 0;
 
   const rows = products.map(p => `
       <div class="card" style="padding:10px;margin:8px 0 0 0;background:#f8fafc">
@@ -1552,9 +1515,7 @@ function getSupplierProductsSettingsHtml(name){
       <div class="note" style="margin-bottom:8px">Produits du fournisseur</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
         <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="openProductModalForSupplier('${safeName}')">+ Ajouter un produit</button>
-        ${safeName === "GUTTERFRANCE EXPRESS" ? `<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="clearSupplierProducts('${safeName}')">Vider entièrement EXPRESS</button>` : ''}        
-        ${safeName === "GUTTERFRANCE EXPRESS" ? `<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="markSupplierProductsVisible('${safeName}')">Tout afficher sur l’accueil</button>` : ''}        
-        ${showMigrate ? `<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="migrateBuiltInSupplierProducts('${safeName}')">${safeName === "GUTTERFRANCE EXPRESS" ? `Copier le catalogue GUTTERFRANCE dans EXPRESS (${builtinsCount})` : `Importer le catalogue ${safeName} (${builtinsCount})`}</button>` : ''}
+        ${showMigrate ? `<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="migrateBuiltInSupplierProducts('${safeName}')">Importer le catalogue ${safeName} (${builtinsCount})</button>` : ''}
       </div>
       ${note}
       ${rows || '<div class="note">Aucun produit réellement rattaché à ce fournisseur pour le moment.</div>'}
