@@ -1,7 +1,7 @@
 {
-  "name": "RML PLIAGE ALU",
-  "short_name": "RML Pliage",
-  "description": "Application de calcul de pliage aluminium avec tarifs clients par épaisseur.",
+  "name": "RML GOUTTIÈRE ALU",
+  "short_name": "RML Gouttière",
+  "description": "Application de commande gouttière aluminium",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
