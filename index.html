@@ -1348,9 +1348,11 @@ function unmarkDeletedProduct(product){
   copy.id = "dup_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,8);
   copy.name = String(copy.name || "") + " copie";
   list.push(copy);
+
 try{
   unmarkDeletedProduct(copy);
 }catch(e){}
+
 saveCustomProducts(list);
   try{ if(typeof syncCustomProductPricesToState === "function") syncCustomProductPricesToState(); }catch(e){}
   goSettings();
