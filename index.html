@@ -1327,16 +1327,20 @@ function confirmDeleteSupplierByName(name){
 function deleteCustomProductById(productId){
   const idx = getCustomProductIndexById(productId);
   if(idx < 0) return;
-  deleteCustomProduct(idx);
-  goSettings();
-  setSettingsSection('fournisseurs');
-}
-function openProductModalForSupplier(supplierName){
-  openProductModal();
-  const el = document.getElementById("newProductSupplier");
-  if(el) el.value = normalizeSupplierName(supplierName || DEFAULT_SUPPLIER);
-}
 
+  const list = getCustomProducts();
+  list.splice(idx, 1);
+  saveCustomProducts(list);
+
+  try{
+    if(typeof syncCustomProductPricesToState === "function"){
+      syncCustomProductPricesToState();
+    }
+  }catch(e){}
+
+  goSettings();
+  setSettingsSection("fournisseurs");
+}
 
 function isRemovedSupplierFamily(fam){
   const txt = ((fam && fam.name) || "") + " " + ((fam && fam.family_label) || "");
