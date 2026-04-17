@@ -748,20 +748,21 @@ function deleteValidatedSupplierOrder(supplierName, silent){
       (fam.items || []).forEach(it => {
         const key = keyOf(fam.name, it.label);
         if(state[key]){
-          const existing = state[key] || {};
-          state[key] = {
-            ...existing,
-            qty: ""
-          };
+          delete state[key];
         }
       });
     });
     save();
   }
 
-  if(!silent) alert("Commande supprimée du récapitulatif.");
+  try{
+  if(typeof syncCustomProductPricesToState === "function"){
+    syncCustomProductPricesToState();
+  }
+}catch(e){}  
+  
+if(!silent) alert("Commande supprimée du récapitulatif.");
 }
-
 
 function resetSupplierData(supplierName){
   const cleanName = String(supplierName || "").trim();
