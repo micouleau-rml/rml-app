@@ -1841,9 +1841,11 @@ function syncSupplierEmailInputsFromDom(){
 function customProductToFamily(p){
   const unit = (p.unit || "U").toUpperCase() === "ML" ? "ML" : "U";
   const color = p.color || "#475569";
+  const productColor = String((p && p.product_color) || "").trim();
   const name = String(p.name || "").trim();
   const supplier = String(p.supplier || DEFAULT_SUPPLIER).trim() || DEFAULT_SUPPLIER;
   const defaultPrice = p.default_price || p.price || "";
+
   return {
     name: name,
     family_label: "Personnalisé",
@@ -1852,7 +1854,7 @@ function customProductToFamily(p){
     count: 1,
     items: [{
       variant: name,
-      color: unit,
+      color: productColor,
       label: name + "||" + unit,
       unit_override: unit,
       default_price: defaultPrice
@@ -1943,9 +1945,12 @@ function getFamilies(){
     copy.visible = ov.visible !== false;
     return copy;
   }).filter(f => f.visible !== false && !isRemovedSupplierFamily(f));
-  const custom = getCustomProducts()
-    .filter(p => String((p && p.name) || "").trim() && p.visible !== false && inferSupplierFromProduct(p) !== "Sodifab")
-    .map(customProductToFamily);
+ const custom = getCustomProducts()
+  .filter(p => String((p && p.name) || "").trim())
+  .filter(p => p.visible !== false)
+  .filter(p => inferSupplierFromProduct(p) !== "Sodifab")
+  .filter(p => !isDeletedProduct(p))
+  .map(customProductToFamily);
   return base.concat(getExpressCatalogFamilies()).concat(custom);
 }
 function getCustomProductsSettingsHtml(){
