@@ -1291,8 +1291,55 @@ function updateCustomProductById(productId, field, value){
   updateCustomProduct(idx, field, value);
 }
 
+const DELETED_PRODUCTS_KEY = "rml_deleted_products_v1";
 
-function duplicateCustomProductById(productId){
+function getDeletedProducts(){
+  try{
+    return JSON.parse(localStorage.getItem(DELETED_PRODUCTS_KEY) || "[]") || [];
+  }catch(e){
+    return [];
+  }
+}
+
+function saveDeletedProducts(list){
+  try{
+    localStorage.setItem(DELETED_PRODUCTS_KEY, JSON.stringify(list || []));
+  }catch(e){}
+}
+
+function makeDeletedProductKey(product){
+  if(!product) return "";
+  const supplier = String((product.supplier || DEFAULT_SUPPLIER || "")).trim();
+  const name = String((product.name || "")).trim();
+  const unit = String((product.unit || "U")).trim().toUpperCase() === "ML" ? "ML" : "U";
+  const productColor = String((product.product_color || "")).trim();
+  const supplierRef = String((product.supplier_ref || "")).trim();
+  return [supplier, name, unit, productColor, supplierRef].join("||");
+}
+
+function isDeletedProduct(product){
+  const key = makeDeletedProductKey(product);
+  if(!key) return false;
+  return getDeletedProducts().includes(key);
+}
+
+function markDeletedProduct(product){
+  const key = makeDeletedProductKey(product);
+  if(!key) return;
+  const list = getDeletedProducts();
+  if(!list.includes(key)){
+    list.push(key);
+    saveDeletedProducts(list);
+  }
+}
+
+function unmarkDeletedProduct(product){
+  const key = makeDeletedProductKey(product);
+  if(!key) return;
+  const list = getDeletedProducts().filter(k => k !== key);
+  saveDeletedProducts(list);
+}
+  function duplicateCustomProductById(productId){
   const idx = getCustomProductIndexById(productId);
   if(idx < 0) return;
   const list = getCustomProducts();
@@ -1334,8 +1381,11 @@ function deleteCustomProductById(productId){
   saveCustomProducts(list);
 
   try{
-    const productName = String((product && product.name) || "").trim();
+    markDeletedProduct(product);
+  }catch(e){}
 
+  try{
+    const productName = String((product && product.name) || "").trim();
     if(state && productName){
       Object.keys(state).forEach(key => {
         if(String(key).startsWith(productName + "||")){
