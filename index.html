@@ -1329,8 +1329,22 @@ function deleteCustomProductById(productId){
   if(idx < 0) return;
 
   const list = getCustomProducts();
+  const product = list[idx];
   list.splice(idx, 1);
   saveCustomProducts(list);
+
+  try{
+    const productName = String((product && product.name) || "").trim();
+
+    if(state && productName){
+      Object.keys(state).forEach(key => {
+        if(String(key).startsWith(productName + "||")){
+          delete state[key];
+        }
+      });
+      save();
+    }
+  }catch(e){}
 
   try{
     if(typeof syncCustomProductPricesToState === "function"){
@@ -1341,7 +1355,6 @@ function deleteCustomProductById(productId){
   goSettings();
   setSettingsSection("fournisseurs");
 }
-
 function isRemovedSupplierFamily(fam){
   const txt = ((fam && fam.name) || "") + " " + ((fam && fam.family_label) || "");
   return txt.toUpperCase().includes("SODIFAB");
