@@ -509,7 +509,7 @@ function moveSupplier(name, direction){
 
 
 function cleanupSodifabOnce(){
-  const FLAG = "rml_cleanup_sodifab_done_v1";
+  const FLAG = "rml_cleanup_sodifab_done_v2";
   try{
     if(localStorage.getItem(FLAG) === "1") return;
   }catch(e){}
@@ -518,6 +518,12 @@ function cleanupSodifabOnce(){
     // remove custom products linked to Sodifab
     const products = getCustomProducts().filter(p => normalizeSupplierName(inferSupplierFromProduct(p)) !== "SODIFAB")
     saveCustomProducts(products);
+    const rawProducts = getCustomProducts().map(p => ({
+  ...p,
+  supplier: String((p && p.supplier) || "").trim() === "Sodifab" ? "SODIFAB" : p.supplier
+}));
+saveCustomProducts(rawProducts);
+    
   }catch(e){}
 
   try{
