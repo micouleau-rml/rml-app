@@ -1915,19 +1915,37 @@ function getFamilyByName(name){
 }
 function getSuppliers(){
   const map = new Map();
+
   getSupplierOptions().forEach(name => {
-    map.set(name, { name, color: getSupplierColor(name, "#334155"), families: [] });
+    const normalized = normalizeSupplierName(name);
+    map.set(normalized, {
+      name: normalized,
+      color: getSupplierColor(normalized, "#334155"),
+      families: []
+    });
   });
+
   getFamilies().forEach((fam, idx) => {
-    const name = getSupplierName(fam);
-    if(!map.has(name)){
-      map.set(name, { name, color: getSupplierColor(name, fam.family_color || "#334155"), families: [] });
+    const rawName = getSupplierName(fam);
+    const normalized = normalizeSupplierName(rawName);
+
+    if(!map.has(normalized)){
+      map.set(normalized, {
+        name: normalized,
+        color: getSupplierColor(normalized, fam.family_color || "#334155"),
+        families: []
+      });
     }
-    if(!getSupplierColor(name, "") && map.get(name).color === "#334155" && fam.family_color){
-      map.get(name).color = fam.family_color;
+
+    const entry = map.get(normalized);
+
+    if((!getSupplierColor(normalized, "")) && entry.color === "#334155" && fam.family_color){
+      entry.color = fam.family_color;
     }
-    map.get(name).families.push({ index: idx, fam });
+
+    entry.families.push({ index: idx, fam });
   });
+
   return Array.from(map.values());
 }
 
