@@ -532,25 +532,28 @@ function cleanupSodifabOnce(){
   try{
     const emails = JSON.parse(localStorage.getItem("rml_supplier_emails") || "{}") || {};
     delete emails["Sodifab"];
+    delete emails["SODIFAB"];
     localStorage.setItem("rml_supplier_emails", JSON.stringify(emails));
   }catch(e){}
 
   try{
     const colors = JSON.parse(localStorage.getItem("rml_supplier_colors") || "{}") || {};
     delete colors["Sodifab"];
+    delete colors["SODIFAB"];
     localStorage.setItem("rml_supplier_colors", JSON.stringify(colors));
   }catch(e){}
 
   try{
     const openMap = JSON.parse(localStorage.getItem("rml_supplier_open_map_v1") || "{}") || {};
     delete openMap["Sodifab"];
+    delete openMap["SODIFAB"];
     localStorage.setItem("rml_supplier_open_map_v1", JSON.stringify(openMap));
   }catch(e){}
 
   try{
     const innerMap = JSON.parse(localStorage.getItem("rml_supplier_inner_open_map_v1") || "{}") || {};
     Object.keys(innerMap).forEach(k => {
-      if(String(k).startsWith("Sodifab||")) delete innerMap[k];
+      if(String(k).startsWith("Sodifab||") || String(k).startsWith("SODIFAB||")) delete innerMap[k];
     });
     localStorage.setItem("rml_supplier_inner_open_map_v1", JSON.stringify(innerMap));
   }catch(e){}
