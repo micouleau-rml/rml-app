@@ -1363,10 +1363,15 @@ saveCustomProducts(list);
 }
 
 function confirmDeleteProductById(productId){
+  try{
+    syncInputs();
+  }catch(e){}
+
   const ok = confirm("Supprimer ce produit ?");
   if(!ok) return;
   deleteCustomProductById(productId);
 }
+  
 function confirmDeleteSupplierByName(name){
   const supplierName = String(name || "").trim();
   if(!supplierName) return;
@@ -1380,6 +1385,10 @@ function confirmDeleteSupplierByName(name){
 }
 
 function deleteCustomProductById(productId){
+  try{
+    syncInputs();
+  }catch(e){}  
+  
   const idx = getCustomProductIndexById(productId);
   if(idx < 0) return;
 
