@@ -769,8 +769,9 @@ try{
 }catch(e){}
 
 if(!silent) alert("Commande supprimée du récapitulatif.");
-
-function resetSupplierData(supplierName){
+}
+  
+  function resetSupplierData(supplierName){
   const cleanName = String(supplierName || "").trim();
   if(!cleanName){
     alert("Aucun fournisseur sélectionné.");
