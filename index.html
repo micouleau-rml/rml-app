@@ -3572,7 +3572,10 @@ function goRecap(){
     <div class="footer-space"></div>`;
 }
 
-function resetAll(){
+ function goBack(){
+  goHome();
+}
+ function resetAll(){
   state = {};
   orderMessage = "";
   try{ localStorage.removeItem("order_message"); }catch(e){};
