@@ -2020,13 +2020,30 @@ function addCustomProductLegacy(){
   goHome();
   toggleDropboxPanel(true);
 }
+function normalizeSupplierName(name){
+  return String(name || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toUpperCase();
+}
+
 function updateCustomProduct(index, field, value){
   const list = getCustomProducts();
   if(!list[index]) return;
-  list[index][field] = value;
-  if(field === "default_price"){ list[index].price = value; }
+
+  if(field === "supplier"){
+    list[index][field] = normalizeSupplierName(value);
+  }else{
+    list[index][field] = value;
+  }
+
+  if(field === "default_price"){
+    list[index].price = value;
+  }
+
   saveCustomProducts(list);
 }
+
 function deleteCustomProduct(index){
   const list = getCustomProducts();
   list.splice(index, 1);
