@@ -761,10 +761,14 @@ function deleteValidatedSupplierOrder(supplierName, silent){
   if(typeof syncCustomProductPricesToState === "function"){
     syncCustomProductPricesToState();
   }
-}catch(e){}  
-  
+}catch(e){}
+
+refreshCurrentInputsFromState();
+try{
+  if(typeof renderItems === "function") renderItems();
+}catch(e){}
+
 if(!silent) alert("Commande supprimée du récapitulatif.");
-}
 
 function resetSupplierData(supplierName){
   const cleanName = String(supplierName || "").trim();
