@@ -1989,7 +1989,7 @@ function getCustomProductsSettingsHtml(){
         <input type="color" value="${esc(p.color || "#334155")}" onchange="updateCustomProduct(${idx}, 'color', this.value); goSettings()">
       </div>
         <input class="search" style="height:44px;margin:0" inputmode="decimal" placeholder="Prix HT" value="${esc(p.default_price || p.price || "")}" onchange="updateCustomProduct(${idx}, 'default_price', this.value)">
-        <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="deleteCustomProduct(${idx})">Supprimer</button>
+        <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="confirmDeleteProductById('${esc(p.id || "")}')">Supprimer</button>
       </div>
       <div style="display:flex;gap:10px;align-items:center;margin:8px 0 2px 0">
         <label style="display:flex;align-items:center;gap:8px;font-weight:700">
