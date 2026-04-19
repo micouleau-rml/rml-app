@@ -757,15 +757,10 @@ function deleteValidatedSupplierOrder(supplierName, silent){
     save();
   }
 
-  try{
+try{
   if(typeof syncCustomProductPricesToState === "function"){
     syncCustomProductPricesToState();
   }
-}catch(e){}
-
-refreshCurrentInputsFromState();
-try{
-  if(typeof renderItems === "function") renderItems();
 }catch(e){}
 
 if(!silent) alert("Commande supprimée du récapitulatif.");
