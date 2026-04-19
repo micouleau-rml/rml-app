@@ -516,14 +516,16 @@ function cleanupSodifabOnce(){
 
   try{
     // remove custom products linked to Sodifab
-    const products = getCustomProducts().filter(p => inferSupplierFromProduct(p) !== "Sodifab");
+    const products = getCustomProducts().filter(p => normalizeSupplierName(inferSupplierFromProduct(p)) !== "SODIFAB")
     saveCustomProducts(products);
   }catch(e){}
 
   try{
     // remove supplier from saved options/order
     const raw = JSON.parse(localStorage.getItem("rml_suppliers") || "[]");
-    const cleaned = Array.isArray(raw) ? raw.filter(name => String(name || "").trim() !== "Sodifab") : [];
+    const cleaned = Array.isArray(raw)
+  ? raw.filter(name => normalizeSupplierName(name) !== "SODIFAB")
+  : [];
     localStorage.setItem("rml_suppliers", JSON.stringify(cleaned));
   }catch(e){}
 
