@@ -736,7 +736,9 @@ function validateCurrentSupplierOrder(){
 function deleteValidatedSupplierOrder(supplierName, silent){
   const clean = String(supplierName || "").trim();
   if(!clean) return;
-
+ 
+  syncInputs();
+  
   const orders = getValidatedSupplierOrders();
   delete orders[clean];
   saveValidatedSupplierOrders(orders);
