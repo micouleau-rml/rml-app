@@ -3606,47 +3606,20 @@ function goRecap(){
     localStorage.setItem(STORAGE_KEY, "{}");
     localStorage.removeItem(STORAGE_KEY);
   }catch(e){}
-  async function startApp(){
-  applyHeaderBg(getHeaderBg());
-  refreshHeaderBranding();
-  migrateUnits();
-  if(getDropboxToken()){
-    await syncHistoryFromDropbox();
-  }
-  goHome();
-  updateUserDisplay();
-}
-
-startApp();
-  setTimeout(() => {
-    state = {};
-    async function startApp(){
-  applyHeaderBg(getHeaderBg());
-  refreshHeaderBranding();
-  migrateUnits();
-  if(getDropboxToken()){
-    await syncHistoryFromDropbox();
-  }
-  goHome();
-  updateUserDisplay();
-}
-
-startApp();
-    alert("Commande vidée.");
-  }, 50);
 }
 
 async function startApp(){
+  cleanupSodifabOnce();
   applyHeaderBg(getHeaderBg());
   refreshHeaderBranding();
   migrateUnits();
   if(getDropboxToken()){
     await syncHistoryFromDropbox();
   }
+
   goHome();
   updateUserDisplay();
 }
-
 startApp();
 
 let holdTimer=null;
