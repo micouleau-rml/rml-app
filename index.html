@@ -2510,6 +2510,16 @@ function syncInputs() {
   });
 
   save();
+}
+
+function refreshCurrentInputsFromState(){
+  try{
+    document.querySelectorAll('.js-qty-input').forEach(input => {
+      const key = String(input.dataset.key || "");
+      const entry = state[key] || {};
+      input.value = entry.qty != null && entry.qty !== "" ? entry.qty : "";
+    });
+  }catch(e){}
 }  
   function setRef(key, value, unitDefault, defaultPrice, skipRender){
   const resolvedDefaultPrice = resolveDefaultPriceForKey(key, defaultPrice);
