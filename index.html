@@ -524,8 +524,8 @@ function cleanupSodifabOnce(){
     // remove supplier from saved options/order
     const raw = JSON.parse(localStorage.getItem("rml_suppliers") || "[]");
     const cleaned = Array.isArray(raw)
-  ? raw.filter(name => normalizeSupplierName(name) !== "SODIFAB")
-  : [];
+      ? raw.filter(name => String(name || "").trim() !== "Sodifab")
+      : [];
     localStorage.setItem("rml_suppliers", JSON.stringify(cleaned));
   }catch(e){}
 
