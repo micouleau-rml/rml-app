@@ -2460,8 +2460,20 @@ function openFamily(index){
   const fam = getFamilies()[index];
   document.getElementById("family").innerHTML = `
     <div class="toolbar">
-      <div style="position:fixed; top:170px; left:0; right:0; max-width:1100px; margin:0 auto; padding:0 16px; z-index:100;">
-  <button class="btn neutral" onclick="openSupplierByFamily(currentFamily)">← Retour</button>
+      <div style="
+  position:fixed;
+  bottom:100px;   /* juste au-dessus de la barre du bas */
+  left:50%;
+  transform:translateX(-50%);
+  width:min(1100px, calc(100vw - 32px));
+  z-index:100;
+  box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
+  ">
+  <button class="btn neutral"
+    style="width:100%;"
+    onclick="openSupplierByFamily(currentFamily)">
+    ← Retour
+  </button>
 </div>
 
 <div style="height:60px;"></div>
