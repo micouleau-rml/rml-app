@@ -2463,18 +2463,14 @@ function openFamily(index){
     <div class="toolbar">
 
   <div class="toolbar">
-
-  <div style="position:fixed; top:150px; left:50%; transform:translateX(-50%); width:min(1100px, calc(100vw - 32px)); z-index:100; display:flex; justify-content:flex-start;">
-    <button class="btn neutral" style="display:inline-block; width:auto; min-width:0; padding:8px 16px; flex:none;" onclick="openSupplierByFamily(currentFamily)">← Retour</button>
-  </div>
-
-  <div style="height:60px;"></div>
-
+  <button class="btn neutral" onclick="openSupplierByFamily(currentFamily)">← Retour</button>
   <button class="btn" style="background:#0a8454;color:#fff;border-color:#0a8454" onclick="goRecap()">Récapitulatif</button>
   <button class="btn" style="background:#15803d;color:#fff;border-color:#15803d" onclick="saveCurrentSelection()">Enregistrer la commande</button>
-
 </div>
-
+<div class="badge" style="background:${fam.family_color}">${esc(fam.family_label)} • ${esc(fam.name)}</div>
+<div style="margin-top:10px"><input id="search" class="search" placeholder="Rechercher un produit ou une couleur…" oninput="renderItems()"></div><div class="note" style="margin-top:8px">Le bouton “Enregistrer les quantités” force la sauvegarde avant de quitter la famille.</div>
+<div id="items" style="margin-top:12px"></div>
+<div style="height:40px"></div>
     <div class="badge" style="background:${fam.family_color}">${esc(fam.family_label)} • ${esc(fam.name)}</div>
     <div style="margin-top:10px"><input id="search" class="search" placeholder="Rechercher un produit ou une couleur…" oninput="renderItems()"></div><div class="note" style="margin-top:8px">Le bouton “Enregistrer les quantités” force la sauvegarde avant de quitter la famille.</div>
     <div id="items" style="margin-top:12px"></div>
