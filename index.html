@@ -2461,7 +2461,11 @@ function openFamily(index){
   const fam = getFamilies()[index];
   document.getElementById("family").innerHTML = `
     <div class="toolbar">
-      <button class="btn neutral" onclick="openSupplierByFamily(currentFamily)">← Retour</button>
+      <div style="position:fixed; top:140px; left:50%; transform:translateX(-50%); width:min(1100px, calc(100vw - 32px)); z-index:100;">
+  <button class="btn neutral" onclick="openSupplierByFamily(currentFamily)">← Retour</button>
+</div>
+
+<div style="height:60px;"></div>
       <button class="btn" style="background:#0a8454;color:#fff;border-color:#0a8454" onclick="goRecap()">Récapitulatif</button>
       <button class="btn" style="background:#15803d;color:#fff;border-color:#15803d" onclick="saveCurrentSelection()">Enregistrer la commande</button>
     </div>
