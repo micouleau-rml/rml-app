@@ -2444,7 +2444,11 @@ function openSupplier(index){
     <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn" style="background:#c62828;color:#fff;border-color:#c62828;flex:1 1 240px" onclick="validateCurrentSupplierOrder()">Valider la commande</button>
       <button class="btn neutral" style="flex:1 1 240px" onclick="resetSupplierData(currentSupplierName)">Supprimer la commande</button>
-    </div>
+      <button class="btn neutral"
+      onclick="document.getElementById('excelImportInput').click()">
+        📥 Import Excel
+      </button>    
+   </div>
     ${buttons ? `<div class="grid">${buttons}</div>` : `<div class="empty">Aucun produit affecté pour l’instant à ce fournisseur.</div>`}
     <p class="note">Sélectionnez ensuite une famille pour saisir les quantités.</p>
     <div style="height:220px"></div>`;
