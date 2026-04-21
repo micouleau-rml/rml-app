@@ -4414,7 +4414,107 @@ function importAppDataFromTextarea(){
   doImportAppDataFromRaw(raw);
 }
 
-async function copyExportDataToClipboard(){
+function importSodifabExcel(event){
+  const file = event.target.files && event.target.files[0];
+  if(!file) return;
+
+  const reader = new FileReader();
+
+  reader.onload = function(e){
+    try{
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: "array" });
+
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+      const existing = getCustomProducts();
+
+      const existingKeys = new Set(
+        existing.map(p =>
+          [
+            p.supplier,
+            p.family_label,
+            p.name,
+            p.product_color,
+            p.supplier_ref
+          ].map(v => String(v).toUpperCase().trim()).join("||")
+        )
+      );
+
+      let added = 0;
+
+      rows.forEach(row => {
+
+        const supplier = String(row["fournisseur_cible"] || "SODIFAB").trim();
+        const family   = String(row["famille_cible"] || "").trim();
+        const name     = String(row["designation"] || "").trim();
+        const color    = String(row["couleur"] || "").trim();
+        const ref      = String(row["ref_produit"] || "").trim();
+        const unit     = String(row["unite"] || "U").trim() || "U";
+
+        let price = String(row["tarif_ht"] || "").replace(",", ".").trim();
+        price = price ? Number(price) : "";
+        if(price !== "" && isFinite(price)){
+          price = price.toFixed(2).replace(".", ",");
+        } else {
+          price = "";
+        }
+
+        if(!family || !name) return;
+
+        const key = [
+          supplier,
+          family,
+          name,
+          color,
+          ref
+        ].map(v => String(v).toUpperCase().trim()).join("||");
+
+        if(existingKeys.has(key)) return;
+
+        existing.push({
+          id: "prod_" + Date.now() + "_" + Math.random().toString(36).slice(2),
+          supplier: supplier,
+          family_label: family,
+          family_name: family,
+          name: name,
+          product_color: color,
+          supplier_ref: ref,
+          unit: unit,
+          default_price: price,
+          price: price,
+          visible: true
+        });
+
+        existingKeys.add(key);
+        added++;
+      });
+
+      saveCustomProducts(existing);
+
+      if(typeof syncCustomProductPricesToState === "function"){
+        syncCustomProductPricesToState();
+      }
+
+      if(typeof goSupplierByName === "function"){
+        goSupplierByName("SODIFAB");
+      }
+
+      alert(added + " produits importés ✅");
+
+    }catch(err){
+      console.error(err);
+      alert("Erreur import Excel ❌");
+    }
+
+    event.target.value = "";
+  };
+
+  reader.readAsArrayBuffer(file);
+}  
+  
+  async function copyExportDataToClipboard(){
   const status = document.getElementById("exportAppDataStatus");
   try{
     const payload = buildExportAppDataPayload();
