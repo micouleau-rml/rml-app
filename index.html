@@ -928,6 +928,10 @@ function displayFamilyName(name){
 }  
 function getExpressCatalogFamilies(){
   return (DATA.families || [])
+    .filter(f => {
+      const name = String((f && f.name) || "").toUpperCase();
+      return !name.includes("SODIFAB");
+    })
     .map(f => {
       const clone = JSON.parse(JSON.stringify(f));
       clone.original_name = String((f && f.name) || "").trim();
