@@ -4424,105 +4424,130 @@ function importAppDataFromTextarea(){
   doImportAppDataFromRaw(raw);
 }
 
-function importSodifabExcel(event){
-  const file = event.target.files && event.target.files[0];
-  if(!file) return;
+function importCatalogExcel(event){
+  const file = event && event.target && event.target.files ? event.target.files[0] : null;
+  if(!file){
+    alert("Aucun fichier sélectionné");
+    return;
+  }
 
   const reader = new FileReader();
+
+  const norm = (v) => String(v == null ? "" : v).trim();
+  const normKey = (v) => norm(v).toUpperCase();
 
   reader.onload = function(e){
     try{
       const data = new Uint8Array(e.target.result);
       const workbook = XLSX.read(data, { type: "array" });
-
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
-      const existing = getCustomProducts();
+      if(!rows.length){
+        alert("Fichier vide");
+        event.target.value = "";
+        return;
+      }
 
-      const existingKeys = new Set(
-        existing.map(p =>
-          [
-            p.supplier,
-            p.family_label,
-            p.name,
-            p.product_color,
-            p.supplier_ref
-          ].map(v => String(v).toUpperCase().trim()).join("||")
-        )
-      );
+      const grouped = {};
+      const seen = new Set();
 
-      let added = 0;
+      rows.forEach((row) => {
+        const supplier = norm(row.fournisseur_cible);
+        const familyLabel = norm(row.famille_cible);
+        const familySource = norm(row.famille_source_gutterfrance);
+        const designation = norm(row.designation);
+        const color = norm(row.couleur);
+        const ref = norm(row.ref_produit);
+        const unit = norm(row.unite) || "U";
+        const priceRaw = norm(row.tarif_ht);
+        const note = norm(row.note);
 
-      rows.forEach(row => {
-
-        const supplier = String(row["fournisseur_cible"] || "SODIFAB").trim();
-        const family   = String(row["famille_cible"] || "").trim();
-        const name     = String(row["designation"] || "").trim();
-        const color    = String(row["couleur"] || "").trim();
-        const ref      = String(row["ref_produit"] || "").trim();
-        const unit     = String(row["unite"] || "U").trim() || "U";
-
-        let price = String(row["tarif_ht"] || "").replace(",", ".").trim();
-        price = price ? Number(price) : "";
-        if(price !== "" && isFinite(price)){
-          price = price.toFixed(2).replace(".", ",");
-        } else {
-          price = "";
+        if(!supplier || !familyLabel || !designation){
+          return;
         }
 
-        if(!family || !name) return;
+        const familyName = `${supplier} ${familyLabel}`;
+        const familyGroupKey = `${normKey(supplier)}||${normKey(familyLabel)}`;
 
-        const key = [
-          supplier,
-          family,
-          name,
-          color,
-          ref
-        ].map(v => String(v).toUpperCase().trim()).join("||");
+        if(!grouped[familyGroupKey]){
+          grouped[familyGroupKey] = {
+            supplier: supplier,
+            family_label: familyLabel,
+            family_source_gutterfrance: familySource,
+            name: familyName,
+            items: []
+          };
+        }
 
-        if(existingKeys.has(key)) return;
+        const itemKey = [
+          normKey(supplier),
+          normKey(familyLabel),
+          normKey(designation),
+          normKey(color),
+          normKey(ref),
+          normKey(unit)
+        ].join("||");
 
-        existing.push({
-          id: "prod_" + Date.now() + "_" + Math.random().toString(36).slice(2),
-          supplier: supplier,
-          family_label: family,
-          family_name: family,
-          name: name,
-          product_color: color,
+        if(seen.has(itemKey)) return;
+        seen.add(itemKey);
+
+        grouped[familyGroupKey].items.push({
+          label: designation,
+          color: color,
           supplier_ref: ref,
           unit: unit,
-          default_price: price,
-          price: price,
-          visible: true
+          default_price: priceRaw,
+          note: note
         });
-
-        existingKeys.add(key);
-        added++;
       });
 
-      saveCustomProducts(existing);
+      const importedFamilies = Object.values(grouped);
 
-      if(typeof syncCustomProductPricesToState === "function"){
-        syncCustomProductPricesToState();
+      if(!importedFamilies.length){
+        alert("Aucune ligne exploitable trouvée dans le fichier.");
+        event.target.value = "";
+        return;
       }
 
-      if(typeof goSupplierByName === "function"){
-        goSupplierByName("SODIFAB");
-      }
+      const importedSuppliers = [...new Set(importedFamilies.map(f => normKey(f.supplier)))];
 
-      alert(added + " produits importés ✅");
+      DATA.families = (DATA.families || []).filter(f => {
+        const fname = normKey(f && f.name);
+        const inferredSupplier =
+          typeof inferSupplierNameFromText === "function"
+            ? normKey(inferSupplierNameFromText(fname))
+            : "";
+        return !importedSuppliers.includes(inferredSupplier);
+      });
+
+      importedFamilies.forEach(f => DATA.families.push(f));
+
+      try{
+        const supplierOptions = JSON.parse(localStorage.getItem("rml_suppliers") || "[]");
+        const merged = Array.isArray(supplierOptions) ? supplierOptions.slice() : [];
+        importedFamilies.forEach(f => {
+          if(!merged.includes(f.supplier)) merged.push(f.supplier);
+        });
+        localStorage.setItem("rml_suppliers", JSON.stringify(merged));
+      }catch(e){}
+
+      save();
+
+      const suppliersText = [...new Set(importedFamilies.map(f => f.supplier))].join(", ");
+      alert(`✅ Import terminé pour : ${suppliersText}`);
+      location.reload();
 
     }catch(err){
       console.error(err);
-      alert("Erreur import Excel ❌");
+      alert("❌ Erreur import Excel");
+    }finally{
+      event.target.value = "";
     }
-
-    event.target.value = "";
   };
 
   reader.readAsArrayBuffer(file);
-}  
+}
   
   async function copyExportDataToClipboard(){
   const status = document.getElementById("exportAppDataStatus");
