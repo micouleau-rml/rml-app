@@ -1876,32 +1876,46 @@ function syncSupplierEmailInputsFromDom(){
   }catch(e){}
 }
 
-function customProductToFamily(p){
-  const unit = (p.unit || "U").toUpperCase() === "ML" ? "ML" : "U";
-  const color = p.color || "#475569";
-  const productColor = String((p && p.product_color) || "").trim();
-  const name = String(p.name || "").trim();
-  const supplier = String(p.supplier || DEFAULT_SUPPLIER).trim() || DEFAULT_SUPPLIER;
-  const defaultPrice = p.default_price || p.price || "";
+function groupCustomProductsToFamilies(products){
+  const groups = {};
 
-  return {
-    name: name,
-    family_label: "Personnalisé",
-    unit_default: unit,
-    family_color: color,
-    count: 1,
-    items: [{
+  products.forEach(p => {
+    const unit = ((p.unit || "U").toUpperCase() === "ML") ? "ML" : "U";
+    const color = p.color || "#475569";
+    const productColor = String((p && (p.product_color || p.color)) || "").trim();
+    const name = String((p && p.name) || "").trim();
+    const supplier = String((p && p.supplier) || DEFAULT_SUPPLIER).trim() || DEFAULT_SUPPLIER;
+    const defaultPrice = p.default_price || p.price || "";
+    const familyName = String((p && (p.family_label || p.family_name || p.name)) || "Divers").trim();
+
+    const key = supplier + "||" + familyName;
+
+    if(!groups[key]){
+      groups[key] = {
+        name: familyName,
+        family_label: "Personnalisé",
+        unit_default: unit,
+        family_color: color,
+        count: 0,
+        items: [],
+        is_custom: true,
+        supplier: supplier
+      };
+    }
+
+    groups[key].items.push({
       variant: name,
       color: productColor,
-      label: name + "||" + unit,
+      label: name + "|" + unit,
       unit_override: unit,
-      default_price: defaultPrice
-    }],
-    is_custom: true,
-    custom_id: p.id || name,
-    default_price: defaultPrice,
-    supplier: supplier
-  };
+      default_price: defaultPrice,
+      supplier_ref: String((p && p.supplier_ref) || "").trim()
+    });
+
+    groups[key].count++;
+  });
+
+  return Object.values(groups);
 }
 
 function inferSupplierFromFamily(fam){
