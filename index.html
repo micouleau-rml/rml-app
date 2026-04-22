@@ -2015,13 +2015,13 @@ function getFamilies(){
     copy.visible = ov.visible !== false;
     return copy;
   }).filter(f => f.visible !== false && !isRemovedSupplierFamily(f));
- const custom = getCustomProducts()
+ const customProducts = getCustomProducts()
   .filter(p => String((p && p.name) || "").trim())
   .filter(p => p.visible !== false)
-  .filter(p => inferSupplierFromProduct(p) !== "Sodifab")
-  .filter(p => !isDeletedProduct(p))
-  .map(customProductToFamily);
-  return base.concat(getExpressCatalogFamilies()).concat(custom);
+  .filter(p => !isDeletedProduct(p));
+
+const custom = groupCustomProductsToFamilies(customProducts);
+return base.concat(getExpressCatalogFamilies()).concat(custom);
 }
 function getCustomProductsSettingsHtml(){
   const items = getCustomProducts();
