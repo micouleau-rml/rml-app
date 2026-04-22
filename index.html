@@ -4554,6 +4554,39 @@ function importCatalogExcel(event){
   reader.readAsArrayBuffer(file);
 }
   
+  function deleteImportedProductsBySupplier(supplierName){
+  const supplierKey = String(supplierName || "").trim().toUpperCase();
+
+  if(!supplierKey){
+    alert("Aucun fournisseur sélectionné.");
+    return;
+  }
+
+  if(!confirm("Supprimer tous les produits importés du fournisseur " + supplierName + " ?")){
+    return;
+  }
+
+  const before = (DATA.families || []).length;
+
+  DATA.families = (DATA.families || []).filter(f => {
+    const name = String((f && f.name) || "").toUpperCase();
+
+    const inferredSupplier =
+      typeof inferSupplierNameFromText === "function"
+        ? String(inferSupplierNameFromText(name) || "").toUpperCase()
+        : "";
+
+    const isImported = !!(f && f.imported);
+
+    return !(isImported && inferredSupplier === supplierKey);
+  });
+
+  const removed = before - DATA.families.length;
+
+  save();
+  alert(removed + " famille(s) importée(s) supprimée(s) pour " + supplierName);
+  location.reload();
+}  
   async function copyExportDataToClipboard(){
   const status = document.getElementById("exportAppDataStatus");
   try{
