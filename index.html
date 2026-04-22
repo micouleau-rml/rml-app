@@ -4454,8 +4454,11 @@ function importCatalogExcel(event){
         return;
       }
 
-      const grouped = {};
+      const existing = getCustomProducts();
+      const importedSuppliers = new Set();
       const seen = new Set();
+
+      const importedProducts = [];
 
       rows.forEach((row) => {
         const supplier = norm(row.fournisseur_cible);
@@ -4465,28 +4468,18 @@ function importCatalogExcel(event){
         const color = norm(row.couleur);
         const ref = norm(row.ref_produit);
         const unit = norm(row.unite) || "U";
-        const priceRaw = norm(row.tarif_ht);
         const note = norm(row.note);
+
+        let price = norm(row.tarif_ht).replace(",", ".");
+        price = price && !isNaN(Number(price)) ? String(Number(price)).replace(".", ",") : "";
 
         if(!supplier || !familyLabel || !designation){
           return;
         }
 
-        const familyName = `${supplier} ${familyLabel}`;
-        const familyGroupKey = `${normKey(supplier)}||${normKey(familyLabel)}`;
+        importedSuppliers.add(normKey(supplier));
 
-        if(!grouped[familyGroupKey]){
-          grouped[familyGroupKey] = {
-            supplier: supplier,
-            family_label: familyLabel,
-            family_source_gutterfrance: familySource,
-            name: familyName,
-            imported: true,
-            items: []
-          };
-        }
-
-        const itemKey = [
+        const dedupeKey = [
           normKey(supplier),
           normKey(familyLabel),
           normKey(designation),
@@ -4495,53 +4488,50 @@ function importCatalogExcel(event){
           normKey(unit)
         ].join("||");
 
-        if(seen.has(itemKey)) return;
-        seen.add(itemKey);
+        if(seen.has(dedupeKey)) return;
+        seen.add(dedupeKey);
 
-        grouped[familyGroupKey].items.push({
-          label: designation,
-          color: color,
+        importedProducts.push({
+          id: "imp_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,8),
+          supplier: supplier,
+          family_label: familyLabel,
+          family_name: familySource || familyLabel,
+          name: designation,
+          product_color: color,
           supplier_ref: ref,
           unit: unit,
-          default_price: priceRaw,
-          note: note
+          default_price: price,
+          price: price,
+          note: note,
+          visible: true,
+          imported: true
         });
       });
 
-      const importedFamilies = Object.values(grouped);
-
-      if(!importedFamilies.length){
+      if(!importedProducts.length){
         alert("Aucune ligne exploitable trouvée dans le fichier.");
         event.target.value = "";
         return;
       }
 
-      const importedSuppliers = [...new Set(importedFamilies.map(f => normKey(f.supplier)))];
-
-      DATA.families = (DATA.families || []).filter(f => {
-        const fname = normKey(f && f.name);
-        const inferredSupplier =
-          typeof inferSupplierNameFromText === "function"
-            ? normKey(inferSupplierNameFromText(fname))
-            : "";
-        return !importedSuppliers.includes(inferredSupplier);
+      // On garde les produits manuels + les imports des autres fournisseurs
+      const cleaned = existing.filter(p => {
+        const supplierKey = normKey(p && p.supplier);
+        const isImported = !!(p && p.imported);
+        return !(isImported && importedSuppliers.has(supplierKey));
       });
 
-      importedFamilies.forEach(f => DATA.families.push(f));
+      const merged = cleaned.concat(importedProducts);
+      saveCustomProducts(merged);
 
       try{
-        const supplierOptions = JSON.parse(localStorage.getItem("rml_suppliers") || "[]");
-        const merged = Array.isArray(supplierOptions) ? supplierOptions.slice() : [];
-        importedFamilies.forEach(f => {
-          if(!merged.includes(f.supplier)) merged.push(f.supplier);
-        });
-        localStorage.setItem("rml_suppliers", JSON.stringify(merged));
+        if(typeof syncCustomProductPricesToState === "function"){
+          syncCustomProductPricesToState();
+        }
       }catch(e){}
 
-      save();
-
-      const suppliersText = [...new Set(importedFamilies.map(f => f.supplier))].join(", ");
-      alert(`✅ Import terminé pour : ${suppliersText}`);
+      const supplierNames = [...new Set(importedProducts.map(p => p.supplier))].join(", ");
+      alert("✅ Import terminé pour : " + supplierNames);
       location.reload();
 
     }catch(err){
