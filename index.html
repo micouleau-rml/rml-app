@@ -4557,27 +4557,28 @@ function importCatalogExcel(event){
     return;
   }
 
-  const before = (DATA.families || []).length;
+  const existing = getCustomProducts();
+  const before = existing.length;
 
-  DATA.families = (DATA.families || []).filter(f => {
-    const name = String((f && f.name) || "").toUpperCase();
-
-    const inferredSupplier =
-      typeof inferSupplierNameFromText === "function"
-        ? String(inferSupplierNameFromText(name) || "").toUpperCase()
-        : "";
-
-    const isImported = !!(f && f.imported);
-
-    return !(isImported && inferredSupplier === supplierKey);
+  const cleaned = existing.filter(p => {
+    const sameSupplier = String((p && p.supplier) || "").trim().toUpperCase() === supplierKey;
+    const isImported = !!(p && p.imported);
+    return !(sameSupplier && isImported);
   });
 
-  const removed = before - DATA.families.length;
+  const removed = before - cleaned.length;
 
-  save();
-  alert(removed + " famille(s) importée(s) supprimée(s) pour " + supplierName);
+  saveCustomProducts(cleaned);
+
+  try{
+    if(typeof syncCustomProductPricesToState === "function"){
+      syncCustomProductPricesToState();
+    }
+  }catch(e){}
+
+  alert(removed + " produit(s) importé(s) supprimé(s) pour " + supplierName);
   location.reload();
-}  
+}
   async function copyExportDataToClipboard(){
   const status = document.getElementById("exportAppDataStatus");
   try{
