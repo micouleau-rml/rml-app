@@ -182,11 +182,26 @@ th{background:#f8fafc}
 
 @media (max-width:900px){#settings [style*="grid-template-columns:1.6fr auto auto"]{grid-template-columns:1fr !important;}}
 
-.settings-cats{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
-.settings-cats .btn{width:auto;padding:10px 14px}
+.settings-cats{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-bottom:12px;
+  align-items:flex-start;
+}
+
+.settings-cats .btn{
+  display:inline-flex !important;
+  width:auto !important;
+  min-width:160px;
+  flex:0 0 auto;
+  padding:10px 14px;
+  text-align:left;
+  justify-content:flex-start;
+}
+
 .settings-section{display:none}
 .settings-section.active{display:block}
-
 
 .web-note{max-width:1080px;margin:10px auto 0;padding:0 14px}
 .web-note .card{margin-bottom:10px}
