@@ -2220,17 +2220,30 @@ function getSettingsSection(){
 }
 function setSettingsSection(section){
   try{ localStorage.setItem(SETTINGS_SECTION_KEY, section || "entete"); }catch(e){}
+
   const settings = document.getElementById("settings");
   if(!settings) return;
-  settings.querySelectorAll("[data-settings-section]").forEach(el => {
-    el.classList.toggle("active", el.getAttribute("data-settings-section") === section);
-  });
-  settings.querySelectorAll("[data-settings-btn]").forEach(btn => {
+
+  settings.querySelectorAll('[data-settings-section]').forEach(el => {
+  el.classList.remove("active");
+  el.style.display = "none";
+  el.style.opacity = "0";
+});
+
+  settings.querySelectorAll('[data-settings-btn]').forEach(btn => {
     const active = btn.getAttribute("data-settings-btn") === section;
     btn.style.opacity = active ? "1" : ".8";
     btn.style.transform = active ? "scale(1.02)" : "scale(1)";
     btn.style.fontWeight = active ? "900" : "800";
   });
+
+  const target = settings.querySelector(`[data-settings-section="${section}"]`);
+  if(target){
+    target.classList.add("active");
+    target.style.display = "block";
+    target.style.opacity = "1";
+  }
+
   if(section === "sync"){
     setTimeout(function(){
       try{ loadCloudHistoryIntoPanel(); }catch(e){}
