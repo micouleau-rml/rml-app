@@ -2527,7 +2527,7 @@ function openSupplier(index){
     onclick="validateCurrentSupplierOrder()">Valider la commande</button>
 
   <button class="btn neutral" style="flex:1 1 240px"
-    onclick="resetSupplierData(currentSupplierName)">Supprimer la commande</button>
+    onclick="resetSupplierData('${esc(supplier.name)}')">Supprimer la commande</button>
 
 </div>
     ${buttons ? `<div class="grid">${buttons}</div>` : `<div class="empty">Aucun produit affecté pour l’instant à ce fournisseur.</div>`}
@@ -2539,9 +2539,9 @@ function openSupplier(index){
   </button>
 
   <button class="btn danger"
-    onclick="confirmDeleteImportedProducts(currentSupplierName)">
-    🗑 Supprimer import
-  </button>
+onclick="deleteImportedProductsBySupplier('${esc(supplier.name)}')">
+🗑 Supprimer import
+</button>
 </div>    
 
 <div style="height:220px"></div>`;
