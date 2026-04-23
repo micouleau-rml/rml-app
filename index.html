@@ -1904,13 +1904,13 @@ function groupCustomProductsToFamilies(products){
     }
 
     groups[key].items.push({
-      variant: name,
-      color: productColor,
-      label: name + "|" + unit,
-      unit_override: unit,
-      default_price: defaultPrice,
-      supplier_ref: String((p && p.supplier_ref) || "").trim()
-    });
+  variant: name,
+  color: productColor,
+  label: name + "|" + productColor + "|" + unit,
+  unit_override: unit,
+  default_price: defaultPrice,
+  supplier_ref: String((p && p.supplier_ref) || "").trim()
+});
 
     groups[key].count++;
   });
