@@ -2077,12 +2077,11 @@ function getFamilies(){
 const custom = groupCustomProductsToFamilies(customProducts);
 
 const cleanBase = base.filter(f => {
-  return !JSON.stringify(f).toUpperCase().includes("GUTTERFRANCE");
+  const supplier = normalizeSupplierName(getSupplierName(f));
+  return supplier !== "GUTTERFRANCE" && supplier !== "GUTTERFRANCE EXPRESS";
 });
 
-const cleanExpress = getExpressCatalogFamilies().filter(f => {
-  return !JSON.stringify(f).toUpperCase().includes("GUTTERFRANCE");
-});
+const cleanExpress = [];
 
 return cleanBase.concat(cleanExpress).concat(custom);
 }
