@@ -2075,7 +2075,16 @@ function getFamilies(){
   .filter(p => !isDeletedProduct(p));
 
 const custom = groupCustomProductsToFamilies(customProducts);
-return base.concat(getExpressCatalogFamilies()).concat(custom);
+
+const cleanBase = base.filter(f => {
+  return !JSON.stringify(f).toUpperCase().includes("GUTTERFRANCE");
+});
+
+const cleanExpress = getExpressCatalogFamilies().filter(f => {
+  return !JSON.stringify(f).toUpperCase().includes("GUTTERFRANCE");
+});
+
+return cleanBase.concat(cleanExpress).concat(custom);
 }
 function getCustomProductsSettingsHtml(){
   const items = getCustomProducts();
