@@ -4667,6 +4667,38 @@ function importCatalogExcel(event){
   alert(removed + " produit(s) importé(s) supprimé(s) pour " + supplierName);
   location.reload();
 }
+
+function purgeAllGutterfranceImports(){
+  if(!confirm("Supprimer TOUS les produits importés GUTTERFRANCE et GUTTERFRANCE EXPRESS ?")){
+    return;
+  }
+
+  const existing = getCustomProducts();
+  const before = existing.length;
+
+  const cleaned = existing.filter(p => {
+    const supplier = String((p && p.supplier) || "").trim().toUpperCase();
+
+    const isTargetSupplier =
+      supplier === "GUTTERFRANCE" ||
+      supplier === "GUTTERFRANCE EXPRESS";
+
+    return !isTargetSupplier;
+  });
+
+  const removed = before - cleaned.length;
+
+  saveCustomProducts(cleaned);
+
+  try{
+    if(typeof syncCustomProductPricesToState === "function"){
+      syncCustomProductPricesToState();
+    }
+  }catch(e){}
+
+  alert(removed + " produit(s) GUTTERFRANCE / GUTTERFRANCE EXPRESS supprimé(s).");
+  location.reload();
+}  
   async function copyExportDataToClipboard(){
   const status = document.getElementById("exportAppDataStatus");
   try{
