@@ -358,7 +358,7 @@ const DEFAULT_COMPANY_EMAIL = "";
 const CUSTOM_PRODUCTS_KEY = "rml_custom_products";
 const SHOW_PRICES_KEY = "rml_show_prices";
 const DEFAULT_SUPPLIER = "GUTTERFRANCE";
-const DEFAULT_SUPPLIER_OPTIONS = [];
+const DEFAULT_SUPPLIER_OPTIONS = ["GUTTERKEL", "GUTTI", "SODIFAB"];
 
 function normalizeSupplierName(value){
   return String(value || "").trim().replace(/\s+/g, " ").toUpperCase();
@@ -2070,9 +2070,17 @@ function getFamilies(){
   .filter(p => !isDeletedProduct(p));
 
 const custom = groupCustomProductsToFamilies(customProducts);
-return custom;  
 
-  function getCustomProductsSettingsHtml(){
+const cleanBase = base.filter(f => {
+  const supplier = normalizeSupplierName(getSupplierName(f));
+  return supplier !== "GUTTERFRANCE" && supplier !== "GUTTERFRANCE EXPRESS";
+});
+
+const cleanExpress = [];
+
+return cleanBase.concat(cleanExpress).concat(custom);
+}
+function getCustomProductsSettingsHtml(){
   const items = getCustomProducts();
   const rows = items.map((p, idx) => `
       <div style="display:grid;grid-template-columns:1.6fr 1.1fr .7fr 1fr .9fr auto;gap:8px;align-items:center;margin-top:8px">
