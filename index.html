@@ -2453,7 +2453,7 @@ function goHome(){
     let selected = 0;
     s.families.forEach(obj => {
       obj.fam.items.forEach(it => {
-        if(Number((state[keyOf(obj.fam.name, it.label)] || {}).qty || 0) > 0) selected++;
+        if(Number((state[keyOf(obj.fam, it.label)] || {}).qty || 0) > 0) selected++;
       });
     });
     return `<button class="btn" style="background:${s.color};color:#fff;border-color:${s.color}" onclick="openSupplier(${idx})">
