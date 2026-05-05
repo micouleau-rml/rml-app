@@ -753,7 +753,7 @@ function buildGroupsForSupplierName(supplierName){
     const fam = obj.fam;
     const lines = [];
     (fam.items || []).forEach(it => {
-      const entry = state[keyOf(fam.name, it.label)];
+      const entry = state[keyOf(fam, it.label)];
       const qty = Number((entry || {}).qty || 0);
       const price = Number((entry || {}).price || 0);
       if(qty > 0){
@@ -814,7 +814,7 @@ function deleteValidatedSupplierOrder(supplierName, silent){
     (supplier.families || []).forEach(obj => {
       const fam = obj.fam;
       (fam.items || []).forEach(it => {
-        const key = keyOf(fam.name, it.label);
+        const key = keyOf(fam, it.label);
         if(state[key]){
           delete state[key];
         }
@@ -848,7 +848,7 @@ if(!silent) alert("Commande supprimée du récapitulatif.");
   (supplier.families || []).forEach(obj => {
     const fam = obj.fam;
     (fam.items || []).forEach(it => {
-      const key = keyOf(fam.name, it.label);
+      const key = keyOf(fam, it.label);
       if(state[key]){
         const existing = state[key] || {};
         state[key] = {
@@ -870,7 +870,7 @@ function migrateUnits(){
   try{
     for(const fam of getFamilies()){
       for(const it of fam.items){
-        const key = keyOf(fam.name, it.label);
+        const key = keyOf(fam, it.label);
         if(state[key]){
           const correctUnit = getItemUnit(fam, it);
           if(state[key].unit !== correctUnit){
@@ -2515,7 +2515,7 @@ function openSupplier(index){
 
   const buttons = supplier.families.map(obj => {
     const fam = obj.fam;
-    const selected = fam.items.filter(it => Number((state[keyOf(fam.name, it.label)] || {}).qty || 0) > 0).length;
+    const selected = fam.items.filter(it => Number((state[keyOf(fam, it.label)] || {}).qty || 0) > 0).length;
     return `<button class="btn" style="background:${fam.family_color};color:#fff;border-color:${fam.family_color}" onclick="openFamily(${obj.index})">
       ${esc(fam.name)}
       <small>${esc(fam.family_label)} • ${fam.count} produits • ${selected} ligne(s)</small>
@@ -2610,7 +2610,7 @@ function renderItems(){
   const step = isRouleaux ? 10 : 1;
   const items = fam.items.filter(it => !q || it.label.toLowerCase().includes(q) || it.variant.toLowerCase().includes(q) || it.color.toLowerCase().includes(q));
   const html = items.map(it => {
-    const key = keyOf(fam.name, it.label);
+    const key = keyOf(fam, it.label);
     const itemUnit = getItemUnit(fam, it);
     const entry = getEntry(key, itemUnit);
     const displayUnit = itemUnit;
@@ -2726,7 +2726,7 @@ function stepQty(key, delta){
   const current = Number((state[key] || {}).qty || 0);
   const next = Math.max(0, current + delta);
   let matchedItem = null;
-  for(const it of fam.items){ if(keyOf(fam.name, it.label) === key){ matchedItem = it; break; } }
+  for(const it of fam.items){ if(keyOf(fam, it.label) === key){ matchedItem = it; break; } }
   const itemUnit = matchedItem ? getItemUnit(fam, matchedItem) : fam.unit_default;
   const defaultPrice = resolveDefaultPriceForKey(key, matchedItem ? (matchedItem.default_price || fam.default_price || "") : "");
   const currentPrice = (state[key] && state[key].price !== undefined && state[key].price !== "") ? state[key].price : defaultPrice;
@@ -2745,7 +2745,7 @@ function setQtyDirect(key, value){
 
   let matchedItem = null;
   for (const it of fam.items) {
-    if (keyOf(fam.name, it.label) === key) {
+    if (keyOf(fam, it.label) === key) {
       matchedItem = it;
       break;
     }
@@ -2783,7 +2783,7 @@ function setQtyDirect(key, value){
   for(const fam of getFamilies()){
     const lines = [];
     for(const it of fam.items){
-      const entry = state[keyOf(fam.name, it.label)];
+      const entry = state[keyOf(fam, it.label)];
       const qty = Number((entry || {}).qty || 0);
       const price = Number((entry || {}).price || 0);
       if(qty > 0) lines.push({ variant: it.variant, color: it.color, ref: getSupplierRef(it.color, String((entry || {}).ref || "").trim()), unit: getItemUnit(fam, it), qty: qty, price: price, total: qty * price });
