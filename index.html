@@ -753,7 +753,7 @@ function buildGroupsForSupplierName(supplierName){
     const fam = obj.fam;
     const lines = [];
     (fam.items || []).forEach(it => {
-      const entry = state[keyOf(fam, it.label)];
+      const entry = state[keyOf(fam.name, it.label)];
       const qty = Number((entry || {}).qty || 0);
       const price = Number((entry || {}).price || 0);
       if(qty > 0){
@@ -814,7 +814,7 @@ function deleteValidatedSupplierOrder(supplierName, silent){
     (supplier.families || []).forEach(obj => {
       const fam = obj.fam;
       (fam.items || []).forEach(it => {
-        const key = keyOf(fam, it.label);
+        const key = keyOf(fam.name, it.label);
         if(state[key]){
           delete state[key];
         }
@@ -848,7 +848,7 @@ if(!silent) alert("Commande supprimée du récapitulatif.");
   (supplier.families || []).forEach(obj => {
     const fam = obj.fam;
     (fam.items || []).forEach(it => {
-      const key = keyOf(fam, it.label);
+      const key = keyOf(fam.name, it.label);
       if(state[key]){
         const existing = state[key] || {};
         state[key] = {
@@ -870,7 +870,7 @@ function migrateUnits(){
   try{
     for(const fam of getFamilies()){
       for(const it of fam.items){
-        const key = keyOf(fam, it.label);
+        const key = keyOf(fam.name, it.label);
         if(state[key]){
           const correctUnit = getItemUnit(fam, it);
           if(state[key].unit !== correctUnit){
@@ -994,11 +994,7 @@ function getExpressCatalogFamilies(){
       return clone;
     });
 }  
-function keyOf(family,label,supplier){
-  const famName = typeof family === "object" ? (family.name || "") : family;
-  const supp = supplier || (typeof family === "object" ? (family.supplier || "") : "");
-  return String(supp || "").trim().toUpperCase() + "||" + String(famName || "").trim() + "||" + String(label || "").trim();
-}
+function keyOf(family,label){ return family + "||" + label; }
 function linesCount(){ return Object.values(state).filter(v => Number(v.qty||0) > 0).length; }
 function totalQty(){ return Object.values(state).reduce((a,b)=>a + (Number(b.qty)||0), 0); }
 function normalizeQty(v){ const s = String(v).replace(",", ".").trim(); const n = Number(s); return (!isFinite(n) || n < 0) ? 0 : n; }
@@ -1012,7 +1008,7 @@ function getEntry(key, unitDefault){ return state[key] || { qty:"", unit:unitDef
 function findItemContextByKey(key){
   for(const fam of getFamilies()){
     for(const it of fam.items){
-      if(keyOf(fam, it.label) === key){
+      if(keyOf(fam.name, it.label) === key){
         return { fam, it, defaultPrice: (it.default_price || fam.default_price || "") };
       }
     }
@@ -2074,10 +2070,17 @@ function getFamilies(){
   .filter(p => !isDeletedProduct(p));
 
 const custom = groupCustomProductsToFamilies(customProducts);
-  
-return base.concat(custom);
 
-  function getCustomProductsSettingsHtml(){
+const cleanBase = base.filter(f => {
+  const supplier = normalizeSupplierName(getSupplierName(f));
+  return supplier !== "GUTTERFRANCE" && supplier !== "GUTTERFRANCE EXPRESS";
+});
+
+const cleanExpress = [];
+
+return cleanBase.concat(cleanExpress).concat(custom);
+}
+function getCustomProductsSettingsHtml(){
   const items = getCustomProducts();
   const rows = items.map((p, idx) => `
       <div style="display:grid;grid-template-columns:1.6fr 1.1fr .7fr 1fr .9fr auto;gap:8px;align-items:center;margin-top:8px">
@@ -2185,10 +2188,7 @@ function syncCustomProductPricesToState(){
       const name = String((p && p.name) || "").trim();
       if(!name) return;
       const unit = ((p.unit || "U").toUpperCase() === "ML") ? "ML" : "U";
-      const key = keyOf({
-        name: p.family_name || p.family_label || p.name,
-        supplier: p.supplier || DEFAULT_SUPPLIER
-      }, name);
+      const key = keyOf(name, name + "||" + unit);
       if(!state[key]) state[key] = { qty:"", unit:unit, price:"", ref:"" };
       if((!state[key].price && state[key].price !== 0) || String(state[key].price).trim() === ""){
         state[key].price = p.default_price || p.price || "";
@@ -2450,7 +2450,7 @@ function goHome(){
     let selected = 0;
     s.families.forEach(obj => {
       obj.fam.items.forEach(it => {
-        if(Number((state[keyOf(obj.fam, it.label)] || {}).qty || 0) > 0) selected++;
+        if(Number((state[keyOf(obj.fam.name, it.label)] || {}).qty || 0) > 0) selected++;
       });
     });
     return `<button class="btn" style="background:${s.color};color:#fff;border-color:${s.color}" onclick="openSupplier(${idx})">
@@ -2512,7 +2512,7 @@ function openSupplier(index){
 
   const buttons = supplier.families.map(obj => {
     const fam = obj.fam;
-    const selected = fam.items.filter(it => Number((state[keyOf(fam, it.label)] || {}).qty || 0) > 0).length;
+    const selected = fam.items.filter(it => Number((state[keyOf(fam.name, it.label)] || {}).qty || 0) > 0).length;
     return `<button class="btn" style="background:${fam.family_color};color:#fff;border-color:${fam.family_color}" onclick="openFamily(${obj.index})">
       ${esc(fam.name)}
       <small>${esc(fam.family_label)} • ${fam.count} produits • ${selected} ligne(s)</small>
@@ -2607,7 +2607,7 @@ function renderItems(){
   const step = isRouleaux ? 10 : 1;
   const items = fam.items.filter(it => !q || it.label.toLowerCase().includes(q) || it.variant.toLowerCase().includes(q) || it.color.toLowerCase().includes(q));
   const html = items.map(it => {
-    const key = keyOf(fam, it.label);
+    const key = keyOf(fam.name, it.label);
     const itemUnit = getItemUnit(fam, it);
     const entry = getEntry(key, itemUnit);
     const displayUnit = itemUnit;
@@ -2723,7 +2723,7 @@ function stepQty(key, delta){
   const current = Number((state[key] || {}).qty || 0);
   const next = Math.max(0, current + delta);
   let matchedItem = null;
-  for(const it of fam.items){ if(keyOf(fam, it.label) === key){ matchedItem = it; break; } }
+  for(const it of fam.items){ if(keyOf(fam.name, it.label) === key){ matchedItem = it; break; } }
   const itemUnit = matchedItem ? getItemUnit(fam, matchedItem) : fam.unit_default;
   const defaultPrice = resolveDefaultPriceForKey(key, matchedItem ? (matchedItem.default_price || fam.default_price || "") : "");
   const currentPrice = (state[key] && state[key].price !== undefined && state[key].price !== "") ? state[key].price : defaultPrice;
@@ -2742,7 +2742,7 @@ function setQtyDirect(key, value){
 
   let matchedItem = null;
   for (const it of fam.items) {
-    if (keyOf(fam, it.label) === key) {
+    if (keyOf(fam.name, it.label) === key) {
       matchedItem = it;
       break;
     }
@@ -2780,7 +2780,7 @@ function setQtyDirect(key, value){
   for(const fam of getFamilies()){
     const lines = [];
     for(const it of fam.items){
-      const entry = state[keyOf(fam, it.label)];
+      const entry = state[keyOf(fam.name, it.label)];
       const qty = Number((entry || {}).qty || 0);
       const price = Number((entry || {}).price || 0);
       if(qty > 0) lines.push({ variant: it.variant, color: it.color, ref: getSupplierRef(it.color, String((entry || {}).ref || "").trim()), unit: getItemUnit(fam, it), qty: qty, price: price, total: qty * price });
