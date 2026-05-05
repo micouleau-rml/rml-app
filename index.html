@@ -2078,22 +2078,15 @@ const custom = groupCustomProductsToFamilies(customProducts);
   const supplier = normalizeSupplierName(getSupplierName(f));
   const txt = JSON.stringify(f).toUpperCase();
 
-  return supplier !== "GUTTERFRANCE EXPRESS"
-    && !txt.includes("__EXP")
-    && !txt.includes("GUTTERFRANCE EXPRESS");
+  return supplier !== "GUTTERFRANCE"
+    && supplier !== "GUTTERFRANCE EXPRESS"
+    && !txt.includes("GUTTERFRANCE")
+    && !txt.includes("__EXP");
 });
 
 const cleanExpress = [];
 
 return cleanBase.concat(cleanExpress).concat(custom);
-const cleanBase = base.filter(f => {
-  const supplier = normalizeSupplierName(getSupplierName(f));
-  return supplier !== "GUTTERFRANCE EXPRESS";
-});
-const cleanExpress = [];
-
-return cleanBase.concat(cleanExpress).concat(custom);
-}
 function getCustomProductsSettingsHtml(){
   const items = getCustomProducts();
   const rows = items.map((p, idx) => `
