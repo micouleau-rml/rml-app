@@ -994,7 +994,11 @@ function getExpressCatalogFamilies(){
       return clone;
     });
 }  
-function keyOf(family,label){ return family + "||" + label; }
+function keyOf(family,label,supplier){
+  const famName = typeof family === "object" ? (family.name || "") : family;
+  const supp = supplier || (typeof family === "object" ? (family.supplier || "") : "");
+  return String(supp || "").trim().toUpperCase() + "||" + String(famName || "").trim() + "||" + String(label || "").trim();
+}
 function linesCount(){ return Object.values(state).filter(v => Number(v.qty||0) > 0).length; }
 function totalQty(){ return Object.values(state).reduce((a,b)=>a + (Number(b.qty)||0), 0); }
 function normalizeQty(v){ const s = String(v).replace(",", ".").trim(); const n = Number(s); return (!isFinite(n) || n < 0) ? 0 : n; }
@@ -1008,7 +1012,7 @@ function getEntry(key, unitDefault){ return state[key] || { qty:"", unit:unitDef
 function findItemContextByKey(key){
   for(const fam of getFamilies()){
     for(const it of fam.items){
-      if(keyOf(fam.name, it.label) === key){
+      if(keyOf(fam, it.label) === key){
         return { fam, it, defaultPrice: (it.default_price || fam.default_price || "") };
       }
     }
