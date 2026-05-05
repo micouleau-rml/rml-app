@@ -2073,9 +2073,8 @@ const custom = groupCustomProductsToFamilies(customProducts);
 
 const cleanBase = base.filter(f => {
   const supplier = normalizeSupplierName(getSupplierName(f));
-  return supplier !== "GUTTERFRANCE" && supplier !== "GUTTERFRANCE EXPRESS";
+  return supplier !== "GUTTERFRANCE EXPRESS";
 });
-
 const cleanExpress = [];
 
 return cleanBase.concat(cleanExpress).concat(custom);
