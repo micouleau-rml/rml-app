@@ -2074,7 +2074,18 @@ function getFamilies(){
   .filter(p => !isDeletedProduct(p));
 
 const custom = groupCustomProductsToFamilies(customProducts);
+  const cleanBase = base.filter(f => {
+  const supplier = normalizeSupplierName(getSupplierName(f));
+  const txt = JSON.stringify(f).toUpperCase();
 
+  return supplier !== "GUTTERFRANCE EXPRESS"
+    && !txt.includes("__EXP")
+    && !txt.includes("GUTTERFRANCE EXPRESS");
+});
+
+const cleanExpress = [];
+
+return cleanBase.concat(cleanExpress).concat(custom);
 const cleanBase = base.filter(f => {
   const supplier = normalizeSupplierName(getSupplierName(f));
   return supplier !== "GUTTERFRANCE EXPRESS";
