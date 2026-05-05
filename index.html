@@ -2074,14 +2074,10 @@ function getFamilies(){
   .filter(p => !isDeletedProduct(p));
 
 const custom = groupCustomProductsToFamilies(customProducts);
+  
   const cleanBase = base.filter(f => {
   const supplier = normalizeSupplierName(getSupplierName(f));
-  const txt = JSON.stringify(f).toUpperCase();
-
-  return supplier !== "GUTTERFRANCE"
-    && supplier !== "GUTTERFRANCE EXPRESS"
-    && !txt.includes("GUTTERFRANCE")
-    && !txt.includes("__EXP");
+  return supplier !== "GUTTERFRANCE EXPRESS";
 });
 
 const cleanExpress = [];
