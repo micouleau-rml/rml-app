@@ -2075,15 +2075,9 @@ function getFamilies(){
 
 const custom = groupCustomProductsToFamilies(customProducts);
   
-  const cleanBase = base.filter(f => {
-  const supplier = normalizeSupplierName(getSupplierName(f));
-  return supplier !== "GUTTERFRANCE EXPRESS";
-});
+return base.concat(custom);
 
-const cleanExpress = [];
-
-return cleanBase.concat(cleanExpress).concat(custom);
-function getCustomProductsSettingsHtml(){
+  function getCustomProductsSettingsHtml(){
   const items = getCustomProducts();
   const rows = items.map((p, idx) => `
       <div style="display:grid;grid-template-columns:1.6fr 1.1fr .7fr 1fr .9fr auto;gap:8px;align-items:center;margin-top:8px">
