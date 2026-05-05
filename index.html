@@ -2191,7 +2191,10 @@ function syncCustomProductPricesToState(){
       const name = String((p && p.name) || "").trim();
       if(!name) return;
       const unit = ((p.unit || "U").toUpperCase() === "ML") ? "ML" : "U";
-      const key = keyOf(name, name + "||" + unit);
+      const key = keyOf({
+        name: p.family_name || p.family_label || p.name,
+        supplier: p.supplier || DEFAULT_SUPPLIER
+      }, name);
       if(!state[key]) state[key] = { qty:"", unit:unit, price:"", ref:"" };
       if((!state[key].price && state[key].price !== 0) || String(state[key].price).trim() === ""){
         state[key].price = p.default_price || p.price || "";
