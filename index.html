@@ -2078,7 +2078,7 @@ const cleanBase = base.filter(f => {
 
 const cleanExpress = [];
 
-return cleanBase.concat(cleanExpress).concat(custom);
+return custom.length ? custom : cleanBase;
 }
 function getCustomProductsSettingsHtml(){
   const items = getCustomProducts();
