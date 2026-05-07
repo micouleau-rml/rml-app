@@ -1826,18 +1826,19 @@ function openProductModal(){
   const modal = document.getElementById("productModal");
   document.getElementById("newProductName").value = "";
   const supplierSelect = document.getElementById("newProductSupplier");
-  if(supplierSelect){
-    supplierSelect.innerHTML = getSupplierOptions().map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join("");
-    supplierSelect.value = DEFAULT_SUPPLIER;
-  }
+if(modal){
+  modal.classList.remove("hidden");
+  modal.classList.add("show");
+  modal.style.display = "flex";
+}
   document.getElementById("newProductUnit").value = "U";
   document.getElementById("newProductPrice").value = "";
   document.getElementById("newProductColor").value = "blue";
   document.getElementById("newProductVisible").checked = true;
   if(modal){
-  modal.classList.remove("hidden");
-  modal.classList.add("show");
-}
+  modal.classList.remove("show");
+  modal.classList.add("hidden");
+  modal.style.display = "none";
 }
 
 function openProductModalForSupplier(supplierName){
