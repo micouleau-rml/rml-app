@@ -1689,7 +1689,7 @@ function getSupplierProductsSettingsHtml(name){
     <div style="margin-top:10px">
       <div class="note" style="margin-bottom:8px">Produits du fournisseur</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-        <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="openProductModalForSupplier('${safeName}')">+ Ajouter un produit</button>
+        <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="openProductModal()">+ Ajouter un produit</button>
         ${showMigrate ? `<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="migrateBuiltInSupplierProducts('${safeName}')">Importer le catalogue ${safeName} (${builtinsCount})</button>` : ''}
       </div>
       ${note}
