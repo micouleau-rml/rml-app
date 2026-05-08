@@ -1834,26 +1834,11 @@ function openProductModal(){
   document.getElementById("newProductPrice").value = "";
   document.getElementById("newProductColor").value = "blue";
   document.getElementById("newProductVisible").checked = true;
-  if(modal){
-  modal.classList.remove("hidden");
-  modal.classList.add("show");
+  if(modal) modal.classList.add("show");
 }
-  function openProductModalForSupplier(supplierName){
-  openProductModal();
-
-  setTimeout(function(){
-    const supplierSelect = document.getElementById("newProductSupplier");
-    if(supplierSelect && supplierName){
-      supplierSelect.value = supplierName;
-    }
-  }, 50);
-}
-  function closeProductModal(){
+function closeProductModal(){
   const modal = document.getElementById("productModal");
-  if(modal){
-  modal.classList.remove("show");
-  modal.classList.add("hidden");
-}
+  if(modal) modal.classList.remove("show");
 }
 function saveNewProduct(){
   const name = (document.getElementById("newProductName").value || "").trim();
