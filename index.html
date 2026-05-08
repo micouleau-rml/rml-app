@@ -3972,6 +3972,36 @@ async function saveOrderFile(){
 .product-modal.show{
   display:flex!important;
 }
+  .product-card{
+  width:min(560px,100%);
+  background:#fff;
+  border-radius:18px;
+  box-shadow:0 20px 60px rgba(0,0,0,.25);
+  overflow:hidden;
+}
+
+.product-card-head{
+  padding:16px 18px;
+  border-bottom:1px solid #e5e7eb;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  font-weight:700;
+}
+
+.product-card-body{
+  padding:18px;
+  display:grid;
+  gap:12px;
+}
+
+.product-card-foot{
+  padding:16px 18px;
+  border-top:1px solid #e5e7eb;
+  display:flex;
+  justify-content:flex-end;
+  gap:10px;
+}
 </style>
 <div id="commandPreviewModal" class="preview-overlay" onclick="if(event.target===this) closeCommandPreview()">
   <div class="preview-panel">
