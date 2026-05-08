@@ -1689,7 +1689,7 @@ function getSupplierProductsSettingsHtml(name){
     <div style="margin-top:10px">
       <div class="note" style="margin-bottom:8px">Produits du fournisseur</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-        <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="openProductModal()">+ Ajouter un produit</button>
+        <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="openProductModalForSupplier('${safeName}')">+ Ajouter un produit</button>
         ${showMigrate ? `<button class="btn neutral" style="width:auto;padding:10px 14px" onclick="migrateBuiltInSupplierProducts('${safeName}')">Importer le catalogue ${safeName} (${builtinsCount})</button>` : ''}
       </div>
       ${note}
@@ -1826,33 +1826,19 @@ function openProductModal(){
   const modal = document.getElementById("productModal");
   document.getElementById("newProductName").value = "";
   const supplierSelect = document.getElementById("newProductSupplier");
-if(modal){
-  modal.classList.remove("hidden");
-  modal.classList.add("show");
-  modal.style.display = "flex";
-}
+  if(supplierSelect){
+    supplierSelect.innerHTML = getSupplierOptions().map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join("");
+    supplierSelect.value = DEFAULT_SUPPLIER;
+  }
   document.getElementById("newProductUnit").value = "U";
   document.getElementById("newProductPrice").value = "";
   document.getElementById("newProductColor").value = "blue";
   document.getElementById("newProductVisible").checked = true;
-  if(modal){
-  modal.classList.remove("show");
-  modal.classList.add("hidden");
-  modal.style.display = "none";
+  if(modal) modal.classList.add("show");
 }
-
-function openProductModalForSupplier(supplierName){
-  openProductModal();
-  const supplierSelect = document.getElementById("newProductSupplier");
-  if(supplierSelect && supplierName){
-    supplierSelect.value = supplierName;
-  }
-}  
 function closeProductModal(){
   const modal = document.getElementById("productModal");
-  if(modal){
-  modal.classList.remove("show");
-  modal.classList.add("hidden");
+  if(modal) modal.classList.remove("show");
 }
 function saveNewProduct(){
   const name = (document.getElementById("newProductName").value || "").trim();
@@ -3892,7 +3878,7 @@ async function saveOrderFile(){
 
 </script>
 
-<div id="productModal" class="product-modal hidden" style="display:none">
+<div id="productModal" class="product-modal hidden">
   <div class="product-card">
     <div class="product-card-head">
       <span>Nouveau produit</span>
