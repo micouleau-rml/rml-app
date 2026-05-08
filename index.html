@@ -1834,9 +1834,7 @@ function openProductModal(){
   document.getElementById("newProductPrice").value = "";
   document.getElementById("newProductColor").value = "blue";
   document.getElementById("newProductVisible").checked = true;
-  if(modal){
-  modal.classList.remove("hidden");
-  modal.classList.add("show");
+  if(modal) modal.classList.add("show");
 }
 
 function openProductModalForSupplier(supplierName){
@@ -1845,9 +1843,7 @@ function openProductModalForSupplier(supplierName){
   
 function closeProductModal(){
   const modal = document.getElementById("productModal");
-  if(modal){
-  modal.classList.remove("show");
-  modal.classList.add("hidden");
+  if(modal) modal.classList.remove("show");
 }
 function saveNewProduct(){
   const name = (document.getElementById("newProductName").value || "").trim();
@@ -3961,6 +3957,21 @@ async function saveOrderFile(){
 }
 .top-byline{margin-top:4px;font-size:16px;font-weight:600;letter-spacing:1px}
 @media (max-width:700px){.top h1{font-size:26px}.top-byline{font-size:14px}.top p{font-size:12px;max-width:330px}}
+
+.product-modal{
+  position:fixed!important;
+  inset:0!important;
+  background:rgba(15,23,42,.45)!important;
+  display:none!important;
+  align-items:center!important;
+  justify-content:center!important;
+  z-index:5000!important;
+  padding:18px!important;
+}
+
+.product-modal.show{
+  display:flex!important;
+}
 </style>
 <div id="commandPreviewModal" class="preview-overlay" onclick="if(event.target===this) closeCommandPreview()">
   <div class="preview-panel">
