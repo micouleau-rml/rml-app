@@ -1834,7 +1834,9 @@ function openProductModal(){
   document.getElementById("newProductPrice").value = "";
   document.getElementById("newProductColor").value = "blue";
   document.getElementById("newProductVisible").checked = true;
-  if(modal) modal.classList.add("show");
+  if(modal){
+  modal.classList.remove("hidden");
+  modal.classList.add("show");
 }
   function openProductModalForSupplier(supplierName){
   openProductModal();
@@ -1848,7 +1850,10 @@ function openProductModal(){
 }
   function closeProductModal(){
   const modal = document.getElementById("productModal");
-  if(modal) modal.classList.remove("show");
+  if(modal){
+  modal.classList.remove("show");
+  modal.classList.add("hidden");
+}
 }
 function saveNewProduct(){
   const name = (document.getElementById("newProductName").value || "").trim();
