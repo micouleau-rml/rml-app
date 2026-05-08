@@ -1836,6 +1836,11 @@ function openProductModal(){
   document.getElementById("newProductVisible").checked = true;
   if(modal) modal.classList.add("show");
 }
+
+function openProductModalForSupplier(supplierName){
+  openProductModal();
+}
+  
 function closeProductModal(){
   const modal = document.getElementById("productModal");
   if(modal) modal.classList.remove("show");
