@@ -1012,7 +1012,11 @@ function findItemContextByKey(key){
   for(const fam of getFamilies()){
     for(const it of fam.items){
       if(keyOf(fam.name, it.label) === key){
-        return { fam, it, defaultPrice: (it.default_price || fam.default_price || "") };
+        return { 
+  fam, 
+  it, 
+  defaultPrice: (it.default_price || it.price || fam.default_price || fam.price || "") 
+};
       }
     }
   }
