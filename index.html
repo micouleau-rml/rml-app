@@ -2197,21 +2197,7 @@ function getPdfHeaderTextRgb(){
 }
 
 function syncCustomProductPricesToState(){
-  try{
-    const products = getCustomProducts();
-    products.forEach(p => {
-      const name = String((p && p.name) || "").trim();
-      if(!name) return;
-      const unit = ((p.unit || "U").toUpperCase() === "ML") ? "ML" : "U";
-      const key = keyOf(name, name + "||" + unit);
-      if(!state[key]) state[key] = { qty:"", unit:unit, price:"", ref:"" };
-      if((!state[key].price && state[key].price !== 0) || String(state[key].price).trim() === ""){
-        state[key].price = p.default_price || p.price || "";
-      }
-      state[key].unit = unit;
-    });
-    save();
-  }catch(e){}
+  return;
 }
 
 function syncVisibleInputs(){
