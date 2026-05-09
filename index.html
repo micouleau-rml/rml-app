@@ -997,7 +997,10 @@ function getExpressCatalogFamilies(){
       return clone;
     });
 }  
-function keyOf(family,label){ return family + "||" + label; }
+function keyOf(family,label){
+  const clean = v => String(v || "").replace(/\s+/g," ").trim();
+  return clean(family) + "||" + clean(label);
+}
 function linesCount(){ return Object.values(state).filter(v => Number(v.qty||0) > 0).length; }
 function totalQty(){ return Object.values(state).reduce((a,b)=>a + (Number(b.qty)||0), 0); }
 function normalizeQty(v){ const s = String(v).replace(",", ".").trim(); const n = Number(s); return (!isFinite(n) || n < 0) ? 0 : n; }
