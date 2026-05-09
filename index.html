@@ -2733,7 +2733,12 @@ function stepQty(key, delta){
   let matchedItem = null;
   for(const it of fam.items){ if(keyOf(fam.name, it.label) === key){ matchedItem = it; break; } }
   const itemUnit = matchedItem ? getItemUnit(fam, matchedItem) : fam.unit_default;
-  const defaultPrice = resolveDefaultPriceForKey(key, matchedItem ? (matchedItem.default_price || fam.default_price || "") : "");
+  const defaultPrice = resolveDefaultPriceForKey(
+  key,
+  matchedItem
+    ? ((matchedItem.default_price || matchedItem.price || fam.default_price || fam.price || ""))
+    : ""
+);
   const currentPrice = (state[key] && state[key].price !== undefined && state[key].price !== "") ? state[key].price : defaultPrice;
   const currentRef = String((state[key] && state[key].ref) || "").trim();
   if(next > 0) state[key] = { qty: next, unit: itemUnit, price: currentPrice, ref: currentRef };
@@ -2759,8 +2764,9 @@ function setQtyDirect(key, value){
   const itemUnit = matchedItem ? getItemUnit(fam, matchedItem) : fam.unit_default;
   const defaultPrice = resolveDefaultPriceForKey(
     key,
-    matchedItem ? (matchedItem.default_price || fam.default_price || "") : ""
-  );
+    matchedItem
+ ? (matchedItem.default_price || matchedItem.price || fam.default_price || fam.price || "")
+ : ""
 
   const currentPrice =
     (state[key] && state[key].price !== undefined && state[key].price !== "")
