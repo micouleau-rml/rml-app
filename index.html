@@ -758,14 +758,7 @@ function buildGroupsForSupplierName(supplierName){
     (fam.items || []).forEach(it => {
       const entry = state[keyOf(fam.name, it.label)];
       const qty = Number((entry || {}).qty || 0);
-      const ctx = findItemContextByKey(keyOf(fam.name, it.label));
-const price = Number(
-  parsePriceValue(
-    (entry && entry.price !== undefined && entry.price !== "" && entry.price !== 0)
-      ? entry.price
-      : (ctx && ctx.defaultPrice ? ctx.defaultPrice : 0)
-  ) || 0
-);
+      const price = Number((entry || {}).price || 0);
       if(qty > 0){
         lines.push({
           variant: it.variant,
