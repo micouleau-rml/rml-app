@@ -2760,6 +2760,8 @@ function setQtyDirect(key, value){
   const defaultPrice = resolveDefaultPriceForKey(
     key,
     matchedItem ? (matchedItem.default_price || fam.default_price || "") : ""
+  );
+
   const currentPrice =
     (state[key] && state[key].price !== undefined && state[key].price !== "")
       ? state[key].price
