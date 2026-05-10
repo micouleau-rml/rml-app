@@ -788,6 +788,9 @@ function validateCurrentSupplierOrder(){
     alert("Aucun fournisseur sélectionné.");
     return;
   }
+  syncVisibleInputs();
+  syncInputs();
+  save();  
   const groups = buildGroupsForSupplierName(supplierName);
   if(!groups.length){
     alert("Aucune ligne à valider pour ce fournisseur.");
