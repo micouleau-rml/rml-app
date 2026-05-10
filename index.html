@@ -1187,7 +1187,7 @@ function setShowPrices(value){
 function totalHt(){
   return Object.values(state).reduce((sum, entry) => {
     const qty = Number(entry && entry.qty || 0) || 0;
-    const price = Number(entry && entry.price || 0) || 0;
+    const price = Number(parsePriceValue((entry || {}).price || resolveDefaultPriceForKey(keyOf(fam.name, it.label), "")) || 0);
     return sum + qty * price;
   }, 0);
 }
