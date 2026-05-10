@@ -783,6 +783,13 @@ function buildGroupsForSupplierName(supplierName){
   return groups;
 }
 function validateCurrentSupplierOrder(){
+  document.querySelectorAll(".js-price-input").forEach(input => {
+  const key = input.dataset.key;
+  if(!key) return;
+  if(!state[key]) state[key] = { qty:"", unit: input.dataset.unit || "U", price:"", ref:"" };
+  state[key].price = input.value || state[key].price || "";
+});
+save();
   const supplierName = String(currentSupplierName || "").trim();
   if(!supplierName){
     alert("Aucun fournisseur sélectionné.");
