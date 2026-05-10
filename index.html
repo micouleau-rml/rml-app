@@ -2624,7 +2624,8 @@ function renderItems(){
   const step = isRouleaux ? 10 : 1;
   const items = fam.items.filter(it => !q || it.label.toLowerCase().includes(q) || it.variant.toLowerCase().includes(q) || it.color.toLowerCase().includes(q));
   const html = items.map(it => {
-    const key = keyOf(fam.name, it.label);
+    const familyName = fam.family_name || fam.family_label || fam.name;
+    const key = keyOf(familyName, it.label);
     const itemUnit = getItemUnit(fam, it);
     const entry = getEntry(key, itemUnit);
     const displayUnit = itemUnit;
