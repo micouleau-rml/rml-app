@@ -1028,7 +1028,20 @@ function findItemContextByKey(key){
     const familyName = String(parts[0] || "").trim();
     const custom = getCustomProducts().find(p => String((p && p.name) || "").trim() === familyName);
     if(custom){
-      return { fam: customProductToFamily(custom), it: { default_price: custom.default_price || custom.price || "" }, defaultPrice: custom.default_price || custom.price || "" };
+      return {
+  fam: {
+    name: custom.family_name || custom.family_label || custom.name,
+    unit_default: custom.unit || "U",
+    default_price: custom.default_price || custom.price || ""
+  },
+  it: {
+    label: custom.name,
+    variant: custom.name,
+    color: custom.product_color || "",
+    default_price: custom.default_price || custom.price || ""
+  },
+  defaultPrice: custom.default_price || custom.price || ""
+};
     }
   }
   return null;
