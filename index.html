@@ -3094,7 +3094,7 @@ if(supplierNamePdf || supplierEmailPdf || supplierAddressPdf){
       doc.text("Unité", 138, y);
       doc.text("Qté", 152, y);
       doc.text("Prix HT", 164, y);
-      doc.text("Total HT", 182, y);
+      doc.text("Total HT", 172, y);
     }else{
       doc.text("Produit", 16, y);
       doc.text("Couleur", 82, y);
@@ -3124,7 +3124,7 @@ if(supplierNamePdf || supplierEmailPdf || supplierAddressPdf){
         doc.text(unit, 138, y);
         doc.text(qty, 152, y);
         doc.text(price, 164, y);
-        doc.text(total, 182, y);
+        doc.text(total, 172, y);
         y += rowHeight + 1;
       }else{
         const prod = doc.splitTextToSize(String(line.variant), 62);
