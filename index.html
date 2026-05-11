@@ -3091,10 +3091,10 @@ if(supplierNamePdf || supplierEmailPdf || supplierAddressPdf){
       doc.text("Produit", 16, y);
       doc.text("Couleur", 70, y);
       doc.text("Réf", 108, y);
-      doc.text("Unité", 138, y);
-      doc.text("Qté", 152, y);
-      doc.text("Prix HT", 156, y);
-      doc.text("Total HT", 174, y);
+      doc.text("Unité", 132, y);
+      doc.text("Qté", 145, y);
+      doc.text("Prix HT", 158, y);
+      doc.text("Total HT", 176, y);
     }else{
       doc.text("Produit", 16, y);
       doc.text("Couleur", 82, y);
@@ -3121,10 +3121,10 @@ if(supplierNamePdf || supplierEmailPdf || supplierAddressPdf){
         doc.text(prod, 16, y);
         doc.text(color, 70, y);
         doc.text(ref, 108, y);
-        doc.text(unit, 138, y);
-        doc.text(qty, 152, y);
-        doc.text(price, 156, y);
-        doc.text(total, 174, y);
+        doc.text(unit, 132, y);
+        doc.text(qty, 145, y);
+        doc.text(price, 158, y);
+        doc.text(total, 176, y);
         y += rowHeight + 1;
       }else{
         const prod = doc.splitTextToSize(String(line.variant), 62);
