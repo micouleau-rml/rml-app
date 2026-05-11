@@ -806,8 +806,7 @@ save();
     alert("Aucun fournisseur sélectionné.");
     return;
   }
-  syncVisibleInputs();
-  syncInputs();
+  
   save();  
   const groups = buildGroupsForSupplierName(supplierName);
   if(!groups.length){
