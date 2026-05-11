@@ -762,13 +762,10 @@ function buildGroupsForSupplierName(supplierName){
 const entry = state[key] || {};
 const qty = Number(entry.qty || 0);
 
-const ctx = findItemContextByKey(key);
-
 const rawPrice =
   entry.price !== undefined && entry.price !== ""
     ? entry.price
-    : (ctx && ctx.defaultPrice ? ctx.defaultPrice : 0);
-
+    : 0;
 const price = Number(
   String(rawPrice).replace(",", ".").trim()
 ) || 0;
