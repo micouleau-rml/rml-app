@@ -3113,8 +3113,8 @@ if(supplierNamePdf || supplierEmailPdf || supplierAddressPdf){
         const ref = doc.splitTextToSize(String(line.ref || "-"), 24);
         const unit = doc.splitTextToSize(String(line.unit), 10);
         const qty = doc.splitTextToSize(String(line.qty), 10);
-        const price = doc.splitTextToSize(String(formatMoneyFR(line.price)), 16);
-        const total = doc.splitTextToSize(String(formatMoneyFR(line.total)), 14);
+        const price = [String(formatMoneyFR(line.price))];
+        const total = [String(formatMoneyFR(line.total))];
         const rowHeight = Math.max(prod.length, color.length, ref.length, unit.length, qty.length, price.length, total.length) * 4 + 1;
 
         doc.rect(14, y-3.5, 182, rowHeight);
