@@ -4081,6 +4081,53 @@ async function saveOrderFile(){
   justify-content:flex-end;
   gap:10px;
 }
+@media (max-width:700px){
+
+  .preview-table-wrap{
+    overflow:visible !important;
+    width:100% !important;
+  }
+
+  .preview-table,
+  .preview-table thead,
+  .preview-table tbody,
+  .preview-table tr,
+  .preview-table th,
+  .preview-table td{
+    display:block !important;
+    width:100% !important;
+  }
+
+  .preview-table thead{
+    display:none !important;
+  }
+
+  .preview-table tr{
+    background:#fff !important;
+    border:1px solid #d8e0ea !important;
+    border-radius:14px !important;
+    margin:10px 0 !important;
+    padding:8px !important;
+    box-shadow:0 2px 10px rgba(0,0,0,.05) !important;
+  }
+
+  .preview-table td{
+    display:flex !important;
+    justify-content:space-between !important;
+    gap:12px !important;
+    padding:6px 4px !important;
+    font-size:14px !important;
+    border:none !important;
+    white-space:normal !important;
+  }
+
+  .preview-table td:nth-child(1)::before{content:"Produit";font-weight:800;}
+  .preview-table td:nth-child(2)::before{content:"Couleur";font-weight:800;}
+  .preview-table td:nth-child(3)::before{content:"Unité";font-weight:800;}
+  .preview-table td:nth-child(4)::before{content:"Quantité";font-weight:800;}
+  .preview-table td:nth-child(5)::before{content:"Prix HT";font-weight:800;}
+  .preview-table td:nth-child(6)::before{content:"Total HT";font-weight:800;}
+}  
 </style>
 <div id="commandPreviewModal" class="preview-overlay" onclick="if(event.target===this) closeCommandPreview()">
   <div class="preview-panel">
