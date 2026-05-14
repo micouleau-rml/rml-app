@@ -2010,9 +2010,10 @@ groups[key].items.push({
   unit_override: unit,
   default_price: defaultPrice,
   supplier_ref: String((p && p.supplier_ref) || "").trim(),
-  button_color: String((p && p.button_color) || "").trim(),
-    groups[key].count++;
-  });
+  button_color: String((p && p.button_color) || "").trim()
+});
+
+groups[key].count++;
 
   return Object.values(groups);
 }
