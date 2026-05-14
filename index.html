@@ -2550,7 +2550,8 @@ function openSupplier(index){
   const buttons = supplier.families.map(obj => {
     const fam = obj.fam;
     const selected = fam.items.filter(it => Number((state[keyOf(fam.name, it.label)] || {}).qty || 0) > 0).length;
-    return `<button class="btn" style="background:${fam.family_color};color:#fff;border-color:${fam.family_color}" onclick="openFamily(${obj.index})">
+    const familyButtonColor = (fam.items.find(it => it.button_color) || {}).button_color || fam.family_color || "#475569";
+    return `<button class="btn" style="background:${familyButtonColor};color:#fff;border-color:${familyButtonColor}" onclick="openFamily(${obj.index})">
       ${esc(fam.name)}
       <small>${esc(fam.family_label)} • ${fam.count} produits • ${selected} ligne(s)</small>
     </button>`;
