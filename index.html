@@ -2003,14 +2003,14 @@ function groupCustomProductsToFamilies(products){
       };
     }
 
-    groups[key].items.push({
+groups[key].items.push({
   variant: name,
   color: productColor,
   label: name + "|" + productColor + "|" + unit,
   unit_override: unit,
   default_price: defaultPrice,
   supplier_ref: String((p && p.supplier_ref) || "").trim(),
-  button_color: String((p && p.button_color) || "").trim()
+  button_color: String((p && p.button_color) || "").trim(),
     groups[key].count++;
   });
 
