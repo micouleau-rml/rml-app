@@ -2658,9 +2658,9 @@ function renderItems(){
       </div>
       <div class="row">
         <div class="pill">${esc(displayUnit)}</div>
-        <button class="qbtn" style="background:${p.button_color || '#2563eb'};color:white" onmousedown="return startHold('${key}', -${step}, event)" onmouseup="stopHold()" onmouseleave="stopHold()" ontouchstart="return startHold('${key}', -${step}, event)" ontouchend="stopHold()" ontouchcancel="stopHold()">−</button>
+        <button class="qbtn" style="background:${it.button_color || '#2563eb'};color:white" onmousedown="return startHold('${key}', -${step}, event)" onmouseup="stopHold()" onmouseleave="stopHold()" ontouchstart="return startHold('${key}', -${step}, event)" ontouchend="stopHold()" ontouchcancel="stopHold()">−</button>
         <input class="qinput js-qty-input" data-key="${esc(key)}" data-unit="${esc(itemUnit)}" data-default-price="${esc(String(it.default_price || fam.default_price || ""))}" inputmode="decimal" value="${esc(entry.qty)}" oninput="setQtyDirect('${key}', this.value)" onblur="setQtyDirect('${key}', this.value)">
-        <button class="qbtn" style="background:${p.button_color || '#2563eb'};color:white" onmousedown="return startHold('${key}', -${step}, event)" onmouseup="stopHold()" onmouseleave="stopHold()" ontouchstart="return startHold('${key}', ${step}, event)" ontouchend="stopHold()" ontouchcancel="stopHold()">+</button>
+        <button class="qbtn" style="background:${it.button_color || '#2563eb'};color:white" onmousedown="return startHold('${key}', -${step}, event)" onmouseup="stopHold()" onmouseleave="stopHold()" ontouchstart="return startHold('${key}', ${step}, event)" ontouchend="stopHold()" ontouchcancel="stopHold()">+</button>
       </div>
       <div class="row" style="margin-top:8px">
         <div class="pill">Prix HT</div>
