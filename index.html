@@ -2613,11 +2613,6 @@ function openFamily(index){
 <div style="height:60px;"></div>
       <button class="btn" style="background:#0a8454;color:#fff;border-color:#0a8454" onclick="goRecap()">Récapitulatif</button>
       <button class="btn" style="background:#15803d;color:#fff;border-color:#15803d" onclick="saveCurrentSelection()">Enregistrer la commande</button>
-   <button class="btn neutral"
-style="background:#64748b;color:#fff;border-color:#64748b"
-onclick="openSupplierByFamily(currentFamily)">
-← Retour
-</button>    
     </div>
     <div class="badge" style="background:${fam.family_color}">${esc(fam.family_label)} • ${esc(fam.name)}</div>
     <div style="margin-top:10px"><input id="search" class="search" placeholder="Rechercher un produit ou une couleur…" oninput="renderItems()"></div><div class="note" style="margin-top:8px">Le bouton “Enregistrer les quantités” force la sauvegarde avant de quitter la famille.</div>
