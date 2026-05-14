@@ -2009,9 +2009,8 @@ function groupCustomProductsToFamilies(products){
   label: name + "|" + productColor + "|" + unit,
   unit_override: unit,
   default_price: defaultPrice,
-  supplier_ref: String((p && p.supplier_ref) || "").trim()
-});
-
+  supplier_ref: String((p && p.supplier_ref) || "").trim(),
+  button_color: String((p && p.button_color) || "").trim()
     groups[key].count++;
   });
 
