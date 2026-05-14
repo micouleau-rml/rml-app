@@ -2649,7 +2649,7 @@ function renderItems(){
     const entry = getEntry(key, itemUnit);
     const displayUnit = itemUnit;
     const supplierRef = getSupplierRef(it.color, entry.ref || "");
-    return `<div class="card">
+    return `<div class="card" style="border-left:8px solid ${it.button_color || '#2563eb'}">
       <p class="title">${esc(it.variant)}</p>
       <p class="meta">Produit : ${esc(it.color)}${supplierRef ? " • Réf fournisseur : " + esc(supplierRef) : ""}${isRouleaux ? " • pas de 10 MLs" : ""}</p>
       <div class="row">
