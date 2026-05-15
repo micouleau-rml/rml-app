@@ -3165,15 +3165,15 @@ if(supplierNamePdf || supplierEmailPdf || supplierAddressPdf){
   doc.setFont("helvetica","bold");
   doc.setFontSize(10);
   doc.setTextColor(30,30,30);
-  doc.text("Total lignes : " + linesCount(), 14, y + 4);
-  doc.text("Quantité totale : " + totalQty(), 70, y + 4);
+  doc.text("Total lignes : " + pdfLinesCount(), 14, y + 4);
+  doc.text("Quantité totale : " + pdfTotalQty(), 70, y + 4);
   y += 10;
 
   if(getShowPrices()){
     if(y > 282){ doc.addPage(); y = 14; }
     doc.setFont("helvetica","bold");
     doc.setFontSize(11);
-    doc.text("TOTAL HT : " + formatMoneyFR(totalHt()), 14, y + 4);
+    doc.text("TOTAL HT : " + formatMoneyFR(pdfTotalHt()), 14, y + 4);
   }
 
 const footerParts = [
