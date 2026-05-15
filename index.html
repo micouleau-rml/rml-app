@@ -3732,14 +3732,14 @@ function goRecap(){
 
     const tables = groups.map(g => `
       <div class="section-title" style="color:${g.color}">${esc(g.family)}</div>
-      <table>
+      <table style="table-layout:fixed;width:100%">
         <thead>
           <tr>
-            <th>Produit</th>
-            <th>Couleur</th>
-            <th>Unités</th>
-            <th>Quantité</th>
-            ${showPrices ? "<th>Prix HT</th><th>Total HT</th>" : ""}
+            <th style="width:28%">Produit</th>
+            <th style="width:16%">Couleur</th>
+            <th style="width:12%">Unités</th>
+            <th style="width:16%">Quantité</th>
+            $showPrices ? "<th style='width:14%;text-align:right'>Prix HT</th><th style='width:14%;text-align:right'>Total HT</th>" : ""}
           </tr>
         </thead>
         <tbody>
