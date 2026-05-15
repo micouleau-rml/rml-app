@@ -3024,6 +3024,9 @@ async function buildPdfBlob(){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const groups = getPreviewGroupsOverride() || buildGroups();
+  const pdfTotalHt = groups.reduce((sum, g) => sum + (g.lines || []).reduce((s, line) => s + Number(line.total || 0), 0), 0);
+  const pdfTotalQty = groups.reduce((sum, g) => sum + (g.lines || []).reduce((s, line) => s + Number(line.qty || 0), 0), 0);
+  const pdfLinesCount = groups.reduce((sum, g) => sum + (g.lines || []).length, 0);  
   let y = 14;
 
   const headerRgb = getPdfHeaderRgb();
@@ -3042,8 +3045,8 @@ async function buildPdfBlob(){
   y = 30;
 
   const supplierNamePdf = String(window.__rmlSupplierName || "").trim();
-const supplierEmailPdf = getSupplierEmail(supplierNamePdf);
-const supplierAddressPdf = getSupplierAddress(supplierNamePdf);
+  const supplierEmailPdf = getSupplierEmail(supplierNamePdf);
+  const supplierAddressPdf = getSupplierAddress(supplierNamePdf);
 
 if(supplierNamePdf || supplierEmailPdf || supplierAddressPdf){
     let supplierY = 30;
