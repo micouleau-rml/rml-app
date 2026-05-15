@@ -793,13 +793,13 @@ const price = Number(
       }
     });
     if(lines.length){
-      groups.push({
-        supplier: supplierName,
-        family: fam.name,
-        if(lines.length) groups.push({ family: fam.name, color: (fam.items.find(it => it.button_color) || {}).button_color || fam.family_color || "#2563eb", lines: lines });
-        lines: lines
-      });
-    }
+  groups.push({
+    supplier: supplierName,
+    family: fam.name,
+    color: (fam.items.find(it => it.button_color) || {}).button_color || fam.family_color || "#2563eb",
+    lines: lines
+  });
+}
   });
   return groups;
 }
