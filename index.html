@@ -3000,6 +3000,21 @@ function saveCurrentPdfToHistory(){
   savePdfHistory(history.slice(0, 50));
   return true;
 }
+function hexToRgb(hex){
+  hex = String(hex || "").replace("#","").trim();
+
+  if(hex.length === 3){
+    hex = hex.split("").map(c => c + c).join("");
+  }
+
+  const bigint = parseInt(hex, 16);
+
+  return [
+    (bigint >> 16) & 255,
+    (bigint >> 8) & 255,
+    bigint & 255
+  ];
+}  
 
 async function buildPdfBlob(){
   if(!(window.jspdf && window.jspdf.jsPDF)){
