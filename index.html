@@ -796,7 +796,7 @@ const price = Number(
       groups.push({
         supplier: supplierName,
         family: fam.name,
-        color: fam.family_color,
+        if(lines.length) groups.push({ family: fam.name, color: (fam.items.find(it => it.button_color) || {}).button_color || fam.family_color || "#2563eb", lines: lines });
         lines: lines
       });
     }
@@ -2817,7 +2817,7 @@ function setQtyDirect(key, value){
       const price = Number(String((entry || {}).price || defaultPrice || "0").replace(",", ".").trim()) || 0;
       if(qty > 0) lines.push({ variant: it.variant, color: it.color, ref: getSupplierRef(it.color, String((entry || {}).ref || "").trim()), unit: getItemUnit(fam, it), qty: qty, price: price, total: qty * price });
     }
-    if(lines.length) groups.push({ family: fam.name, color: fam.family_color, lines: lines });
+    if(lines.length) groups.push({ family: fam.name, color: (fam.items.find(it => it.button_color) || {}).button_color || fam.family_color || "#2563eb", lines: lines });
   }
   return groups;
 }
