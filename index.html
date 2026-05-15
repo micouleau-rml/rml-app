@@ -3075,7 +3075,8 @@ if(supplierNamePdf || supplierEmailPdf || supplierAddressPdf){
     if(y > 265){ doc.addPage(); y = 14; }
     doc.setFillColor(240,244,248);
     doc.rect(14, y-4, 182, 7, "F");
-    doc.setTextColor(11,107,203);
+    const familyRgb = hexToRgb(g.color || "#2563eb");
+    doc.setTextColor(familyRgb[0], familyRgb[1], familyRgb[2]);
     doc.setFont("helvetica","bold");
     doc.setFontSize(11);
     doc.text(g.family, 16, y); y += 8;
