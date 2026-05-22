@@ -3786,6 +3786,9 @@ function goRecap(){
       <button class="btn neutral" onclick="goHome()">← Accueil</button>
       <button class="btn neutral" onclick="newOrder()">Nouvelle commande</button>
       <button class="btn neutral" onclick="showHistory()">Historique des commandes</button>
+      <button class="btn neutral" onclick="togglePriceDisplay()">
+        ${showPrices ? 'Masquer les prix' : 'Afficher les prix'}
+      </button>
     </div>
     <div class="section-title">Récapitulatif</div>
     ${cards}
