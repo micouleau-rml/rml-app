@@ -1214,6 +1214,10 @@ function getShowPrices(){
 function setShowPrices(value){
   try{ localStorage.setItem(SHOW_PRICES_KEY, value ? "1" : "0"); }catch(e){}
 }
+function togglePriceDisplay(){
+  setShowPrices(!getShowPrices());
+  goRecap();
+}
 function totalHt(){
   return Object.values(state).reduce((sum, entry) => {
     const qty = Number(entry && entry.qty || 0) || 0;
