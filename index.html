@@ -4589,6 +4589,34 @@ async function exportAppData(){
     console.error(e);
   }
 }
+function exportBackupJsonComplet(){
+  const storage = {};
+
+  Object.keys(localStorage).forEach(key => {
+    storage[key] = localStorage.getItem(key);
+  });
+
+  const backup = {
+    app: "RML GOUTTIERE CDE",
+    version: "backup-complet-local",
+    exportedAt: new Date().toISOString(),
+    storage: storage
+  };
+
+  const blob = new Blob([JSON.stringify(backup, null, 2)], {
+    type: "application/json"
+  });
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const date = new Date().toISOString().slice(0,10);
+
+  a.href = url;
+  a.download = "sauvegarde-complete-rml-gouttiere-" + date + ".json";
+  a.click();
+
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}  
 
 async function shareExportedAppData(){
   if(!(latestExportedAppFile && navigator.canShare && navigator.canShare({files:[latestExportedAppFile]}) && navigator.share)){
