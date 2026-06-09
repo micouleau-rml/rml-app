@@ -3584,7 +3584,7 @@ async function historyDelete(index){
   showHistory();
 }
 
-function historyRestore(index){
+async function historyRestore(index){
   const history = getHistory();
   const entry = history[index];
 
@@ -3593,8 +3593,8 @@ function historyRestore(index){
     return;
   }
 
-  if(!entry.groups || !entry.groups.length){
-    alert("Cette commande ne contient pas les lignes nécessaires pour être restaurée.");
+  if(!entry.state){
+    alert("Cette commande ne contient pas les données complètes. Elle a sûrement été enregistrée avant la modification.");
     return;
   }
 
@@ -3602,32 +3602,16 @@ function historyRestore(index){
     return;
   }
 
-  state = {};
+  state = JSON.parse(JSON.stringify(entry.state));
 
-  entry.groups.forEach(group => {
-    (group.lines || []).forEach(line => {
-      const key = keyOf(group.family, line.variant);
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }catch(e){}
 
-      state[key] = {
-        qty: line.qty || "",
-        unit: line.unit || "U",
-        price: line.price || "",
-        ref: line.ref || ""
-      };
-    });
-  });
+  alert("Commande restaurée. L'application va se recharger.");
 
-  save();
-
-  if(entry.supplier){
-    currentSupplierName = entry.supplier;
-    goSupplier(entry.supplier);
-  }else{
-    goHome();
-  }
-
-  alert("Commande restaurée. Tu peux maintenant la modifier.");
-}  
+  location.reload();
+} 
   async function historyClearAll(){
   try{
     saveHistory([]);
