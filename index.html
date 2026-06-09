@@ -3582,7 +3582,51 @@ async function historyDelete(index){
   showHistory();
 }
 
-async function historyClearAll(){
+function historyRestore(index){
+  const history = getHistory();
+  const entry = history[index];
+
+  if(!entry){
+    alert("Commande introuvable.");
+    return;
+  }
+
+  if(!entry.groups || !entry.groups.length){
+    alert("Cette commande ne contient pas les lignes nécessaires pour être restaurée.");
+    return;
+  }
+
+  if(!confirm("Restaurer cette commande pour la modifier ? La commande en cours sera remplacée.")){
+    return;
+  }
+
+  state = {};
+
+  entry.groups.forEach(group => {
+    (group.lines || []).forEach(line => {
+      const key = keyOf(group.family, line.variant);
+
+      state[key] = {
+        qty: line.qty || "",
+        unit: line.unit || "U",
+        price: line.price || "",
+        ref: line.ref || ""
+      };
+    });
+  });
+
+  save();
+
+  if(entry.supplier){
+    currentSupplierName = entry.supplier;
+    goSupplier(entry.supplier);
+  }else{
+    goHome();
+  }
+
+  alert("Commande restaurée. Tu peux maintenant la modifier.");
+}  
+  async function historyClearAll(){
   try{
     saveHistory([]);
     localStorage.setItem(HISTORY_KEY, "[]");
