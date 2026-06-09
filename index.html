@@ -2938,7 +2938,8 @@ function saveValidatedOrderToHistory(supplierName){
       supplier: String(supplierName || "").trim(),
       text: recapText(),
       groups: order.groups
-    };
+      state: JSON.parse(JSON.stringify(state))
+  };
     const history = getHistory();
     history.unshift(entry);
     saveHistory(history);
