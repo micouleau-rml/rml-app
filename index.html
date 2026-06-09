@@ -2931,15 +2931,15 @@ function saveValidatedOrderToHistory(supplierName){
     const now = new Date();
     const monthKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
     const entry = {
-      orderNumber: getOrderNumber(),
-      date: getTodayFR(),
-      createdAt: now.toISOString(),
-      monthKey: monthKey,
-      supplier: String(supplierName || "").trim(),
-      text: recapText(),
-      groups: order.groups
-      state: JSON.parse(JSON.stringify(state))
-  };
+  orderNumber: getOrderNumber(),
+  date: getTodayFR(),
+  createdAt: now.toISOString(),
+  monthKey: monthKey,
+  supplier: String(supplierName || "").trim(),
+  text: recapText(),
+  groups: order.groups,
+  state: JSON.parse(JSON.stringify(state))
+};
     const history = getHistory();
     history.unshift(entry);
     saveHistory(history);
