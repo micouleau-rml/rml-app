@@ -3585,33 +3585,53 @@ async function historyDelete(index){
 }
 
 async function historyRestore(index){
-  const history = getHistory();
-  const entry = history[index];
-
-  if(!entry){
-    alert("Commande introuvable.");
-    return;
-  }
-
-  if(!entry.state){
-    alert("Cette commande ne contient pas les données complètes. Elle a sûrement été enregistrée avant la modification.");
-    return;
-  }
-
-  if(!confirm("Restaurer cette commande pour la modifier ? La commande en cours sera remplacée.")){
-    return;
-  }
-
-  state = JSON.parse(JSON.stringify(entry.state));
-
   try{
+    const history = getHistory();
+    const entry = history[index];
+
+    if(!entry){
+      alert("Commande introuvable.");
+      return;
+    }
+
+    if(!confirm("Restaurer cette commande pour la modifier ? La commande en cours sera remplacée.")){
+      return;
+    }
+
+    if(entry.state){
+      state = JSON.parse(JSON.stringify(entry.state));
+    }else if(entry.groups && entry.groups.length){
+      state = {};
+
+      entry.groups.forEach(group => {
+        const familyName = group.family || "";
+        (group.lines || []).forEach(line => {
+          const key = keyOf(familyName, line.variant);
+
+          state[key] = {
+            qty: line.qty || "",
+            unit: line.unit || "U",
+            price: line.price || "",
+            ref: line.ref || ""
+          };
+        });
+      });
+    }else{
+      alert("Cette commande ne contient aucune donnée restaurable.");
+      return;
+    }
+
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }catch(e){}
+    save();
 
-  alert("Commande restaurée. L'application va se recharger.");
+    alert("Commande restaurée. L'application va se recharger.");
+    location.reload();
 
-  location.reload();
-} 
+  }catch(e){
+    alert("Erreur restauration : " + e.message);
+    console.error(e);
+  }
+}
   async function historyClearAll(){
   try{
     saveHistory([]);
