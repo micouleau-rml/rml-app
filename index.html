@@ -2443,6 +2443,9 @@ function goSettings(){
       <p class="note">Version V38 pensée pour une ouverture en lien web : transfère les réglages, fournisseurs, produits personnalisés et personnalisation, sans l’historique lourd qui peut bloquer l’iPhone.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
         <button class="btn neutral" style="width:auto" onclick="exportAppData()">Exporter les données (allégé)</button>
+<button class="btn neutral" onclick="exportBackupJsonComplet()">
+  Exporter sauvegarde complète
+</button>        
         <button class="btn neutral" style="width:auto" onclick="triggerImportAppData()">Choisir un fichier</button>
       </div>
       <div style="margin-top:10px">
@@ -2928,14 +2931,15 @@ function saveValidatedOrderToHistory(supplierName){
     const now = new Date();
     const monthKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
     const entry = {
-      orderNumber: getOrderNumber(),
-      date: getTodayFR(),
-      createdAt: now.toISOString(),
-      monthKey: monthKey,
-      supplier: String(supplierName || "").trim(),
-      text: recapText(),
-      groups: order.groups
-    };
+  orderNumber: getOrderNumber(),
+  date: getTodayFR(),
+  createdAt: now.toISOString(),
+  monthKey: monthKey,
+  supplier: String(supplierName || "").trim(),
+  text: recapText(),
+  groups: order.groups,
+  state: JSON.parse(JSON.stringify(state))
+};
     const history = getHistory();
     history.unshift(entry);
     saveHistory(history);
@@ -3501,6 +3505,7 @@ function showHistory(){
             <div class="toolbar">
               <button class="btn neutral" onclick="historyDownload(${globalIndex})">Télécharger</button>
               <button class="btn neutral" onclick="historyCopy(${globalIndex})">Copier</button>
+              <button class="btn neutral"onclick="historyRestore(${globalIndex})">Restaurer</button>             
               <button class="btn neutral" onclick="historyDelete(${globalIndex})">Supprimer</button>
             </div>
             <pre style="white-space:pre-wrap;font-family:inherit;font-size:13px;color:#334155;margin:0">${esc(entry.text || "")}</pre>
@@ -3579,7 +3584,55 @@ async function historyDelete(index){
   showHistory();
 }
 
-async function historyClearAll(){
+async function historyRestore(index){
+  try{
+    const history = getHistory();
+    const entry = history[index];
+
+    if(!entry){
+      alert("Commande introuvable.");
+      return;
+    }
+
+    if(!confirm("Restaurer cette commande pour la modifier ? La commande en cours sera remplacée.")){
+      return;
+    }
+
+    if(entry.state){
+      state = JSON.parse(JSON.stringify(entry.state));
+    }else if(entry.groups && entry.groups.length){
+      state = {};
+
+      entry.groups.forEach(group => {
+        const familyName = group.family || "";
+        (group.lines || []).forEach(line => {
+          const key = keyOf(familyName, line.variant);
+
+          state[key] = {
+            qty: line.qty || "",
+            unit: line.unit || "U",
+            price: line.price || "",
+            ref: line.ref || ""
+          };
+        });
+      });
+    }else{
+      alert("Cette commande ne contient aucune donnée restaurable.");
+      return;
+    }
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    save();
+
+    alert("Commande restaurée. L'application va se recharger.");
+    location.reload();
+
+  }catch(e){
+    alert("Erreur restauration : " + e.message);
+    console.error(e);
+  }
+}
+  async function historyClearAll(){
   try{
     saveHistory([]);
     localStorage.setItem(HISTORY_KEY, "[]");
@@ -4586,6 +4639,34 @@ async function exportAppData(){
     console.error(e);
   }
 }
+function exportBackupJsonComplet(){
+  const storage = {};
+
+  Object.keys(localStorage).forEach(key => {
+    storage[key] = localStorage.getItem(key);
+  });
+
+  const backup = {
+    app: "RML GOUTTIERE CDE",
+    version: "backup-complet-local",
+    exportedAt: new Date().toISOString(),
+    storage: storage
+  };
+
+  const blob = new Blob([JSON.stringify(backup, null, 2)], {
+    type: "application/json"
+  });
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const date = new Date().toISOString().slice(0,10);
+
+  a.href = url;
+  a.download = "sauvegarde-complete-rml-gouttiere-" + date + ".json";
+  a.click();
+
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}  
 
 async function shareExportedAppData(){
   if(!(latestExportedAppFile && navigator.canShare && navigator.canShare({files:[latestExportedAppFile]}) && navigator.share)){
