@@ -2415,7 +2415,7 @@ function goSettings(){
       <div class="user-label" style="margin-top:20px">Sécurité</div>
 
 <label style="display:flex;align-items:center;gap:10px;margin-top:10px">
-  <input type="checkbox"
+  <input type="checkbox" style="width:28px;height:28px;accent-color:#0f62fe;"
          ${getLockQuantities() ? "checked" : ""}
          onchange="setLockQuantities(this.checked)">
   <span>🔒 Verrouiller les quantités</span>
@@ -2426,7 +2426,7 @@ Empêche toute modification des quantités (saisie, + et -).
 </div>
 
 <label style="display:flex;align-items:center;gap:10px;margin-top:16px">
-  <input type="checkbox"
+  <input type="checkbox" style="width:28px;height:28px;accent-color:#0f62fe;"
          ${getLockPlusMinus() ? "checked" : ""}
          onchange="setLockPlusMinus(this.checked)">
   <span>➕➖ Verrouiller uniquement les boutons + / -</span>
