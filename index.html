@@ -373,6 +373,28 @@ const DEFAULT_COMPANY_PHONE = "05 56 67 33 89";
 const DEFAULT_COMPANY_EMAIL = "";
 const CUSTOM_PRODUCTS_KEY = "rml_custom_products";
 const SHOW_PRICES_KEY = "rml_show_prices";
+const LOCK_QTY_KEY = "rml_lock_quantities_v1";
+const LOCK_PLUS_MINUS_KEY = "rml_lock_plus_minus_v1";
+
+function getLockQuantities(){
+  return localStorage.getItem(LOCK_QTY_KEY) === "1";
+}
+
+function setLockQuantities(value){
+  try{
+    localStorage.setItem(LOCK_QTY_KEY, value ? "1" : "0");
+  }catch(e){}
+}
+
+function getLockPlusMinus(){
+  return localStorage.getItem(LOCK_PLUS_MINUS_KEY) === "1";
+}
+
+function setLockPlusMinus(value){
+  try{
+    localStorage.setItem(LOCK_PLUS_MINUS_KEY, value ? "1" : "0");
+  }catch(e){}
+}  
 const DEFAULT_SUPPLIER = "GUTTERFRANCE";
 const DEFAULT_SUPPLIER_OPTIONS = ["GUTTERKEL", "GUTTI", "SODIFAB"];
 
