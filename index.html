@@ -2791,6 +2791,10 @@ function refreshCurrentInputsFromState(){
 }
 
 function stepQty(key, delta){
+  if(getLockQuantities() || getLockPlusMinus()){
+  alert("Les boutons + / - sont verrouillés.");
+  return;
+}
   const fam = getFamilies()[currentFamily];
   const current = Number((state[key] || {}).qty || 0);
   const next = Math.max(0, current + delta);
@@ -2808,6 +2812,10 @@ function stepQty(key, delta){
 }
 
 function setQtyDirect(key, value){
+if(getLockQuantities()){
+  alert("Les quantités sont verrouillées.");
+  return;
+}  
   const fam = getFamilies()[currentFamily];
   const raw = String(value ?? "").replace(",", ".").trim();
   const qty = raw === "" ? 0 : Number(raw);
