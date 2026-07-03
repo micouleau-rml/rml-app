@@ -2412,7 +2412,30 @@ function goSettings(){
         <input type="color" value="${esc(getCardBg())}" onchange="setCardBg(this.value)">
         <div class="note">Choix libre des cartes</div>
       </div>
+      <div class="user-label" style="margin-top:20px">Sécurité</div>
 
+<label style="display:flex;align-items:center;gap:10px;margin-top:10px">
+  <input type="checkbox"
+         ${getLockQuantities() ? "checked" : ""}
+         onchange="setLockQuantities(this.checked)">
+  <span>🔒 Verrouiller les quantités</span>
+</label>
+
+<div class="note">
+Empêche toute modification des quantités (saisie, + et -).
+</div>
+
+<label style="display:flex;align-items:center;gap:10px;margin-top:16px">
+  <input type="checkbox"
+         ${getLockPlusMinus() ? "checked" : ""}
+         onchange="setLockPlusMinus(this.checked)">
+  <span>➕➖ Verrouiller uniquement les boutons + / -</span>
+</label>
+
+<div class="note">
+La saisie au clavier reste autorisée.
+</div>      
+      
       <div class="user-label" style="margin-top:14px">Couleur des boutons</div>
       ${btnAccentButtons}
       <div class="color-picker-row" style="margin-top:10px">
