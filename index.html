@@ -2365,6 +2365,7 @@ function goSettings(){
     <div class="settings-cats">
       <button class="btn neutral" data-settings-btn="entete" onclick="setSettingsSection('entete')">Entête</button>
       <button class="btn neutral" data-settings-btn="apparence" onclick="setSettingsSection('apparence')">Apparence</button>
+      <button class="btn neutral" data-settings-btn="securite" onclick="setSettingsSection('securite')">Sécurité</button>      
       <button class="btn neutral" data-settings-btn="fournisseurs" onclick="setSettingsSection('fournisseurs')">Fournisseurs</button>
       <button class="btn neutral" data-settings-btn="sync" onclick="setSettingsSection('sync')">Sync cloud</button>
       <button class="btn neutral" data-settings-btn="sauvegarde" onclick="setSettingsSection('sauvegarde')">Sauvegarde</button>
@@ -2412,29 +2413,7 @@ function goSettings(){
         <input type="color" value="${esc(getCardBg())}" onchange="setCardBg(this.value)">
         <div class="note">Choix libre des cartes</div>
       </div>
-      <div class="user-label" style="margin-top:20px">Sécurité</div>
-
-<label style="display:flex;align-items:center;gap:10px;margin-top:10px">
-  <input type="checkbox" style="width:28px;height:28px;accent-color:#0f62fe;"
-         ${getLockQuantities() ? "checked" : ""}
-         onchange="setLockQuantities(this.checked)">
-  <span>🔒 Verrouiller les quantités</span>
-</label>
-
-<div class="note">
-Empêche toute modification des quantités (saisie, + et -).
-</div>
-
-<label style="display:flex;align-items:center;gap:10px;margin-top:16px">
-  <input type="checkbox" style="width:28px;height:28px;accent-color:#0f62fe;"
-         ${getLockPlusMinus() ? "checked" : ""}
-         onchange="setLockPlusMinus(this.checked)">
-  <span>➕➖ Verrouiller uniquement les boutons + / -</span>
-</label>
-
-<div class="note">
-La saisie au clavier reste autorisée.
-</div>      
+     
       
       <div class="user-label" style="margin-top:14px">Couleur des boutons</div>
       ${btnAccentButtons}
@@ -2444,6 +2423,35 @@ La saisie au clavier reste autorisée.
       </div>
     </div>
     </div>
+
+    <div class="settings-section" data-settings-section="securite">
+  <div class="card">
+    <p class="title">Sécurité</p>
+
+    <label style="display:flex;align-items:center;gap:10px;margin-top:10px">
+      <input type="checkbox"
+             ${getLockQuantities() ? "checked" : ""}
+             onchange="setLockQuantities(this.checked)">
+      <span>🔒 Verrouiller les quantités</span>
+    </label>
+
+    <div class="note">
+      Empêche toute modification des quantités (saisie, + et -).
+    </div>
+
+    <label style="display:flex;align-items:center;gap:10px;margin-top:16px">
+      <input type="checkbox"
+             ${getLockPlusMinus() ? "checked" : ""}
+             onchange="setLockPlusMinus(this.checked)">
+      <span>➕➖ Verrouiller uniquement les boutons + / -</span>
+    </label>
+
+    <div class="note">
+      La saisie au clavier reste autorisée.
+    </div>
+
+  </div>
+</div>    
 
     <div class="settings-section" data-settings-section="fournisseurs">
     <div class="card">
