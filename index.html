@@ -238,6 +238,12 @@ th{background:#f8fafc}
        accept=".xlsx,.xls"
        style="display:none"
        onchange="importCatalogExcel(event)">
+
+<input id="currentOrderImportInput"
+       type="file"
+       accept=".json,application/json"
+       style="display:none"
+       onchange="importCurrentOrderJson(event)">
   
   <div class="top">
   <div class="top-inner" style="display:flex;align-items:center;gap:14px;">
@@ -3780,6 +3786,8 @@ function goRecap(){
       <button class="btn neutral" onclick="goHome()">← Accueil</button>
       <button class="btn neutral" onclick="newOrder()">Nouvelle commande</button>
       <button class="btn neutral" onclick="showHistory()">Historique des commandes</button>
+      <button class="btn neutral" onclick="exportCurrentOrderToDropbox()">Exporter commande vers Dropbox</button>
+      <button class="btn neutral" onclick="document.getElementById('currentOrderImportInput').click()">Importer une commande JSON</button>
       <button class="btn neutral" onclick="togglePriceDisplay()">
         ${showPrices ? 'Masquer les prix' : 'Afficher les prix'}
       </button>
@@ -3787,6 +3795,134 @@ function goRecap(){
     <div class="section-title">Récapitulatif</div>
     ${cards}
     <div class="footer-space"></div>`;
+}
+
+function buildCurrentOrderTransferPayload(){
+  syncVisibleInputs();
+  syncOrderMetaInputs();
+  save();
+
+  const currentState = JSON.parse(JSON.stringify(state || {}));
+  const currentValidatedOrders = (typeof getValidatedSupplierOrders === "function")
+    ? JSON.parse(JSON.stringify(getValidatedSupplierOrders() || {}))
+    : {};
+
+  const activeLines = Object.values(currentState).filter(entry => Number((entry || {}).qty || 0) > 0).length;
+  const validatedCount = Object.keys(currentValidatedOrders).length;
+
+  if(activeLines === 0 && validatedCount === 0){
+    throw new Error("Aucune commande en cours à exporter.");
+  }
+
+  return {
+    app: "RML GOUTTIERE CDE",
+    type: "commande-en-cours",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    orderNumber: getOrderNumber(),
+    orderUser: orderUser || "",
+    orderMessage: orderMessage || "",
+    state: currentState,
+    validatedSupplierOrders: currentValidatedOrders
+  };
+}
+
+function currentOrderTransferFileName(payload){
+  const suppliers = Object.keys((payload && payload.validatedSupplierOrders) || {});
+  const supplierPart = suppliers.length === 1
+    ? "_" + suppliers[0].replace(/[^a-z0-9_-]+/gi, "-")
+    : "";
+  const stamp = new Date().toISOString().slice(0,10);
+  return "COMMANDE_EN_COURS" + supplierPart + "_" + stamp + ".json";
+}
+
+async function exportCurrentOrderToDropbox(){
+  try{
+    const payload = buildCurrentOrderTransferPayload();
+    const json = JSON.stringify(payload, null, 2);
+    const fileName = currentOrderTransferFileName(payload);
+    const blob = new Blob([json], {type:"application/json"});
+    let file = null;
+    try{ file = new File([blob], fileName, {type:"application/json"}); }catch(e){}
+
+    if(file && navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+      try{
+        await navigator.share({
+          files:[file],
+          title:"Commande RML en cours",
+          text:"Enregistrer cette commande dans Dropbox."
+        });
+        return;
+      }catch(e){
+        if(e && e.name === "AbortError") return;
+      }
+    }
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    alert("Le fichier JSON a été téléchargé. Place-le ensuite dans Dropbox.");
+  }catch(e){
+    alert("Export impossible : " + (e && e.message ? e.message : e));
+  }
+}
+
+async function importCurrentOrderJson(event){
+  const input = event && event.target;
+  const file = input && input.files && input.files[0];
+  if(!file) return;
+
+  try{
+    const raw = await file.text();
+    const payload = JSON.parse(raw);
+
+    if(!payload || payload.app !== "RML GOUTTIERE CDE" || payload.type !== "commande-en-cours" || !payload.state || typeof payload.state !== "object"){
+      throw new Error("Ce fichier n'est pas une commande en cours RML compatible.");
+    }
+
+    const lineCount = Object.values(payload.state).filter(entry => Number((entry || {}).qty || 0) > 0).length;
+    const validatedCount = payload.validatedSupplierOrders && typeof payload.validatedSupplierOrders === "object"
+      ? Object.keys(payload.validatedSupplierOrders).length
+      : 0;
+
+    if(lineCount === 0 && validatedCount === 0){
+      throw new Error("La commande importée est vide.");
+    }
+
+    if(!confirm("Importer cette commande ? La commande actuellement en cours sur cet appareil sera remplacée. L'historique et les réglages ne seront pas modifiés.")){
+      return;
+    }
+
+    state = JSON.parse(JSON.stringify(payload.state));
+    orderUser = String(payload.orderUser || "");
+    orderMessage = String(payload.orderMessage || "");
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(STATE_BACKUP_KEY, JSON.stringify(state));
+    localStorage.setItem("order_user", orderUser);
+    localStorage.setItem("order_message", orderMessage);
+
+    if(typeof saveValidatedSupplierOrders === "function"){
+      saveValidatedSupplierOrders(
+        payload.validatedSupplierOrders && typeof payload.validatedSupplierOrders === "object"
+          ? payload.validatedSupplierOrders
+          : {}
+      );
+    }
+
+    saveMetaBackup();
+    alert("Commande importée. L'application va se recharger.");
+    location.reload();
+  }catch(e){
+    alert("Import impossible : " + (e && e.message ? e.message : e));
+  }finally{
+    if(input) input.value = "";
+  }
 }
 
  function goBack(){
