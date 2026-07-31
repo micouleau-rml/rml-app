@@ -3769,6 +3769,7 @@ function goRecap(){
         <div class="toolbar" style="margin-top:10px">
           <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="sharePdfForValidatedSupplier('${supplierName.replace(/'/g, "\'")}')">Enregistrer / Partager PDF</button>
           <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="saveValidatedOrderToHistory('${supplierName.replace(/'/g, "\'")}')">Enregistrer dans l'historique</button>
+          <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="exportCurrentOrderToDropbox('${supplierName.replace(/'/g, "\'")}')">💾 Sauvegarder cette commande</button>
           <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="deleteValidatedSupplierOrder('${supplierName.replace(/'/g, "\'")}'); goRecap();">Supprimer la commande</button>
         </div>
         ${tables}
@@ -3786,7 +3787,6 @@ function goRecap(){
       <button class="btn neutral" onclick="goHome()">← Accueil</button>
       <button class="btn neutral" onclick="newOrder()">Nouvelle commande</button>
       <button class="btn neutral" onclick="showHistory()">Historique des commandes</button>
-      <button class="btn neutral" onclick="exportCurrentOrderToDropbox()">Exporter commande vers Dropbox</button>
       <button class="btn neutral" onclick="document.getElementById('currentOrderImportInput').click()">Importer une commande JSON</button>
       <button class="btn neutral" onclick="togglePriceDisplay()">
         ${showPrices ? 'Masquer les prix' : 'Afficher les prix'}
@@ -3797,18 +3797,53 @@ function goRecap(){
     <div class="footer-space"></div>`;
 }
 
-function buildCurrentOrderTransferPayload(){
+function buildCurrentOrderTransferPayload(supplierName){
   syncVisibleInputs();
   syncOrderMetaInputs();
   save();
 
-  const currentState = JSON.parse(JSON.stringify(state || {}));
-  const currentValidatedOrders = (typeof getValidatedSupplierOrders === "function")
+  const cleanSupplier = String(supplierName || "").trim();
+  const allOrders = (typeof getValidatedSupplierOrders === "function")
     ? JSON.parse(JSON.stringify(getValidatedSupplierOrders() || {}))
     : {};
 
-  const activeLines = Object.values(currentState).filter(entry => Number((entry || {}).qty || 0) > 0).length;
-  const validatedCount = Object.keys(currentValidatedOrders).length;
+  let selectedOrders = allOrders;
+  let selectedState = JSON.parse(JSON.stringify(state || {}));
+
+  if(cleanSupplier){
+    const selectedOrder = allOrders[cleanSupplier];
+    if(!selectedOrder){
+      throw new Error("La commande " + cleanSupplier + " n'est plus présente dans le récapitulatif.");
+    }
+
+    selectedOrders = {};
+    selectedOrders[cleanSupplier] = selectedOrder;
+    selectedState = {};
+
+    const supplier = getSuppliers().find(s => String(s.name || "").trim() === cleanSupplier);
+    if(supplier){
+      (supplier.families || []).forEach(obj => {
+        const fam = obj && obj.fam;
+        if(!fam) return;
+        (fam.items || []).forEach(it => {
+          const key = keyOf(fam.name, it.label);
+          const entry = state[key];
+          if(entry && Number(entry.qty || 0) > 0){
+            selectedState[key] = JSON.parse(JSON.stringify(entry));
+          }
+        });
+      });
+    }
+
+    /* Sécurité : si certaines lignes importées ne sont plus retrouvées dans le catalogue,
+       on conserve tout de même les données complètes de la commande validée. */
+    if(Object.keys(selectedState).length === 0){
+      selectedState = JSON.parse(JSON.stringify(state || {}));
+    }
+  }
+
+  const activeLines = Object.values(selectedState).filter(entry => Number((entry || {}).qty || 0) > 0).length;
+  const validatedCount = Object.keys(selectedOrders).length;
 
   if(activeLines === 0 && validatedCount === 0){
     throw new Error("Aucune commande en cours à exporter.");
@@ -3817,13 +3852,14 @@ function buildCurrentOrderTransferPayload(){
   return {
     app: "RML GOUTTIERE CDE",
     type: "commande-en-cours",
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
+    supplier: cleanSupplier,
     orderNumber: getOrderNumber(),
     orderUser: orderUser || "",
     orderMessage: orderMessage || "",
-    state: currentState,
-    validatedSupplierOrders: currentValidatedOrders
+    state: selectedState,
+    validatedSupplierOrders: selectedOrders
   };
 }
 
@@ -3836,9 +3872,9 @@ function currentOrderTransferFileName(payload){
   return "COMMANDE_EN_COURS" + supplierPart + "_" + stamp + ".json";
 }
 
-async function exportCurrentOrderToDropbox(){
+async function exportCurrentOrderToDropbox(supplierName){
   try{
-    const payload = buildCurrentOrderTransferPayload();
+    const payload = buildCurrentOrderTransferPayload(supplierName);
     const json = JSON.stringify(payload, null, 2);
     const fileName = currentOrderTransferFileName(payload);
     const blob = new Blob([json], {type:"application/json"});
