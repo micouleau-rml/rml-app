@@ -5210,6 +5210,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
   const V61_DEVICE_KEY = "v61_device_id";
   const V61_LOCAL_CHANGE_KEY = "v61_last_local_change_ms";
   const V61_PENDING_KEY = "v61_sync_pending";
+  const V61_FORCE_PUSH_KEY = "v61_force_push"; // V1.5 : une suppression locale doit gagner sur un ancien snapshot cloud
   const V61_LAST_REMOTE_KEY = "v61_last_remote_saved_at";
   const V61_POLL_MS = 2500;
   const V61_PUSH_DELAY_MS = 900;
@@ -5462,6 +5463,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       const rowId = await ensureCloudRow();
       const payload = window.buildCloudPayload();
       const localChangeMs = Number(localStorage.getItem(V61_LOCAL_CHANGE_KEY)||0);
+      const forcePush = localStorage.getItem(V61_FORCE_PUSH_KEY)==="1";
 
       // Contrôle de conflit : si le cloud est réellement plus récent que notre dernière
       // modification locale, on recharge d'abord le cloud au lieu de l'écraser.
@@ -5469,7 +5471,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
         const remote = await v61ReadCloudRow();
         const remotePayload = remote && remote.data;
         const remoteMs = Date.parse(remotePayload && remotePayload.savedAt || "") || 0;
-        if(remotePayload && remotePayload.version === V61_VERSION && remotePayload.deviceId !== v61DeviceId() && remoteMs > localChangeMs && localStorage.getItem(V61_PENDING_KEY)==="1"){
+        if(!forcePush && remotePayload && remotePayload.version === V61_VERSION && remotePayload.deviceId !== v61DeviceId() && remoteMs > localChangeMs && localStorage.getItem(V61_PENDING_KEY)==="1"){
           window.applyCloudPayload(remotePayload);
           v61SetIndicator("ok","version cloud plus récente reçue");
           setTimeout(()=>v61RefreshUiFromStorage(),80);
@@ -5482,6 +5484,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
         .eq("id",rowId);
       if(error) throw error;
       nativeSetItem.call(localStorage,V61_PENDING_KEY,"0");
+      try{ nativeRemoveItem.call(localStorage,V61_FORCE_PUSH_KEY); }catch(e){}
       nativeSetItem.call(localStorage,"cloud_last_save_at",new Date().toLocaleString());
       v61LastSeenRemoteSavedAt = payload.savedAt;
       nativeSetItem.call(localStorage,V61_LAST_REMOTE_KEY,payload.savedAt);
@@ -5511,6 +5514,12 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       const remoteMs = Date.parse(remoteSavedAt)||0;
       const localMs = Number(localStorage.getItem(V61_LOCAL_CHANGE_KEY)||0);
       const pending = localStorage.getItem(V61_PENDING_KEY)==="1";
+      const forcePush = localStorage.getItem(V61_FORCE_PUSH_KEY)==="1";
+      // V1.5 : pendant une suppression/vidage, ne jamais réappliquer un snapshot ancien.
+      if(forcePush && pending){
+        v61SchedulePush();
+        return;
+      }
       if(pending && localMs > remoteMs){
         v61SchedulePush();
         return;
@@ -5649,6 +5658,15 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
   window.v61SyncKeys = v61GetSyncStorageKeys;
   window.v61SetIndicator = v61SetIndicator;
   window.v61RefreshUiFromStorage = v61RefreshUiFromStorage;
+  window.v61ForcePushDeletion = function(){
+    try{
+      nativeSetItem.call(localStorage,V61_FORCE_PUSH_KEY,"1");
+      nativeSetItem.call(localStorage,V61_LOCAL_CHANGE_KEY,String(Date.now()));
+      nativeSetItem.call(localStorage,V61_PENDING_KEY,"1");
+    }catch(e){}
+    if(navigator.onLine) setTimeout(()=>{ try{ v61PushNow(); }catch(e){} },30);
+    else v61SetIndicator("offline","suppression gardée localement");
+  };
 })();
 </script>
 
@@ -5667,7 +5685,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V61 PRO 1.4.2";
+  const PRO_VERSION = "V61 PRO 1.5";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
@@ -5873,7 +5891,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 
 
 <style>
-/* V61 PRO 1.4.2 — Tirer vers le bas pour actualiser */
+/* V61 PRO 1.5 — Tirer vers le bas pour actualiser */
 #v61PullRefresh{
   position:fixed;
   left:50%;
@@ -5904,7 +5922,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 @keyframes v61PullSpin{to{transform:rotate(360deg)}}
 </style>
 <script>
-/* V61 PRO 1.4.2 — Actualisation cloud par tirer-vers-le-bas + Mac */
+/* V61 PRO 1.5 — Actualisation cloud par tirer-vers-le-bas + Mac */
 (function(){
   const TRIGGER=82;
   const MAX_DRAG=126;
@@ -6053,6 +6071,78 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
   document.addEventListener('pointercancel',function(){ mouseTracking=false; mouseDrag=0; hidePull(); });
 
   window.v61PullRefresh=refreshFromCloud;
+})();
+</script>
+
+
+<script>
+/* V61 PRO 1.5 — Suppressions synchronisées et anti-résurrection */
+(function(){
+  function forceDeleteSync(){
+    try{
+      if(typeof window.v61ForcePushDeletion === 'function') window.v61ForcePushDeletion();
+      else {
+        localStorage.setItem('v61_force_push','1');
+        localStorage.setItem('v61_local_change_at',String(Date.now()));
+        localStorage.setItem('v61_sync_pending','1');
+        if(typeof window.v61SyncNow === 'function') setTimeout(()=>window.v61SyncNow(),40);
+      }
+    }catch(e){ console.warn('V61 1.5 force delete sync',e); }
+  }
+
+  // Produit individuel : la suppression est un événement prioritaire.
+  const baseDeleteProduct = window.deleteCustomProductById;
+  if(typeof baseDeleteProduct === 'function'){
+    window.deleteCustomProductById = function(productId){
+      const result = baseDeleteProduct.apply(this,arguments);
+      forceDeleteSync();
+      return result;
+    };
+  }
+
+  // Fournisseur personnalisé.
+  const baseDeleteSupplier = window.deleteSupplier;
+  if(typeof baseDeleteSupplier === 'function'){
+    window.deleteSupplier = function(name){
+      const result = baseDeleteSupplier.apply(this,arguments);
+      forceDeleteSync();
+      return result;
+    };
+  }
+
+  // Suppression en masse des produits importés : mémorise aussi des tombstones
+  // pour empêcher une ancienne copie cloud de les recréer.
+  const baseDeleteImported = window.deleteImportedProductsBySupplier;
+  if(typeof baseDeleteImported === 'function'){
+    window.deleteImportedProductsBySupplier = function(supplierName){
+      try{
+        const supplierKey=String(supplierName||'').trim().toUpperCase();
+        const before=(typeof getCustomProducts==='function'?getCustomProducts():[]).filter(p=>
+          String((p&&p.supplier)||'').trim().toUpperCase()===supplierKey && !!(p&&p.imported)
+        );
+        before.forEach(p=>{ try{ if(typeof markDeletedProduct==='function') markDeletedProduct(p); }catch(e){} });
+      }catch(e){}
+      const result = baseDeleteImported.apply(this,arguments);
+      forceDeleteSync();
+      return result;
+    };
+  }
+
+  // Protection supplémentaire : si une mise à jour distante arrive pendant qu'une
+  // suppression est encore en attente, on refuse de l'appliquer et on pousse d'abord
+  // la version locale. Cela évite le produit qui disparaît puis revient immédiatement.
+  const baseApplyCloudPayload = window.applyCloudPayload;
+  if(typeof baseApplyCloudPayload === 'function'){
+    window.applyCloudPayload = function(payload){
+      try{
+        if(localStorage.getItem('v61_force_push')==='1' && localStorage.getItem('v61_sync_pending')==='1'){
+          if(typeof window.v61SyncNow==='function') setTimeout(()=>window.v61SyncNow(),20);
+          return false;
+        }
+      }catch(e){}
+      return baseApplyCloudPayload.apply(this,arguments);
+    };
+  }
 })();
 </script>
 
