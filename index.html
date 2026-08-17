@@ -3598,14 +3598,51 @@ function historyRestore(index){
   }
 
   // Compatibilité avec les anciennes commandes : reconstruction depuis les lignes enregistrées.
+  // IMPORTANT : les produits importés utilisent comme clé : famille||nom|couleur|unité.
   if(!restoredState || !Object.keys(restoredState).length){
     restoredState = {};
+
+    const norm = v => String(v == null ? "" : v).replace(/\s+/g," ").trim().toUpperCase();
+    const allFamilies = (typeof getFamilies === "function") ? getFamilies() : [];
+
     (entry.groups || []).forEach(group => {
+      const groupFamily = String(group.family || "").trim();
+      const fam = allFamilies.find(f => norm(f && f.name) === norm(groupFamily));
+
       (group.lines || []).forEach(line => {
-        const key = keyOf(group.family, line.variant);
+        const variant = String(line.variant || "").trim();
+        const color = String(line.color || "").trim();
+        const unit = String(line.unit || "U").trim().toUpperCase() || "U";
+
+        let realLabel = "";
+        if(fam && Array.isArray(fam.items)){
+          const item = fam.items.find(it => {
+            const itemUnit = String((it && (it.unit_override || fam.unit_default)) || "U").trim().toUpperCase();
+            return norm(it && it.variant) === norm(variant) &&
+                   norm(it && it.color) === norm(color) &&
+                   itemUnit === unit;
+          }) || fam.items.find(it => norm(it && it.variant) === norm(variant) && norm(it && it.color) === norm(color))
+             || fam.items.find(it => norm(it && it.variant) === norm(variant));
+          if(item) realLabel = String(item.label || "").trim();
+        }
+
+        // Ancien catalogue/import Excel : le label est souvent "désignation|couleur|unité".
+        if(!realLabel && variant){
+          const candidate = variant + "|" + color + "|" + unit;
+          const customMatch = (typeof getCustomProducts === "function" ? getCustomProducts() : []).find(p => {
+            const famName = String((p && (p.family_label || p.family_name || p.name)) || "").trim();
+            const pName = String((p && p.name) || "").trim();
+            const pColor = String((p && (p.product_color || p.color)) || "").trim();
+            const pUnit = String((p && p.unit) || "U").trim().toUpperCase();
+            return norm(famName) === norm(groupFamily) && norm(pName) === norm(variant) && norm(pColor) === norm(color) && pUnit === unit;
+          });
+          realLabel = customMatch ? candidate : variant;
+        }
+
+        const key = keyOf(groupFamily, realLabel || variant);
         restoredState[key] = {
           qty: line.qty == null ? "" : line.qty,
-          unit: line.unit || "U",
+          unit: unit,
           price: line.price == null ? "" : line.price,
           ref: line.ref || ""
         };
@@ -3632,6 +3669,8 @@ function historyRestore(index){
     try{ localStorage.setItem("order_message", orderMessage); }catch(e){}
   }
 
+  // La restauration est une modification volontaire : elle doit gagner sur l'ancien état cloud.
+  try{ localStorage.setItem("v61_force_push", "1"); }catch(e){}
   save();
 
   const supplier = String(entry.supplier || ((entry.groups || [])[0] || {}).supplier || "").trim();
@@ -3642,7 +3681,10 @@ function historyRestore(index){
     goHome();
   }
 
-  alert("Commande restaurée. Tu peux maintenant la modifier.");
+  // Rafraîchit explicitement les quantités affichées après reconstruction d'une ancienne commande.
+  try{ if(typeof renderItems === "function" && currentFamily !== null) renderItems(); }catch(e){}
+
+  alert("Commande restaurée. Les quantités sont de nouveau dans le fournisseur et vont être synchronisées.");
 }
 
 async function historyDelete(index){
@@ -5761,7 +5803,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V61 PRO 1.5.1";
+  const PRO_VERSION = "V61 PRO 1.5.2";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
@@ -5967,7 +6009,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 
 
 <style>
-/* V61 PRO 1.5.1 — Tirer vers le bas pour actualiser */
+/* V61 PRO 1.5.2 — Tirer vers le bas pour actualiser */
 #v61PullRefresh{
   position:fixed;
   left:50%;
@@ -5998,7 +6040,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 @keyframes v61PullSpin{to{transform:rotate(360deg)}}
 </style>
 <script>
-/* V61 PRO 1.5.1 — Actualisation cloud par tirer-vers-le-bas + Mac */
+/* V61 PRO 1.5.2 — Actualisation cloud par tirer-vers-le-bas + Mac */
 (function(){
   const TRIGGER=82;
   const MAX_DRAG=126;
@@ -6152,7 +6194,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 
 
 <script>
-/* V61 PRO 1.5.1 — Suppressions synchronisées et anti-résurrection */
+/* V61 PRO 1.5.2 — Suppressions synchronisées et anti-résurrection */
 (function(){
   function forceDeleteSync(){
     try{
