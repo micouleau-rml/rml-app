@@ -5383,6 +5383,53 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     return data;
   }
 
+
+  function v61RefreshUiFromStorage(){
+    // Recharge les données en mémoire sans recharger la page et conserve l'écran ouvert.
+    let view = "home";
+    try{
+      if(!document.getElementById("family")?.classList.contains("hidden")) view = "family";
+      else if(!document.getElementById("supplier")?.classList.contains("hidden")) view = "supplier";
+      else if(!document.getElementById("settings")?.classList.contains("hidden")) view = "settings";
+      else if(!document.getElementById("recap")?.classList.contains("hidden")) view = "recap";
+      else if(!document.getElementById("history")?.classList.contains("hidden")) view = "history";
+      else if(!document.getElementById("pdfHistory")?.classList.contains("hidden")) view = "pdfHistory";
+    }catch(e){}
+
+    const supplierNameBefore = String(currentSupplierName || "");
+    const familyBefore = currentFamily;
+
+    try{ state = loadStateFromStorage(); hydrateStateShape(); }catch(e){}
+    try{ orderUser = localStorage.getItem("order_user") || ""; }catch(e){}
+    try{ orderMessage = localStorage.getItem("order_message") || ""; }catch(e){}
+
+    try{ refreshHeaderBranding(); }catch(e){}
+
+    try{
+      if(view === "family" && familyBefore !== null && familyBefore !== undefined){
+        currentFamily = familyBefore;
+        currentSupplierName = supplierNameBefore;
+        openFamily(familyBefore);
+      }else if(view === "supplier" && supplierNameBefore){
+        const suppliers = getSuppliers();
+        const idx = suppliers.findIndex(s => String(s.name||"").trim().toUpperCase() === supplierNameBefore.trim().toUpperCase());
+        if(idx >= 0) openSupplier(idx); else goHome();
+      }else if(view === "settings"){
+        goSettings();
+      }else if(view === "recap"){
+        goRecap();
+      }else if(view === "history"){
+        showHistory();
+      }else if(view === "pdfHistory"){
+        showPdfHistory();
+      }else{
+        goHome();
+      }
+    }catch(e){
+      console.warn("V61 rafraîchissement écran:", e);
+    }
+  }
+
   async function v61PushNow(){
     if(v61PushRunning || v61ApplyingRemote) return;
     if(!navigator.onLine){ v61SetIndicator("offline","sauvegarde locale active"); return; }
@@ -5402,7 +5449,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
         if(remotePayload && remotePayload.version === V61_VERSION && remotePayload.deviceId !== v61DeviceId() && remoteMs > localChangeMs && localStorage.getItem(V61_PENDING_KEY)==="1"){
           window.applyCloudPayload(remotePayload);
           v61SetIndicator("ok","version cloud plus récente reçue");
-          setTimeout(()=>location.reload(),250);
+          setTimeout(()=>v61RefreshUiFromStorage(),80);
           return;
         }
       }catch(e){}
@@ -5448,7 +5495,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       if(force || remoteMs > localMs || !localStorage.getItem(STORAGE_KEY)){
         window.applyCloudPayload(payload);
         v61SetIndicator("ok","mise à jour reçue");
-        setTimeout(()=>location.reload(),250);
+        setTimeout(()=>v61RefreshUiFromStorage(),80);
       }
     }catch(err){
       console.warn("V61 check remote:",err);
@@ -5472,7 +5519,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
           if(pending && localMs > remoteMs){ v61SchedulePush(); return; }
           window.applyCloudPayload(remote);
           v61SetIndicator("ok","mise à jour reçue");
-          setTimeout(()=>location.reload(),250);
+          setTimeout(()=>v61RefreshUiFromStorage(),80);
         })
         .subscribe(status=>{
           if(status === "SUBSCRIBED") v61SetIndicator("ok","temps réel actif");
@@ -5585,7 +5632,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V61 PRO 1.0";
+  const PRO_VERSION = "V61 PRO 1.1";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
