@@ -2939,8 +2939,11 @@ function saveValidatedOrderToHistory(supplierName){
       createdAt: now.toISOString(),
       monthKey: monthKey,
       supplier: String(supplierName || "").trim(),
+      orderUser: String(orderUser || ""),
+      orderMessage: String(orderMessage || ""),
       text: recapText(),
-      groups: order.groups
+      groups: order.groups,
+      state: JSON.parse(JSON.stringify(state || {}))
     };
     const history = getHistory();
     history.unshift(entry);
@@ -3507,6 +3510,7 @@ function showHistory(){
             <div class="toolbar">
               <button class="btn neutral" onclick="historyDownload(${globalIndex})">Télécharger</button>
               <button class="btn neutral" onclick="historyCopy(${globalIndex})">Copier</button>
+              <button class="btn neutral" onclick="historyRestore(${globalIndex})">Restaurer</button>
               <button class="btn neutral" onclick="historyDelete(${globalIndex})">Supprimer</button>
             </div>
             <pre style="white-space:pre-wrap;font-family:inherit;font-size:13px;color:#334155;margin:0">${esc(entry.text || "")}</pre>
@@ -3571,6 +3575,74 @@ async function historyCopy(index){
   }catch(e){
     alert("Copie impossible sur cet appareil.");
   }
+}
+
+function historyRestore(index){
+  const history = getHistory();
+  const entry = history[index];
+
+  if(!entry){
+    alert("Commande introuvable.");
+    return;
+  }
+
+  if(!confirm("Restaurer cette commande pour la modifier ? La commande en cours sera remplacée.")){
+    return;
+  }
+
+  let restoredState = null;
+
+  // Les nouvelles sauvegardes contiennent directement l'état complet.
+  if(entry.state && typeof entry.state === "object" && !Array.isArray(entry.state)){
+    restoredState = JSON.parse(JSON.stringify(entry.state));
+  }
+
+  // Compatibilité avec les anciennes commandes : reconstruction depuis les lignes enregistrées.
+  if(!restoredState || !Object.keys(restoredState).length){
+    restoredState = {};
+    (entry.groups || []).forEach(group => {
+      (group.lines || []).forEach(line => {
+        const key = keyOf(group.family, line.variant);
+        restoredState[key] = {
+          qty: line.qty == null ? "" : line.qty,
+          unit: line.unit || "U",
+          price: line.price == null ? "" : line.price,
+          ref: line.ref || ""
+        };
+      });
+    });
+  }
+
+  if(!Object.keys(restoredState).length){
+    alert("Cette ancienne commande ne contient pas assez de données pour être restaurée.");
+    return;
+  }
+
+  state = restoredState;
+  if(typeof hydrateStateShape === "function"){
+    try{ hydrateStateShape(); }catch(e){}
+  }
+
+  if(entry.orderUser !== undefined){
+    orderUser = String(entry.orderUser || "");
+    try{ localStorage.setItem("order_user", orderUser); }catch(e){}
+  }
+  if(entry.orderMessage !== undefined){
+    orderMessage = String(entry.orderMessage || "");
+    try{ localStorage.setItem("order_message", orderMessage); }catch(e){}
+  }
+
+  save();
+
+  const supplier = String(entry.supplier || ((entry.groups || [])[0] || {}).supplier || "").trim();
+  if(supplier){
+    currentSupplierName = supplier;
+    try{ goSupplier(supplier); }catch(e){ goHome(); }
+  }else{
+    goHome();
+  }
+
+  alert("Commande restaurée. Tu peux maintenant la modifier.");
 }
 
 async function historyDelete(index){
@@ -4055,8 +4127,12 @@ function saveCurrentOrderToHistory(){
     date: getTodayFR(),
     createdAt: now.toISOString(),
     monthKey: monthKey,
+    supplier: String(currentSupplierName || (groups[0] && groups[0].supplier) || "").trim(),
+    orderUser: String(orderUser || ""),
+    orderMessage: String(orderMessage || ""),
     text: recapText(),
-    groups: groups
+    groups: groups,
+    state: JSON.parse(JSON.stringify(state || {}))
   };
   const history = getHistory();
   history.unshift(entry);
@@ -5685,7 +5761,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V61 PRO 1.5";
+  const PRO_VERSION = "V61 PRO 1.5.1";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
@@ -5891,7 +5967,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 
 
 <style>
-/* V61 PRO 1.5 — Tirer vers le bas pour actualiser */
+/* V61 PRO 1.5.1 — Tirer vers le bas pour actualiser */
 #v61PullRefresh{
   position:fixed;
   left:50%;
@@ -5922,7 +5998,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 @keyframes v61PullSpin{to{transform:rotate(360deg)}}
 </style>
 <script>
-/* V61 PRO 1.5 — Actualisation cloud par tirer-vers-le-bas + Mac */
+/* V61 PRO 1.5.1 — Actualisation cloud par tirer-vers-le-bas + Mac */
 (function(){
   const TRIGGER=82;
   const MAX_DRAG=126;
@@ -6076,7 +6152,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 
 
 <script>
-/* V61 PRO 1.5 — Suppressions synchronisées et anti-résurrection */
+/* V61 PRO 1.5.1 — Suppressions synchronisées et anti-résurrection */
 (function(){
   function forceDeleteSync(){
     try{
