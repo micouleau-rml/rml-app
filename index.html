@@ -5197,7 +5197,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
   const V61_LOCAL_CHANGE_KEY = "v61_last_local_change_ms";
   const V61_PENDING_KEY = "v61_sync_pending";
   const V61_LAST_REMOTE_KEY = "v61_last_remote_saved_at";
-  const V61_POLL_MS = 12000;
+  const V61_POLL_MS = 2500;
   const V61_PUSH_DELAY_MS = 900;
 
   let v61ApplyingRemote = false;
@@ -5519,16 +5519,13 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       if(v61RealtimeChannel){ try{supabaseCloud.removeChannel(v61RealtimeChannel);}catch(e){} }
       v61RealtimeChannel = supabaseCloud
         .channel("rml-v61-" + CLOUD_SHARED_KEY)
-        .on("postgres_changes", {event:"UPDATE",schema:"public",table:CLOUD_TABLE,filter:"id=eq."+rowId}, payload=>{
+        .on("postgres_changes", {event:"*",schema:"public",table:CLOUD_TABLE,filter:"id=eq."+rowId}, payload=>{
+          // On utilise l'événement Realtime uniquement comme signal.
+          // La donnée est relue depuis Supabase afin d'éviter un payload incomplet
+          // et de garder la même logique de conflit sur tous les appareils.
           const remote = payload && payload.new && payload.new.data;
-          if(!remote || remote.deviceId === v61DeviceId()) return;
-          const remoteMs = Date.parse(remote.savedAt||"")||0;
-          const localMs = Number(localStorage.getItem(V61_LOCAL_CHANGE_KEY)||0);
-          const pending = localStorage.getItem(V61_PENDING_KEY)==="1";
-          if(pending && localMs > remoteMs){ v61SchedulePush(); return; }
-          window.applyCloudPayload(remote);
-          v61SetIndicator("ok","mise à jour reçue");
-          setTimeout(()=>v61RefreshUiFromStorage(),80);
+          if(remote && remote.deviceId === v61DeviceId()) return;
+          setTimeout(()=>{ try{ v61CheckRemote(true); }catch(e){} },40);
         })
         .subscribe(status=>{
           if(status === "SUBSCRIBED") v61SetIndicator("ok","temps réel actif");
@@ -5575,6 +5572,19 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     v61StartRealtime();
   });
   window.addEventListener("offline",()=>v61SetIndicator("offline","sauvegarde locale active"));
+
+  // Dès que l'utilisateur revient sur l'application, on contrôle le cloud.
+  // Safari iOS peut suspendre une connexion Realtime lorsque l'écran se verrouille
+  // ou que l'application passe en arrière-plan.
+  document.addEventListener("visibilitychange",()=>{
+    if(document.visibilityState === "visible" && navigator.onLine){
+      try{ v61StartRealtime(); }catch(e){}
+      setTimeout(()=>{ try{ v61CheckRemote(true); }catch(e){} },120);
+    }
+  });
+  window.addEventListener("focus",()=>{
+    if(navigator.onLine) setTimeout(()=>{ try{ v61CheckRemote(true); }catch(e){} },80);
+  });
 
   window.addEventListener("load",()=>{
     v61InstallIndicator();
@@ -5643,7 +5653,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V61 PRO 1.3";
+  const PRO_VERSION = "V61 PRO 1.4";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
@@ -5849,7 +5859,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 
 
 <style>
-/* V61 PRO 1.3 — Tirer vers le bas pour actualiser */
+/* V61 PRO 1.4 — Tirer vers le bas pour actualiser */
 #v61PullRefresh{
   position:fixed;
   left:50%;
@@ -5880,7 +5890,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 @keyframes v61PullSpin{to{transform:rotate(360deg)}}
 </style>
 <script>
-/* V61 PRO 1.3 — Actualisation cloud par tirer-vers-le-bas */
+/* V61 PRO 1.4 — Actualisation cloud par tirer-vers-le-bas + Mac */
 (function(){
   const TRIGGER=82;
   const MAX_DRAG=126;
@@ -5984,6 +5994,50 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
   },{passive:true});
 
   document.addEventListener('touchcancel',function(){ tracking=false; drag=0; hidePull(); },{passive:true});
+
+  // Mac / trackpad : quand on est déjà tout en haut, un geste vers le bas
+  // produit des wheel deltaY négatifs. On reproduit le même geste que sur iPhone.
+  let wheelDrag=0;
+  let wheelTimer=null;
+  document.addEventListener('wheel',function(e){
+    if(refreshing || !atTop() || isInteractive(e.target)){ wheelDrag=0; return; }
+    if(e.deltaY < 0){
+      wheelDrag=Math.min(MAX_DRAG,wheelDrag + Math.min(24,Math.abs(e.deltaY)*0.55));
+      setPullVisual(wheelDrag,wheelDrag>=TRIGGER);
+      clearTimeout(wheelTimer);
+      wheelTimer=setTimeout(function(){
+        const shouldRefresh=wheelDrag>=TRIGGER;
+        wheelDrag=0;
+        if(shouldRefresh) refreshFromCloud(); else hidePull();
+      },170);
+      if(wheelDrag>14 && e.cancelable) e.preventDefault();
+    }else if(e.deltaY > 0 && wheelDrag>0){
+      wheelDrag=Math.max(0,wheelDrag-Math.abs(e.deltaY));
+      if(wheelDrag===0) hidePull(); else setPullVisual(wheelDrag,wheelDrag>=TRIGGER);
+    }
+  },{passive:false});
+
+  // Mac avec souris : clic maintenu et glisser vers le bas depuis le haut.
+  let mouseTracking=false, mouseStartY=0, mouseDrag=0;
+  document.addEventListener('pointerdown',function(e){
+    if(e.pointerType==='touch' || refreshing || !atTop() || isInteractive(e.target)) return;
+    mouseTracking=true; mouseStartY=e.clientY; mouseDrag=0;
+  });
+  document.addEventListener('pointermove',function(e){
+    if(!mouseTracking || refreshing) return;
+    const dy=e.clientY-mouseStartY;
+    if(dy<=0){ mouseDrag=0; hidePull(); return; }
+    mouseDrag=Math.min(MAX_DRAG,dy*.58);
+    setPullVisual(mouseDrag,mouseDrag>=TRIGGER);
+  });
+  document.addEventListener('pointerup',function(){
+    if(!mouseTracking) return;
+    const shouldRefresh=mouseDrag>=TRIGGER;
+    mouseTracking=false; mouseDrag=0;
+    if(shouldRefresh) refreshFromCloud(); else hidePull();
+  });
+  document.addEventListener('pointercancel',function(){ mouseTracking=false; mouseDrag=0; hidePull(); });
+
   window.v61PullRefresh=refreshFromCloud;
 })();
 </script>
