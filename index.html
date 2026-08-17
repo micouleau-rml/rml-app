@@ -5227,6 +5227,11 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       key === V61_LOCAL_CHANGE_KEY ||
       key === V61_PENDING_KEY ||
       key === V61_LAST_REMOTE_KEY ||
+      key === LAST_SAVE_AT_KEY ||
+      key === META_BACKUP_KEY ||
+      key === "settings_section" ||
+      key === "rml_supplier_open_map_v1" ||
+      key === "rml_supplier_inner_open_map_v1" ||
       key.startsWith("v61_");
   }
 
@@ -5318,13 +5323,17 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
   const nativeSetItem = Storage.prototype.setItem;
   const nativeRemoveItem = Storage.prototype.removeItem;
   Storage.prototype.setItem = function(key,value){
+    let previous = null;
+    try{ previous = this === localStorage ? localStorage.getItem(key) : null; }catch(e){}
     const result = nativeSetItem.call(this,key,value);
-    if(this === localStorage && v61Ready && v61IsAppDataKey(key) && !v61ApplyingRemote) v61MarkLocalChange();
+    if(this === localStorage && v61Ready && v61IsAppDataKey(key) && !v61ApplyingRemote && previous !== String(value)) v61MarkLocalChange();
     return result;
   };
   Storage.prototype.removeItem = function(key){
+    let existed = false;
+    try{ existed = this === localStorage && localStorage.getItem(key) !== null; }catch(e){}
     const result = nativeRemoveItem.call(this,key);
-    if(this === localStorage && v61Ready && v61IsAppDataKey(key) && !v61ApplyingRemote) v61MarkLocalChange();
+    if(this === localStorage && v61Ready && v61IsAppDataKey(key) && !v61ApplyingRemote && existed) v61MarkLocalChange();
     return result;
   };
 
@@ -5632,7 +5641,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V61 PRO 1.1";
+  const PRO_VERSION = "V61 PRO 1.2";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
