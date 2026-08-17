@@ -3694,20 +3694,34 @@ function clearPdfHistory(){
 
 
 function newOrder(){
+  // IMPORTANT V61 PRO 1.4.2 : une commande vide doit être synchronisée
+  // comme un état explicite "{}". On ne supprime plus la clé principale,
+  // sinon l'ancien STATE_BACKUP_KEY peut ressusciter la commande sur un autre appareil.
   state = {};
   orderMessage = "";
-  try{ localStorage.removeItem("order_message"); }catch(e){}
   try{
+    localStorage.setItem("order_message", "");
     localStorage.setItem(STORAGE_KEY, "{}");
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.setItem(STATE_BACKUP_KEY, "{}");
+    localStorage.setItem(VALIDATED_SUPPLIER_ORDERS_KEY, "{}");
+    saveMetaBackup();
   }catch(e){}
+
+  // Force l'envoi immédiat de l'état vide afin que les autres appareils
+  // ne puissent pas renvoyer une ancienne commande avant la prochaine synchro.
+  try{
+    if(typeof v61SyncNow === "function"){
+      setTimeout(()=>{ try{ v61SyncNow(); }catch(e){} }, 30);
+    }
+  }catch(e){}
+
   setTimeout(() => {
     state = {};
     goHome();
     updateUserDisplay();
     updateFloatingSaveBar();
-    alert("Nouvelle commande prête.");
-  }, 50);
+    alert("Nouvelle commande prête et synchronisée.");
+  }, 80);
 }
 
 function updateFloatingSaveBar(){
@@ -5653,7 +5667,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V61 PRO 1.4.1";
+  const PRO_VERSION = "V61 PRO 1.4.2";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
@@ -5859,7 +5873,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 
 
 <style>
-/* V61 PRO 1.4.1 — Tirer vers le bas pour actualiser */
+/* V61 PRO 1.4.2 — Tirer vers le bas pour actualiser */
 #v61PullRefresh{
   position:fixed;
   left:50%;
@@ -5890,7 +5904,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 @keyframes v61PullSpin{to{transform:rotate(360deg)}}
 </style>
 <script>
-/* V61 PRO 1.4.1 — Actualisation cloud par tirer-vers-le-bas + Mac */
+/* V61 PRO 1.4.2 — Actualisation cloud par tirer-vers-le-bas + Mac */
 (function(){
   const TRIGGER=82;
   const MAX_DRAG=126;
