@@ -5402,7 +5402,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       else if(!document.getElementById("settings")?.classList.contains("hidden")) view = "settings";
       else if(!document.getElementById("recap")?.classList.contains("hidden")) view = "recap";
       else if(!document.getElementById("history")?.classList.contains("hidden")) view = "history";
-      else if(!document.getElementById("pdfHistory")?.classList.contains("hidden")) view = "pdfHistory";
+      else if(!document.getElementById("pdfhistory")?.classList.contains("hidden")) view = "pdfHistory";
     }catch(e){}
 
     const supplierNameBefore = String(currentSupplierName || "");
@@ -5653,7 +5653,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V61 PRO 1.4";
+  const PRO_VERSION = "V61 PRO 1.4.1";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
@@ -5859,7 +5859,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 
 
 <style>
-/* V61 PRO 1.4 — Tirer vers le bas pour actualiser */
+/* V61 PRO 1.4.1 — Tirer vers le bas pour actualiser */
 #v61PullRefresh{
   position:fixed;
   left:50%;
@@ -5890,7 +5890,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 @keyframes v61PullSpin{to{transform:rotate(360deg)}}
 </style>
 <script>
-/* V61 PRO 1.4 — Actualisation cloud par tirer-vers-le-bas + Mac */
+/* V61 PRO 1.4.1 — Actualisation cloud par tirer-vers-le-bas + Mac */
 (function(){
   const TRIGGER=82;
   const MAX_DRAG=126;
