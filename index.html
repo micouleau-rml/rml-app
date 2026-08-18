@@ -5803,7 +5803,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V61 PRO 1.5.2";
+  const PRO_VERSION = "V61 PRO 1.5.3";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
@@ -6009,7 +6009,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 
 
 <style>
-/* V61 PRO 1.5.2 — Tirer vers le bas pour actualiser */
+/* V61 PRO 1.5.3 — Tirer vers le bas pour actualiser */
 #v61PullRefresh{
   position:fixed;
   left:50%;
@@ -6040,7 +6040,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 @keyframes v61PullSpin{to{transform:rotate(360deg)}}
 </style>
 <script>
-/* V61 PRO 1.5.2 — Actualisation cloud par tirer-vers-le-bas + Mac */
+/* V61 PRO 1.5.3 — Actualisation cloud par tirer-vers-le-bas + Mac */
 (function(){
   const TRIGGER=82;
   const MAX_DRAG=126;
@@ -6194,7 +6194,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 
 
 <script>
-/* V61 PRO 1.5.2 — Suppressions synchronisées et anti-résurrection */
+/* V61 PRO 1.5.3 — Suppressions synchronisées et anti-résurrection */
 (function(){
   function forceDeleteSync(){
     try{
@@ -6261,6 +6261,207 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       return baseApplyCloudPayload.apply(this,arguments);
     };
   }
+})();
+</script>
+
+
+
+<script>
+/* V61 PRO 1.5.3 — Import Excel prioritaire et synchronisé */
+(function(){
+  const IMPORT_LOCK_KEY = 'v61_import_lock';
+  const FORCE_PUSH_KEY = 'v61_force_push';
+  const PENDING_KEY = 'v61_sync_pending';
+  const LOCAL_CHANGE_KEY = 'v61_last_local_change_ms';
+
+  function wait(ms){ return new Promise(resolve=>setTimeout(resolve,ms)); }
+
+  async function pushImportedProductsToCloud(){
+    try{
+      localStorage.setItem(IMPORT_LOCK_KEY,'1');
+      localStorage.setItem(FORCE_PUSH_KEY,'1');
+      localStorage.setItem(LOCAL_CHANGE_KEY,String(Date.now()));
+      localStorage.setItem(PENDING_KEY,'1');
+    }catch(e){}
+
+    if(!navigator.onLine){
+      try{ if(typeof window.v61SetIndicator==='function') window.v61SetIndicator('offline','import gardé sur cet appareil'); }catch(e){}
+      return false;
+    }
+
+    try{
+      if(typeof window.v61SetIndicator==='function') window.v61SetIndicator('syncing','envoi des produits importés');
+      // Si une synchro était déjà en cours, v61SyncNow peut rendre la main immédiatement.
+      // On retente jusqu'à confirmation que pending est repassé à 0.
+      for(let i=0;i<20;i++){
+        if(typeof window.v61SyncNow==='function'){
+          try{ await window.v61SyncNow(); }catch(e){}
+        }
+        if(localStorage.getItem(PENDING_KEY)!=='1'){
+          try{ localStorage.removeItem(IMPORT_LOCK_KEY); }catch(e){}
+          return true;
+        }
+        await wait(350);
+      }
+    }catch(e){ console.warn('V61 1.5.3 import sync',e); }
+    return false;
+  }
+
+  // Pendant un import non encore confirmé par Supabase, un ancien snapshot distant
+  // ne doit jamais écraser les produits que l'utilisateur vient d'importer.
+  const previousApplyCloudPayload = window.applyCloudPayload;
+  if(typeof previousApplyCloudPayload === 'function'){
+    window.applyCloudPayload = function(payload){
+      try{
+        if(localStorage.getItem(IMPORT_LOCK_KEY)==='1' && localStorage.getItem(PENDING_KEY)==='1'){
+          if(typeof window.v61SyncNow==='function') setTimeout(()=>{ try{ window.v61SyncNow(); }catch(e){} },20);
+          return false;
+        }
+      }catch(e){}
+      return previousApplyCloudPayload.apply(this,arguments);
+    };
+  }
+
+  // Remplace l'ancien import afin d'attendre la sauvegarde cloud AVANT de recharger l'application.
+  window.importCatalogExcel = function(event){
+    const file = event && event.target && event.target.files ? event.target.files[0] : null;
+    if(!file){ alert('Aucun fichier sélectionné'); return; }
+
+    const reader = new FileReader();
+    const norm = v => String(v == null ? '' : v).trim();
+    const normKey = v => norm(v).toUpperCase();
+
+    reader.onload = async function(e){
+      try{
+        // Bloque immédiatement toute réapplication d'un ancien état cloud.
+        try{
+          localStorage.setItem(IMPORT_LOCK_KEY,'1');
+          localStorage.setItem(FORCE_PUSH_KEY,'1');
+        }catch(err){}
+
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data,{type:'array'});
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet,{defval:''});
+
+        if(!rows.length){
+          try{ localStorage.removeItem(IMPORT_LOCK_KEY); }catch(err){}
+          alert('Fichier vide');
+          return;
+        }
+
+        const existing = typeof getCustomProducts==='function' ? getCustomProducts() : [];
+        const importedSuppliers = new Set();
+        const seen = new Set();
+        const importedProducts = [];
+
+        rows.forEach(row=>{
+          const supplier = norm(row.fournisseur_cible);
+          const familyLabel = norm(row.famille_cible);
+          const familySource = norm(row.famille_source_gutterfrance);
+          const designation = norm(row.designation);
+          const color = norm(row.couleur);
+          const ref = norm(row.ref_produit);
+          const unit = norm(row.unite) || 'U';
+          const note = norm(row.note);
+          const buttonColor = norm(row.couleur_bouton) || '#2563eb';
+          let price = norm(row.tarif_ht).replace(',','.');
+          price = price && !isNaN(Number(price)) ? String(Number(price)).replace('.',',') : '';
+
+          if(!supplier || !familyLabel || !designation) return;
+          importedSuppliers.add(normKey(supplier));
+
+          const dedupeKey=[normKey(supplier),normKey(familyLabel),normKey(designation),normKey(color),normKey(ref),normKey(unit)].join('||');
+          if(seen.has(dedupeKey)) return;
+          seen.add(dedupeKey);
+
+          importedProducts.push({
+            id:'imp_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8),
+            supplier,
+            family_label:familyLabel,
+            family_name:familySource || familyLabel,
+            name:designation,
+            product_color:color,
+            button_color:buttonColor,
+            supplier_ref:ref,
+            unit,
+            default_price:price,
+            price,
+            note,
+            visible:true,
+            imported:true
+          });
+        });
+
+        if(!importedProducts.length){
+          try{ localStorage.removeItem(IMPORT_LOCK_KEY); }catch(err){}
+          alert('Aucune ligne exploitable trouvée dans le fichier.');
+          return;
+        }
+
+        // Remplace uniquement les anciens imports des fournisseurs présents dans ce fichier.
+        // Les produits manuels et les imports des autres fournisseurs sont conservés.
+        const cleaned = existing.filter(p=>{
+          const supplierKey=normKey(p && p.supplier);
+          const isImported=!!(p && p.imported);
+          return !(isImported && importedSuppliers.has(supplierKey));
+        });
+        const merged = cleaned.concat(importedProducts);
+        saveCustomProducts(merged);
+
+        try{ if(typeof syncCustomProductPricesToState==='function') syncCustomProductPricesToState(); }catch(err){}
+
+        // Marque explicitement l'import comme modification locale prioritaire.
+        try{
+          localStorage.setItem(LOCAL_CHANGE_KEY,String(Date.now()));
+          localStorage.setItem(PENDING_KEY,'1');
+          localStorage.setItem(FORCE_PUSH_KEY,'1');
+        }catch(err){}
+
+        const cloudOk = await pushImportedProductsToCloud();
+        const supplierNames=[...new Set(importedProducts.map(p=>p.supplier))].join(', ');
+
+        if(cloudOk){
+          alert('✅ Import terminé et synchronisé pour : '+supplierNames);
+          // Rechargement seulement après confirmation cloud : les produits ne peuvent plus disparaître aussitôt.
+          location.reload();
+        }else if(!navigator.onLine){
+          alert('✅ Import terminé pour : '+supplierNames+'\n\nHors connexion : les produits restent sur cet appareil et seront envoyés automatiquement au retour d’Internet.');
+          location.reload();
+        }else{
+          alert('⚠️ Import terminé localement pour : '+supplierNames+'\n\nLa synchronisation cloud n’est pas encore confirmée. Ne ferme pas l’application : elle va réessayer automatiquement.');
+          // On ne recharge surtout pas : le verrou d'import reste actif jusqu'au prochain push réussi.
+          try{ if(typeof window.v61SyncNow==='function') setTimeout(()=>window.v61SyncNow(),1000); }catch(err){}
+        }
+      }catch(err){
+        console.error(err);
+        try{ localStorage.removeItem(IMPORT_LOCK_KEY); }catch(e2){}
+        alert('❌ Erreur import Excel');
+      }finally{
+        try{ event.target.value=''; }catch(err){}
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  // Si l'import a été fait hors ligne, conserve sa priorité à la reconnexion jusqu'à confirmation.
+  window.addEventListener('online',()=>{
+    try{
+      if(localStorage.getItem(IMPORT_LOCK_KEY)==='1' && localStorage.getItem(PENDING_KEY)==='1'){
+        localStorage.setItem(FORCE_PUSH_KEY,'1');
+        if(typeof window.v61SyncNow==='function') setTimeout(()=>window.v61SyncNow(),80);
+      }
+    }catch(e){}
+  });
+
+  // Nettoie le verrou dès qu'une écriture cloud a effectivement été confirmée.
+  setInterval(()=>{
+    try{
+      if(localStorage.getItem(IMPORT_LOCK_KEY)==='1' && localStorage.getItem(PENDING_KEY)!=='1'){
+        localStorage.removeItem(IMPORT_LOCK_KEY);
+      }
+    }catch(e){}
+  },500);
 })();
 </script>
 
