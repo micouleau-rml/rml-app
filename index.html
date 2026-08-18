@@ -2620,10 +2620,9 @@ function openFamily(index){
 
 <div style="height:60px;"></div>
       <button class="btn" style="background:#0a8454;color:#fff;border-color:#0a8454" onclick="goRecap()">Récapitulatif</button>
-      <button class="btn" style="background:#15803d;color:#fff;border-color:#15803d" onclick="saveCurrentSelection()">Enregistrer la commande</button>
     </div>
     <div class="badge" style="background:${fam.family_color}">${esc(fam.family_label)} • ${esc(fam.name)}</div>
-    <div style="margin-top:10px"><input id="search" class="search" placeholder="Rechercher un produit ou une couleur…" oninput="renderItems()"></div><div class="note" style="margin-top:8px">Le bouton “Enregistrer les quantités” force la sauvegarde avant de quitter la famille.</div>
+    <div style="margin-top:10px"><input id="search" class="search" placeholder="Rechercher un produit ou une couleur…" oninput="renderItems()"></div>
     <div id="items" style="margin-top:12px"></div>
     <div style="height:40px"></div>`;
   renderItems();
@@ -4525,7 +4524,7 @@ async function ensureCloudRow(){
 
   const initialPayload = {
     app: "RML GOUTTIERE ALU",
-    version: "V61-sync-auto-multi-appareils",
+    version: "V62-sync-auto-multi-appareils",
     sharedKey: CLOUD_SHARED_KEY,
     savedAt: new Date().toISOString(),
     storage: {}
@@ -4553,7 +4552,7 @@ function buildCloudPayload(){
   return {
     app: "RML GOUTTIERE ALU",
     sharedKey: CLOUD_SHARED_KEY,
-    version: "V61-sync-auto-multi-appareils",
+    version: "V62-sync-auto-multi-appareils",
     savedAt: new Date().toISOString(),
     storage
   };
@@ -5324,7 +5323,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    - dernier changement daté gagne en cas de conflit global
    ============================================================ */
 (function(){
-  const V61_VERSION = "V61-sync-auto-multi-appareils";
+  const V61_VERSION = "V62-sync-auto-multi-appareils";
   const V61_DEVICE_KEY = "v61_device_id";
   const V61_LOCAL_CHANGE_KEY = "v61_last_local_change_ms";
   const V61_PENDING_KEY = "v61_sync_pending";
@@ -5803,7 +5802,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V61 PRO 1.5.3";
+  const PRO_VERSION = "V62";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
@@ -6009,7 +6008,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 
 
 <style>
-/* V61 PRO 1.5.3 — Tirer vers le bas pour actualiser */
+/* V62 — Tirer vers le bas pour actualiser */
 #v61PullRefresh{
   position:fixed;
   left:50%;
@@ -6040,7 +6039,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 @keyframes v61PullSpin{to{transform:rotate(360deg)}}
 </style>
 <script>
-/* V61 PRO 1.5.3 — Actualisation cloud par tirer-vers-le-bas + Mac */
+/* V62 — Actualisation cloud par tirer-vers-le-bas + Mac */
 (function(){
   const TRIGGER=82;
   const MAX_DRAG=126;
@@ -6194,7 +6193,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 
 
 <script>
-/* V61 PRO 1.5.3 — Suppressions synchronisées et anti-résurrection */
+/* V62 — Suppressions synchronisées et anti-résurrection */
 (function(){
   function forceDeleteSync(){
     try{
@@ -6267,7 +6266,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 
 
 <script>
-/* V61 PRO 1.5.3 — Import Excel prioritaire et synchronisé */
+/* V62 — Import Excel prioritaire et synchronisé */
 (function(){
   const IMPORT_LOCK_KEY = 'v61_import_lock';
   const FORCE_PUSH_KEY = 'v61_force_push';
@@ -6465,5 +6464,151 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 })();
 </script>
 
+
+<script>
+/* ============================================================
+   RML GOUTTIERE CDE — V62
+   Catalogue fournisseurs anti-résurrection
+   - suppression définitive d'une liste fournisseur
+   - remplacement de catalogue versionné
+   - valable pour TOUS les fournisseurs actuels et futurs
+   - une ancienne liste cloud ne peut plus revenir après suppression/remplacement
+   ============================================================ */
+(function(){
+  const META_KEY = 'rml_supplier_catalog_meta_v62';
+  const CUSTOM_KEYS = ['rml_custom_products','commande_fournisseur_custom_products_v1'];
+  const norm = v => String(v==null?'':v).trim();
+  const skey = v => norm(v).toUpperCase();
+  function loadMeta(){ try{ const x=JSON.parse(localStorage.getItem(META_KEY)||'{}'); return x&&typeof x==='object'?x:{}; }catch(e){ return {}; } }
+  function saveMeta(m){ try{ localStorage.setItem(META_KEY,JSON.stringify(m||{})); }catch(e){} }
+  function setMeta(supplier, action, generation){
+    const k=skey(supplier); if(!k) return 0;
+    const m=loadMeta();
+    const g=Math.max(Number(generation||0),Date.now(),Number((m[k]||{}).generation||0)+1);
+    m[k]={generation:g,action:String(action||'replace'),updatedAt:new Date(g).toISOString()};
+    saveMeta(m); return g;
+  }
+  function parseProducts(){
+    try{ if(typeof getCustomProducts==='function') return getCustomProducts(); }catch(e){}
+    for(const key of CUSTOM_KEYS){ try{ const a=JSON.parse(localStorage.getItem(key)||'[]'); if(Array.isArray(a)) return a; }catch(e){} }
+    return [];
+  }
+  function writeProducts(list){
+    try{ if(typeof saveCustomProducts==='function'){ saveCustomProducts(list); return; } }catch(e){}
+    const raw=JSON.stringify(Array.isArray(list)?list:[]); CUSTOM_KEYS.forEach(k=>{try{localStorage.setItem(k,raw)}catch(e){}});
+  }
+  function enforceCatalogMeta(){
+    const meta=loadMeta(); let list=parseProducts(); if(!Array.isArray(list)) list=[];
+    const before=list.length;
+    list=list.filter(p=>{
+      if(!p || !p.imported) return true;
+      const mm=meta[skey(p.supplier)]; if(!mm) return true;
+      return Number(p.catalog_generation_v62||0) >= Number(mm.generation||0);
+    });
+    if(list.length!==before) writeProducts(list);
+    try{
+      const suppliers=getSupplierOptions();
+      const filtered=suppliers.filter(name=>{ const mm=meta[skey(name)]; return !(mm&&mm.action==='supplier-delete'); });
+      if(filtered.length!==suppliers.length){ saveSupplierOptions(filtered); try{saveSupplierOrder(filtered)}catch(e){} }
+    }catch(e){}
+  }
+  function markDeleteCatalog(supplier){
+    const k=skey(supplier); if(!k) return 0; const g=setMeta(k,'catalog-delete');
+    writeProducts(parseProducts().filter(p=>!(p&&p.imported&&skey(p.supplier)===k)));
+    try{ if(typeof syncCustomProductPricesToState==='function') syncCustomProductPricesToState(); }catch(e){}
+    return g;
+  }
+  function markSupplierDelete(supplier){
+    const k=skey(supplier); if(!k) return 0; const g=setMeta(k,'supplier-delete');
+    writeProducts(parseProducts().filter(p=>skey(p&&p.supplier)!==k)); return g;
+  }
+  function forcePush(){
+    try{
+      localStorage.setItem('v61_force_push','1');
+      localStorage.setItem('v61_last_local_change_ms',String(Date.now()));
+      localStorage.setItem('v61_sync_pending','1');
+      if(typeof window.v61SyncNow==='function') setTimeout(()=>{try{window.v61SyncNow()}catch(e){}},30);
+    }catch(e){}
+  }
+  const baseBuild=window.buildCloudPayload;
+  if(typeof baseBuild==='function') window.buildCloudPayload=function(){ enforceCatalogMeta(); return baseBuild.apply(this,arguments); };
+  const baseApply=window.applyCloudPayload;
+  if(typeof baseApply==='function'){
+    window.applyCloudPayload=function(payload){
+      try{
+        const localMeta=loadMeta(); let remoteMeta={};
+        try{ remoteMeta=JSON.parse((payload&&payload.storage&&payload.storage[META_KEY])||'{}')||{}; }catch(e){}
+        const merged={...localMeta};
+        Object.keys(remoteMeta).forEach(k=>{ const l=merged[k]||{},r=remoteMeta[k]||{}; if(Number(r.generation||0)>Number(l.generation||0)) merged[k]=r; });
+        if(payload&&payload.storage) payload.storage[META_KEY]=JSON.stringify(merged);
+      }catch(e){}
+      const result=baseApply.apply(this,arguments); try{enforceCatalogMeta()}catch(e){} return result;
+    };
+  }
+  const prevDeleteProduct=window.deleteCustomProductById;
+  if(typeof prevDeleteProduct==='function'){
+    window.deleteCustomProductById=function(productId){
+      let supplier=''; try{ const p=parseProducts().find(x=>String(x&&x.id)===String(productId)); supplier=p&&p.supplier||''; }catch(e){}
+      const r=prevDeleteProduct.apply(this,arguments); if(supplier) setMeta(supplier,'product-delete'); forcePush(); return r;
+    };
+  }
+  window.deleteImportedProductsBySupplier=function(supplierName){
+    const supplier=norm(supplierName); if(!supplier){alert('Aucun fournisseur sélectionné.');return;}
+    if(!confirm('Supprimer définitivement tous les produits importés du fournisseur '+supplier+' ?')) return;
+    const before=parseProducts().filter(p=>p&&p.imported&&skey(p.supplier)===skey(supplier)).length;
+    markDeleteCatalog(supplier); forcePush();
+    try{ if(typeof goSettings==='function'){goSettings();if(typeof setSettingsSection==='function')setSettingsSection('fournisseurs');} }catch(e){}
+    alert(before+' produit(s) importé(s) supprimé(s) définitivement pour '+supplier+'.\n\nLa suppression va se propager aux autres appareils.');
+  };
+  const prevDeleteSupplier=window.deleteSupplier;
+  if(typeof prevDeleteSupplier==='function'){
+    window.deleteSupplier=function(name){
+      const clean=skey(name); if(!clean) return;
+      try{ if(typeof DEFAULT_SUPPLIER_OPTIONS!=='undefined'&&DEFAULT_SUPPLIER_OPTIONS.includes(clean)) return prevDeleteSupplier.apply(this,arguments); }catch(e){}
+      markSupplierDelete(clean); const r=prevDeleteSupplier.apply(this,arguments); forcePush(); return r;
+    };
+  }
+  window.importCatalogExcel=function(event){
+    const file=event&&event.target&&event.target.files?event.target.files[0]:null; if(!file){alert('Aucun fichier sélectionné');return;}
+    const reader=new FileReader(); const clean=v=>String(v==null?'':v).trim();
+    reader.onload=async function(e){
+      try{
+        localStorage.setItem('v61_import_lock','1'); localStorage.setItem('v61_force_push','1');
+        const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'}),sh=wb.Sheets[wb.SheetNames[0]],rows=XLSX.utils.sheet_to_json(sh,{defval:''});
+        if(!rows.length) throw new Error('Fichier vide');
+        const existing=parseProducts(),bySupplier={};
+        rows.forEach(row=>{
+          const supplier=clean(row.fournisseur_cible),familyLabel=clean(row.famille_cible),familySource=clean(row.famille_source_gutterfrance),designation=clean(row.designation);
+          if(!supplier||!familyLabel||!designation) return; const k=skey(supplier);
+          if(!bySupplier[k]) bySupplier[k]={supplier,rows:[],seen:new Set()};
+          const color=clean(row.couleur),ref=clean(row.ref_produit),unit=clean(row.unite)||'U';
+          const dedupe=[k,skey(familyLabel),skey(designation),skey(color),skey(ref),skey(unit)].join('||'); if(bySupplier[k].seen.has(dedupe)) return;
+          bySupplier[k].seen.add(dedupe); bySupplier[k].rows.push({row,familyLabel,familySource,designation,color,ref,unit});
+        });
+        const keys=Object.keys(bySupplier); if(!keys.length) throw new Error('Aucune ligne exploitable');
+        let merged=existing.slice(); const imported=[];
+        for(const k of keys){
+          const group=bySupplier[k],generation=setMeta(group.supplier,'catalog-import');
+          merged=merged.filter(p=>!(p&&p.imported&&skey(p.supplier)===k));
+          for(const x of group.rows){
+            const row=x.row; let price=clean(row.tarif_ht).replace(',','.'); price=price&&!isNaN(Number(price))?String(Number(price)).replace('.',','):'';
+            const p={id:'imp_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8),supplier:group.supplier,family_label:x.familyLabel,family_name:x.familySource||x.familyLabel,name:x.designation,product_color:x.color,button_color:clean(row.couleur_bouton)||'#2563eb',supplier_ref:x.ref,unit:x.unit,default_price:price,price,note:clean(row.note),visible:true,imported:true,catalog_generation_v62:generation};
+            merged.push(p); imported.push(p);
+          }
+        }
+        writeProducts(merged); try{if(typeof syncCustomProductPricesToState==='function')syncCustomProductPricesToState()}catch(e){} enforceCatalogMeta(); forcePush();
+        let ok=false; for(let i=0;i<24;i++){ try{if(typeof window.v61SyncNow==='function')await window.v61SyncNow()}catch(e){} if(localStorage.getItem('v61_sync_pending')!=='1'){ok=true;break;} await new Promise(r=>setTimeout(r,330)); }
+        if(ok){ localStorage.removeItem('v61_import_lock'); alert('✅ Nouvelle liste enregistrée et synchronisée pour : '+[...new Set(imported.map(p=>p.supplier))].join(', ')); location.reload(); }
+        else alert('✅ Nouvelle liste enregistrée localement. La synchronisation cloud va continuer automatiquement.');
+      }catch(err){ console.error('V62 import',err); alert('❌ Erreur import Excel : '+(err.message||err)); }
+      finally{ try{event.target.value=''}catch(e){} }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+  try{enforceCatalogMeta()}catch(e){}
+  window.addEventListener('online',()=>{try{enforceCatalogMeta();forcePush()}catch(e){}});
+  window.v62CatalogMeta=loadMeta; window.v62EnforceCatalogMeta=enforceCatalogMeta;
+})();
+</script>
 </body>
 </html>
