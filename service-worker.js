@@ -1,6 +1,6 @@
-/* RML GOUTTIERE ALU — Service Worker V62.2
+/* RML GOUTTIERE ALU — Service Worker V62.3
    Priorité réseau pour toujours récupérer le dernier index.html publié. */
-const CACHE_NAME = 'rml-gouttiere-v62-2';
+const CACHE_NAME = 'rml-gouttiere-v62-3';
 const CORE = ['./', './index.html', './manifest.json'];
 
 self.addEventListener('install', event => {
