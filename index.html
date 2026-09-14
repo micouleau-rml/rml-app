@@ -4631,7 +4631,7 @@ async function ensureCloudRow(){
 
   const initialPayload = {
     app: "RML GOUTTIERE ALU",
-    version: "V62.3-sync-auto-multi-appareils",
+    version: "V62.2-sync-auto-multi-appareils",
     sharedKey: CLOUD_SHARED_KEY,
     savedAt: new Date().toISOString(),
     storage: {}
@@ -4659,7 +4659,7 @@ function buildCloudPayload(){
   return {
     app: "RML GOUTTIERE ALU",
     sharedKey: CLOUD_SHARED_KEY,
-    version: "V62.3-sync-auto-multi-appareils",
+    version: "V62.2-sync-auto-multi-appareils",
     savedAt: new Date().toISOString(),
     storage
   };
@@ -4759,18 +4759,8 @@ async function restoreCloudHistoryVersion(id){
     if(error) throw error;
     if(!data || !data.data) throw new Error("Sauvegarde historique introuvable.");
     applyCloudPayload(data.data);
-    try{
-      localStorage.setItem("cloud_last_load_at", new Date().toLocaleString());
-      localStorage.setItem("v61_force_push", "1");
-      localStorage.setItem("v61_last_local_change_ms", String(Date.now()));
-      localStorage.setItem("v61_sync_pending", "1");
-    }catch(e){}
-    setSyncStatus("Historique restauré. Enregistrement comme nouvelle référence cloud...");
-    if(typeof window.v61SyncNow === "function"){
-      try{ await window.v61SyncNow(); }catch(e){}
-    }else{
-      try{ await saveCloudNow(); }catch(e){}
-    }
+    try{ localStorage.setItem("cloud_last_load_at", new Date().toLocaleString()); }catch(e){}
+    setSyncStatus("Historique restauré. Mise à jour...");
     setTimeout(() => location.reload(), 350);
   }catch(err){
     console.error(err);
@@ -5440,7 +5430,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    - dernier changement daté gagne en cas de conflit global
    ============================================================ */
 (function(){
-  const V61_VERSION = "V62.3-sync-auto-multi-appareils";
+  const V61_VERSION = "V62.2-sync-auto-multi-appareils";
   const V61_DEVICE_KEY = "v61_device_id";
   const V61_LOCAL_CHANGE_KEY = "v61_last_local_change_ms";
   const V61_PENDING_KEY = "v61_sync_pending";
@@ -5774,7 +5764,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
         v61SchedulePush();
         return;
       }
-      if(remoteMs > localMs || !localStorage.getItem(STORAGE_KEY)){
+      if(force || remoteMs > localMs || !localStorage.getItem(STORAGE_KEY)){
         window.applyCloudPayload(payload);
         v61SetIndicator("ok","mise à jour reçue");
         setTimeout(()=>v61RefreshUiFromStorage(),80);
@@ -5798,7 +5788,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
           // et de garder la même logique de conflit sur tous les appareils.
           const remote = payload && payload.new && payload.new.data;
           if(remote && remote.deviceId === v61DeviceId()) return;
-          setTimeout(()=>{ try{ v61CheckRemote(false); }catch(e){} },40);
+          setTimeout(()=>{ try{ v61CheckRemote(true); }catch(e){} },40);
         })
         .subscribe(status=>{
           if(status === "SUBSCRIBED") v61SetIndicator("ok","temps réel actif");
@@ -5841,7 +5831,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
   window.addEventListener("online",()=>{
     v61SetIndicator("syncing","connexion retrouvée");
     if(localStorage.getItem(V61_PENDING_KEY)==="1") v61SchedulePush();
-    else v61CheckRemote(false);
+    else v61CheckRemote(true);
     v61StartRealtime();
   });
   window.addEventListener("offline",()=>v61SetIndicator("offline","sauvegarde locale active"));
@@ -5852,11 +5842,11 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
   document.addEventListener("visibilitychange",()=>{
     if(document.visibilityState === "visible" && navigator.onLine){
       try{ v61StartRealtime(); }catch(e){}
-      setTimeout(()=>{ try{ v61CheckRemote(false); }catch(e){} },120);
+      setTimeout(()=>{ try{ v61CheckRemote(true); }catch(e){} },120);
     }
   });
   window.addEventListener("focus",()=>{
-    if(navigator.onLine) setTimeout(()=>{ try{ v61CheckRemote(false); }catch(e){} },80);
+    if(navigator.onLine) setTimeout(()=>{ try{ v61CheckRemote(true); }catch(e){} },80);
   });
 
   window.addEventListener("load",()=>{
@@ -5886,7 +5876,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
         }else if(pending){
           await v61PushNow();
         }else{
-          await v61CheckRemote(false);
+          await v61CheckRemote(true);
         }
         v61Ready = true;
       }catch(e){
@@ -5935,7 +5925,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V62.3";
+  const PRO_VERSION = "V62.2";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
@@ -5988,7 +5978,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       <div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><div><div class="title">V61 PRO</div><div class="note">Synchronisation, corbeille, journal et sauvegardes de sécurité</div></div><button class="btn neutral" style="width:auto" onclick="closeV61ProPanel()">Fermer</button></div>
       <div class="v61pro-grid" style="margin-top:14px">
         <button class="btn neutral" onclick="v61SyncNow && v61SyncNow()">Synchroniser maintenant</button>
-        <button class="btn neutral" onclick="v61CheckRemote && v61CheckRemote(false)">Vérifier le cloud</button>
+        <button class="btn neutral" onclick="v61CheckRemote && v61CheckRemote(true)">Vérifier le cloud</button>
         <button class="btn neutral" onclick="showHistory();closeV61ProPanel()">Historique commandes</button>
         <button class="btn neutral" onclick="v61ProDailyBackup(true)">Sauvegarde cloud maintenant</button>
       </div>
@@ -6230,7 +6220,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       if(typeof window.v61SetIndicator==='function') window.v61SetIndicator('syncing','actualisation manuelle');
       // S'il reste une modification locale non envoyée, on l'envoie d'abord.
       if(localStorage.getItem('v61_sync_pending')==='1' && typeof window.v61SyncNow==='function') await window.v61SyncNow();
-      if(typeof window.v61CheckRemote==='function') await window.v61CheckRemote(false);
+      if(typeof window.v61CheckRemote==='function') await window.v61CheckRemote(true);
       if(localStorage.getItem('v61_sync_pending')==='1'){
         if(typeof window.v61SetIndicator==='function') window.v61SetIndicator('syncing','envoi en attente');
         if(txt) txt.textContent='Synchronisation en cours…';
@@ -6745,9 +6735,9 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 </script>
 
 <script>
-/* V62.3 — Fiabilisation Supabase : le cloud ancien ne peut plus écraser une restauration locale */
+/* V62.2 — Fiabilisation des mises à jour Safari / application écran d’accueil */
 (function(){
-  const CLEAN_KEY='v62_3_cache_cleanup_done';
+  const CLEAN_KEY='v62_2_cache_cleanup_done';
   async function cleanOldAppCache(){
     try{
       if(localStorage.getItem(CLEAN_KEY)==='1') return;
@@ -6761,7 +6751,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
         for(const reg of regs){ try{ await reg.unregister(); }catch(e){} }
       }
       localStorage.setItem(CLEAN_KEY,'1');
-    }catch(e){ console.warn('V62.3 nettoyage cache',e); }
+    }catch(e){ console.warn('V62.2 nettoyage cache',e); }
   }
   window.addEventListener('load',()=>setTimeout(cleanOldAppCache,1200));
 })();
