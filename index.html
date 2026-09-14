@@ -2442,13 +2442,13 @@ function goSettings(){
     <div class="settings-section" data-settings-section="sync">
     <div class="card">
       <p class="title">Synchronisation cloud</p>
-      <p class="note">V61 synchronise automatiquement les données entre iPhone et Mac. Le localStorage reste actif hors connexion.</p>
+      <p class="note">V63 synchronise automatiquement toutes les données entre iPhone et Mac. Supabase conserve la révision maître et le stockage local reste actif hors connexion.</p>
       <div class="sync-card" style="margin-top:10px">
         <button class="btn neutral" style="width:auto;background:#0a8454;color:#fff;border-color:#0a8454" onclick="saveCloudNow()">Sauvegarder sur le cloud</button>
         <button class="btn neutral" style="width:auto" onclick="loadCloudNow()">Recharger depuis le cloud</button>
       </div>
       <div id="syncStatus" class="sync-status">Prêt.</div>
-      <div class="note" style="margin-top:8px">V61 : synchro automatique active. Les boutons manuels restent disponibles en secours.</div>
+      <div class="note" style="margin-top:8px">V63 : synchronisation maître active. Les boutons manuels restent disponibles en secours.</div>
       <div class="card" style="margin-top:12px;background:#f8fafc">
         <p class="title">Historique des sauvegardes</p>
         <p class="note">Les 5 dernières sauvegardes cloud. Tu peux restaurer une version précédente si besoin.</p>
@@ -4631,7 +4631,7 @@ async function ensureCloudRow(){
 
   const initialPayload = {
     app: "RML GOUTTIERE ALU",
-    version: "V62.4-sync-auto-multi-appareils",
+    version: "V63-sync-maitre-revision",
     sharedKey: CLOUD_SHARED_KEY,
     savedAt: new Date().toISOString(),
     storage: {}
@@ -4659,7 +4659,7 @@ function buildCloudPayload(){
   return {
     app: "RML GOUTTIERE ALU",
     sharedKey: CLOUD_SHARED_KEY,
-    version: "V62.4-sync-auto-multi-appareils",
+    version: "V63-sync-maitre-revision",
     savedAt: new Date().toISOString(),
     storage
   };
@@ -4731,11 +4731,13 @@ async function loadCloudHistoryIntoPanel(){
       }catch(err){}
       const dt = row.created_at ? new Date(row.created_at).toLocaleString() : "";
       const note = row.note || "Sauvegarde";
+      const rev = Number(row.data && (row.data.revision || row.data.proRevision) || 0);
+      const src = String(row.data && row.data.deviceId || "").slice(-8);
       return `
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 0;border-top:1px solid #e2e8f0">
           <div>
             <div style="font-weight:800">${dt}</div>
-            <div style="font-size:13px;color:#64748b">${productsCount} produit(s) • ${note}</div>
+            <div style="font-size:13px;color:#64748b">${productsCount} produit(s) • ${note}${rev ? ` • Rév. ${rev}` : ``}${src ? ` • Appareil ${src}` : ``}</div>
           </div>
           <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="restoreCloudHistoryVersion('${row.id}')">Restaurer</button>
         </div>
@@ -5440,7 +5442,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    - dernier changement daté gagne en cas de conflit global
    ============================================================ */
 (function(){
-  const V61_VERSION = "V62.4-sync-auto-multi-appareils";
+  const V61_VERSION = "V63-sync-maitre-revision";
   const V61_DEVICE_KEY = "v61_device_id";
   const V61_LOCAL_CHANGE_KEY = "v61_last_local_change_ms";
   const V61_PENDING_KEY = "v61_sync_pending";
@@ -5448,6 +5450,10 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
   const V61_LAST_REMOTE_KEY = "v61_last_remote_saved_at";
   const V61_POLL_MS = 2500;
   const V61_PUSH_DELAY_MS = 900;
+  // V63 : Supabase est la sauvegarde maître. On utilise un numéro de révision
+  // monotone plutôt que l'heure des ordinateurs pour départager les snapshots.
+  const V63_REV_KEY = "v63_last_applied_revision";
+  const V63_BASE_REV_KEY = "v63_local_base_revision";
 
   // V62.2 : les snapshots V62 / V62.1 / V62.2 utilisent le même schéma de stockage.
   // Une simple différence de numéro de version ne doit jamais empêcher de récupérer les commandes.
@@ -5456,7 +5462,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     if(payload.app && payload.app !== "RML GOUTTIERE ALU") return false;
     if(payload.sharedKey && payload.sharedKey !== CLOUD_SHARED_KEY) return false;
     const v = String(payload.version || "");
-    return /^V6(?:1|2)(?:\.|-|$)/i.test(v) || v === "";
+    return /^V6(?:1|2|3)(?:\.|-|$)/i.test(v) || v === "";
   }
 
   let v61ApplyingRemote = false;
@@ -5560,8 +5566,11 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     if(v61ApplyingRemote) return;
     const now = Date.now();
     try{
-      localStorage.setItem(V61_LOCAL_CHANGE_KEY,String(now));
-      localStorage.setItem(V61_PENDING_KEY,"1");
+      if(localStorage.getItem(V61_PENDING_KEY)!=="1"){
+        nativeSetItem.call(localStorage,V63_BASE_REV_KEY,String(Number(localStorage.getItem(V63_REV_KEY)||0)));
+      }
+      nativeSetItem.call(localStorage,V61_LOCAL_CHANGE_KEY,String(now));
+      nativeSetItem.call(localStorage,V61_PENDING_KEY,"1");
     }catch(e){}
     if(!navigator.onLine){
       v61SetIndicator("offline","modifications gardées sur l’appareil");
@@ -5612,6 +5621,9 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       app:"RML GOUTTIERE ALU",
       sharedKey:CLOUD_SHARED_KEY,
       version:V61_VERSION,
+      schemaVersion:63,
+      revision:Number(localStorage.getItem(V63_REV_KEY)||0),
+      previousRevision:Number(localStorage.getItem(V63_BASE_REV_KEY)||localStorage.getItem(V63_REV_KEY)||0),
       savedAt:new Date().toISOString(),
       deviceId:v61DeviceId(),
       storage
@@ -5640,7 +5652,10 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
           try{ nativeSetItem.call(localStorage,k,storage[k]); }catch(e){}
         }
       });
+      const appliedRevision = Number(payload.revision || payload.proRevision || 0);
       nativeSetItem.call(localStorage,V61_PENDING_KEY,"0");
+      nativeSetItem.call(localStorage,V63_REV_KEY,String(appliedRevision));
+      nativeSetItem.call(localStorage,V63_BASE_REV_KEY,String(appliedRevision));
       nativeSetItem.call(localStorage,V61_LAST_REMOTE_KEY,String(payload.savedAt||""));
       v61LastSeenRemoteSavedAt = String(payload.savedAt||"");
     }finally{
@@ -5711,36 +5726,47 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     v61SetIndicator("syncing");
     try{
       const rowId = await ensureCloudRow();
-      const payload = window.buildCloudPayload();
-      const localChangeMs = Number(localStorage.getItem(V61_LOCAL_CHANGE_KEY)||0);
+      const remote = await v61ReadCloudRow();
+      const remotePayload = remote && remote.data;
+      const remoteRev = Number(remotePayload && (remotePayload.revision || remotePayload.proRevision) || 0);
+      const localRev = Number(localStorage.getItem(V63_REV_KEY)||0);
+      const baseRev = Number(localStorage.getItem(V63_BASE_REV_KEY)||localRev);
       const forcePush = localStorage.getItem(V61_FORCE_PUSH_KEY)==="1";
+      const pending = localStorage.getItem(V61_PENDING_KEY)==="1";
 
-      // Contrôle de conflit : si le cloud est réellement plus récent que notre dernière
-      // modification locale, on recharge d'abord le cloud au lieu de l'écraser.
-      try{
-        const remote = await v61ReadCloudRow();
-        const remotePayload = remote && remote.data;
-        const remoteMs = Date.parse(remotePayload && remotePayload.savedAt || "") || 0;
-        if(!forcePush && remotePayload && v61IsCompatiblePayload(remotePayload) && remotePayload.deviceId !== v61DeviceId() && remoteMs > localChangeMs && localStorage.getItem(V61_PENDING_KEY)==="1"){
-          window.applyCloudPayload(remotePayload);
-          v61SetIndicator("ok","version cloud plus récente reçue");
-          setTimeout(()=>v61RefreshUiFromStorage(),80);
-          return;
-        }
-      }catch(e){}
+      // Un appareil resté ancien n'a plus le droit d'écraser un cloud plus récent.
+      // On garde une copie locale de sécurité, puis on adopte la révision maître.
+      if(!forcePush && pending && remotePayload && remotePayload.deviceId !== v61DeviceId() && remoteRev > baseRev){
+        window.applyCloudPayload(remotePayload);
+        v61SetIndicator("ok","révision cloud plus récente reçue");
+        setTimeout(()=>v61RefreshUiFromStorage(),80);
+        return;
+      }
+
+      const payload = window.buildCloudPayload();
+      const nextRev = Math.max(remoteRev, localRev) + 1;
+      payload.revision = nextRev;
+      payload.previousRevision = remoteRev;
+      payload.schemaVersion = 63;
+      payload.version = V61_VERSION;
+      payload.savedAt = new Date().toISOString();
+      payload.deviceId = v61DeviceId();
 
       const {error} = await supabaseCloud.from(CLOUD_TABLE)
         .update({data:payload,updated_at:payload.savedAt})
         .eq("id",rowId);
       if(error) throw error;
+
       nativeSetItem.call(localStorage,V61_PENDING_KEY,"0");
       try{ nativeRemoveItem.call(localStorage,V61_FORCE_PUSH_KEY); }catch(e){}
+      nativeSetItem.call(localStorage,V63_REV_KEY,String(nextRev));
+      nativeSetItem.call(localStorage,V63_BASE_REV_KEY,String(nextRev));
       nativeSetItem.call(localStorage,"cloud_last_save_at",new Date().toLocaleString());
       v61LastSeenRemoteSavedAt = payload.savedAt;
       nativeSetItem.call(localStorage,V61_LAST_REMOTE_KEY,payload.savedAt);
-      v61SetIndicator("ok","à jour");
+      v61SetIndicator("ok","révision "+nextRev+" à jour");
     }catch(err){
-      console.error("V61 push:",err);
+      console.error("V63 push:",err);
       nativeSetItem.call(localStorage,V61_PENDING_KEY,"1");
       v61SetIndicator(navigator.onLine?"error":"offline", navigator.onLine ? "nouvel essai automatique" : "sauvegarde locale active");
     }finally{
@@ -5753,53 +5779,54 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     try{
       const row = await v61ReadCloudRow();
       const payload = row && row.data;
-      if(!payload || !payload.storage) return;
-      if(!v61IsCompatiblePayload(payload)) return;
-      if(payload.deviceId === v61DeviceId()){
-        v61LastSeenRemoteSavedAt = payload.savedAt || v61LastSeenRemoteSavedAt;
-        return;
-      }
-      const remoteSavedAt = String(payload.savedAt || "");
-      if(!force && remoteSavedAt && remoteSavedAt === v61LastSeenRemoteSavedAt) return;
-      const remoteMs = Date.parse(remoteSavedAt)||0;
-      const localMs = Number(localStorage.getItem(V61_LOCAL_CHANGE_KEY)||0);
+      if(!payload || !payload.storage || !v61IsCompatiblePayload(payload)) return;
+
+      const remoteRev = Number(payload.revision || payload.proRevision || 0);
+      const localRev = Number(localStorage.getItem(V63_REV_KEY)||0);
       const pending = localStorage.getItem(V61_PENDING_KEY)==="1";
       const forcePush = localStorage.getItem(V61_FORCE_PUSH_KEY)==="1";
-      // V1.5 : pendant une suppression/vidage, ne jamais réappliquer un snapshot ancien.
-      if(forcePush && pending){
-        v61SchedulePush();
-        return;
-      }
-      if(pending){
-        // Il existe une vraie modification locale non encore envoyée :
-        // elle ne doit être remplacée que si le cloud est réellement plus récent.
-        if(localMs > remoteMs){
-          v61SchedulePush();
-          return;
-        }
-        if(remoteMs > localMs || !localStorage.getItem(STORAGE_KEY)){
+      const baseRev = Number(localStorage.getItem(V63_BASE_REV_KEY)||localRev);
+      const remoteSavedAt = String(payload.savedAt || "");
+
+      if(forcePush && pending){ v61SchedulePush(); return; }
+
+      // Migration V61/V62 -> V63 : une sauvegarde ancienne sans révision est
+      // acceptée une seule fois, puis la première écriture V63 crée la révision 1.
+      if(remoteRev===0 && localRev===0){
+        if(pending){ v61SchedulePush(); return; }
+        if(force || remoteSavedAt !== v61LastSeenRemoteSavedAt || !localStorage.getItem(STORAGE_KEY)){
           window.applyCloudPayload(payload);
-          v61SetIndicator("ok","mise à jour reçue");
+          v61SetIndicator("ok","sauvegarde existante chargée");
           setTimeout(()=>v61RefreshUiFromStorage(),80);
         }
         return;
       }
 
-      // V62.4 : lorsqu'il n'y a AUCUNE modification locale en attente,
-      // la date d'une ancienne modification locale ne doit jamais bloquer
-      // une nouvelle sauvegarde venant d'un autre ordinateur.
-      // Toute nouvelle version cloud (savedAt différent) devient donc la référence.
-      if(remoteSavedAt && remoteSavedAt !== v61LastSeenRemoteSavedAt){
+      if(payload.deviceId === v61DeviceId() && remoteRev <= localRev){
+        v61LastSeenRemoteSavedAt = remoteSavedAt || v61LastSeenRemoteSavedAt;
+        return;
+      }
+
+      if(pending){
+        // La base cloud a avancé depuis le début de la modification locale :
+        // le cloud gagne pour empêcher tout retour d'une vieille sauvegarde.
+        if(remoteRev > baseRev){
+          window.applyCloudPayload(payload);
+          v61SetIndicator("ok","révision "+remoteRev+" reçue");
+          setTimeout(()=>v61RefreshUiFromStorage(),80);
+        }else{
+          v61SchedulePush();
+        }
+        return;
+      }
+
+      if(remoteRev > localRev || (force && remoteRev === localRev && remoteSavedAt !== v61LastSeenRemoteSavedAt)){
         window.applyCloudPayload(payload);
-        v61SetIndicator("ok","mise à jour reçue d’un autre appareil");
-        setTimeout(()=>v61RefreshUiFromStorage(),80);
-      }else if(!localStorage.getItem(STORAGE_KEY)){
-        window.applyCloudPayload(payload);
-        v61SetIndicator("ok","cloud chargé");
+        v61SetIndicator("ok","révision "+remoteRev+" reçue d’un autre appareil");
         setTimeout(()=>v61RefreshUiFromStorage(),80);
       }
     }catch(err){
-      console.warn("V61 check remote:",err);
+      console.warn("V63 check remote:",err);
       if(!navigator.onLine) v61SetIndicator("offline","sauvegarde locale active");
     }
   }
@@ -5835,7 +5862,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       if(typeof flushAllInputsToState === "function") flushAllInputsToState();
       v61MarkLocalChange();
       await v61PushNow();
-      try{ await saveCloudHistoryEntry(window.buildCloudPayload(),"Sauvegarde V61 manuelle"); }catch(e){}
+      try{ await saveCloudHistoryEntry(window.buildCloudPayload(),"Sauvegarde V63 manuelle"); }catch(e){}
     }catch(err){
       console.error(err);
       alert("Erreur sauvegarde cloud : " + (err.message||err));
@@ -5954,7 +5981,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V62.4";
+  const PRO_VERSION = "V63";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
@@ -6133,11 +6160,11 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     if(!force && localStorage.getItem(PRO_DAILY_BACKUP_KEY)===today) return false;
     try{
       const payload=window.buildCloudPayload();
-      await saveCloudHistoryEntry(payload,force?'Sauvegarde V61 PRO manuelle':'Sauvegarde automatique quotidienne V61 PRO');
+      await saveCloudHistoryEntry(payload,force?'Sauvegarde V63 manuelle':'Sauvegarde automatique quotidienne V63');
       localStorage.setItem(PRO_DAILY_BACKUP_KEY,today);
       proLog('Sauvegarde cloud',force?'Sauvegarde manuelle créée':'Sauvegarde quotidienne créée');
       try{ if(typeof loadCloudHistoryIntoPanel==='function') loadCloudHistoryIntoPanel(); }catch(e){}
-      if(force) alert('Sauvegarde cloud V61 PRO créée.');
+      if(force) alert('Sauvegarde cloud V63 créée.');
       return true;
     }catch(e){ if(force) alert('Sauvegarde impossible : '+(e.message||e)); return false; }
   }
@@ -6764,23 +6791,18 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 </script>
 
 <script>
-/* V62.4 — Fiabilisation Supabase : le cloud ancien ne peut plus écraser une restauration locale */
+/* V63 — Entretien du cache HTTP sans toucher au service worker actif ni aux données métier */
 (function(){
-  const CLEAN_KEY='v62_3_cache_cleanup_done';
+  const CLEAN_KEY='v63_cache_cleanup_done';
   async function cleanOldAppCache(){
     try{
       if(localStorage.getItem(CLEAN_KEY)==='1') return;
-      // On ne touche jamais au localStorage métier : uniquement caches HTTP / ancien service worker.
       if('caches' in window){
         const names=await caches.keys();
-        await Promise.all(names.map(n=>caches.delete(n)));
-      }
-      if('serviceWorker' in navigator){
-        const regs=await navigator.serviceWorker.getRegistrations();
-        for(const reg of regs){ try{ await reg.unregister(); }catch(e){} }
+        await Promise.all(names.filter(n=>!String(n).includes('v63')).map(n=>caches.delete(n)));
       }
       localStorage.setItem(CLEAN_KEY,'1');
-    }catch(e){ console.warn('V62.3 nettoyage cache',e); }
+    }catch(e){ console.warn('V63 nettoyage cache',e); }
   }
   window.addEventListener('load',()=>setTimeout(cleanOldAppCache,1200));
 })();

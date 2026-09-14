@@ -1,13 +1,11 @@
-/* RML GOUTTIERE ALU — Service Worker V62.4
-   Priorité réseau pour toujours récupérer le dernier index.html publié. */
-const CACHE_NAME = 'rml-gouttiere-v62-4';
+/* RML GOUTTIERE ALU — Service Worker V63
+   Réseau d'abord afin de charger immédiatement la dernière version publiée. */
+const CACHE_NAME = 'rml-gouttiere-v63';
 const CORE = ['./', './index.html', './manifest.json'];
 
 self.addEventListener('install', event => {
   self.skipWaiting();
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(CORE).catch(() => {}))
-  );
+  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(CORE).catch(() => {})));
 });
 
 self.addEventListener('activate', event => {
@@ -21,23 +19,6 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const req = event.request;
   if (req.method !== 'GET') return;
-
-  // Pour les pages HTML/navigation : réseau d'abord, cache seulement hors connexion.
-  if (req.mode === 'navigate' || (req.headers.get('accept') || '').includes('text/html')) {
-    event.respondWith((async () => {
-      try {
-        const fresh = await fetch(req, { cache: 'no-store' });
-        const cache = await caches.open(CACHE_NAME);
-        cache.put(req, fresh.clone()).catch(() => {});
-        return fresh;
-      } catch (e) {
-        return (await caches.match(req)) || (await caches.match('./index.html')) || Response.error();
-      }
-    })());
-    return;
-  }
-
-  // Ressources : réseau d'abord pour éviter de conserver un ancien fichier après mise à jour.
   event.respondWith((async () => {
     try {
       const fresh = await fetch(req, { cache: 'no-store' });
@@ -45,7 +26,7 @@ self.addEventListener('fetch', event => {
       cache.put(req, fresh.clone()).catch(() => {});
       return fresh;
     } catch (e) {
-      return (await caches.match(req)) || Response.error();
+      return (await caches.match(req)) || (req.mode === 'navigate' ? (await caches.match('./index.html')) : null) || Response.error();
     }
   })());
 });
