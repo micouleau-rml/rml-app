@@ -5,6 +5,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="RML GOUTTIÈRE ALU">
@@ -227,7 +230,7 @@ th{background:#f8fafc}
 .supplier-sub-toggle{font-weight:900;font-size:18px;line-height:1}
 
 
-/* V62.1 — Historique classé année/mois + sécurité suppression */
+/* V62.2 — Historique classé année/mois + sécurité suppression + compatibilité cloud */
 .history-year{margin:14px 0 18px;border:1px solid var(--line);border-radius:20px;background:#fff;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.05)}
 .history-year-head,.history-month-head{display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;user-select:none}
 .history-year-head{padding:15px 16px;background:#eef2f7;font-size:19px;font-weight:900}
@@ -4628,7 +4631,7 @@ async function ensureCloudRow(){
 
   const initialPayload = {
     app: "RML GOUTTIERE ALU",
-    version: "V62.1-sync-auto-multi-appareils",
+    version: "V62.2-sync-auto-multi-appareils",
     sharedKey: CLOUD_SHARED_KEY,
     savedAt: new Date().toISOString(),
     storage: {}
@@ -4656,7 +4659,7 @@ function buildCloudPayload(){
   return {
     app: "RML GOUTTIERE ALU",
     sharedKey: CLOUD_SHARED_KEY,
-    version: "V62.1-sync-auto-multi-appareils",
+    version: "V62.2-sync-auto-multi-appareils",
     savedAt: new Date().toISOString(),
     storage
   };
@@ -5427,7 +5430,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    - dernier changement daté gagne en cas de conflit global
    ============================================================ */
 (function(){
-  const V61_VERSION = "V62.1-sync-auto-multi-appareils";
+  const V61_VERSION = "V62.2-sync-auto-multi-appareils";
   const V61_DEVICE_KEY = "v61_device_id";
   const V61_LOCAL_CHANGE_KEY = "v61_last_local_change_ms";
   const V61_PENDING_KEY = "v61_sync_pending";
@@ -5435,6 +5438,16 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
   const V61_LAST_REMOTE_KEY = "v61_last_remote_saved_at";
   const V61_POLL_MS = 2500;
   const V61_PUSH_DELAY_MS = 900;
+
+  // V62.2 : les snapshots V62 / V62.1 / V62.2 utilisent le même schéma de stockage.
+  // Une simple différence de numéro de version ne doit jamais empêcher de récupérer les commandes.
+  function v61IsCompatiblePayload(payload){
+    if(!payload || typeof payload !== "object" || !payload.storage || typeof payload.storage !== "object") return false;
+    if(payload.app && payload.app !== "RML GOUTTIERE ALU") return false;
+    if(payload.sharedKey && payload.sharedKey !== CLOUD_SHARED_KEY) return false;
+    const v = String(payload.version || "");
+    return /^V6(?:1|2)(?:\.|-|$)/i.test(v) || v === "";
+  }
 
   let v61ApplyingRemote = false;
   let v61Ready = false;
@@ -5598,6 +5611,12 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
   window.applyCloudPayload = function(payload){
     const storage = payload && payload.storage;
     if(!storage || typeof storage !== "object") throw new Error("Sauvegarde cloud invalide.");
+    // V62.2 : copie de sécurité locale avant tout remplacement par le cloud.
+    try{
+      const backup = {};
+      v61GetSyncStorageKeys().forEach(k=>{ const v=localStorage.getItem(k); if(v!==null) backup[k]=v; });
+      nativeSetItem.call(localStorage,"v61_migration_backup_v622",JSON.stringify({savedAt:new Date().toISOString(),storage:backup}));
+    }catch(e){}
     v61ApplyingRemote = true;
     try{
       const localKeys = [];
@@ -5692,7 +5711,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
         const remote = await v61ReadCloudRow();
         const remotePayload = remote && remote.data;
         const remoteMs = Date.parse(remotePayload && remotePayload.savedAt || "") || 0;
-        if(!forcePush && remotePayload && remotePayload.version === V61_VERSION && remotePayload.deviceId !== v61DeviceId() && remoteMs > localChangeMs && localStorage.getItem(V61_PENDING_KEY)==="1"){
+        if(!forcePush && remotePayload && v61IsCompatiblePayload(remotePayload) && remotePayload.deviceId !== v61DeviceId() && remoteMs > localChangeMs && localStorage.getItem(V61_PENDING_KEY)==="1"){
           window.applyCloudPayload(remotePayload);
           v61SetIndicator("ok","version cloud plus récente reçue");
           setTimeout(()=>v61RefreshUiFromStorage(),80);
@@ -5725,7 +5744,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       const row = await v61ReadCloudRow();
       const payload = row && row.data;
       if(!payload || !payload.storage) return;
-      if(payload.version !== V61_VERSION) return;
+      if(!v61IsCompatiblePayload(payload)) return;
       if(payload.deviceId === v61DeviceId()){
         v61LastSeenRemoteSavedAt = payload.savedAt || v61LastSeenRemoteSavedAt;
         return;
@@ -5848,9 +5867,9 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
         const localProducts = localStorage.getItem(CUSTOM_PRODUCTS_KEY) || "";
         const hasLocalBusinessData = localMain.length > 2 || localProducts.length > 2;
 
-        // Migration V39/V60 -> V61 : on ne laisse jamais un ancien snapshot cloud
-        // écraser silencieusement les données locales actuelles.
-        if(remotePayload && remotePayload.version !== V61_VERSION && hasLocalBusinessData){
+        // V62.2 : seule une sauvegarde réellement incompatible est refusée.
+        // Les V61/V62/V62.1/V62.2 sont lues entre elles afin de ne jamais perdre une commande lors d’une mise à jour.
+        if(remotePayload && !v61IsCompatiblePayload(remotePayload) && hasLocalBusinessData){
           nativeSetItem.call(localStorage,V61_LOCAL_CHANGE_KEY,String(Date.now()));
           nativeSetItem.call(localStorage,V61_PENDING_KEY,"1");
           await v61PushNow();
@@ -5906,7 +5925,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V62.1";
+  const PRO_VERSION = "V62.2";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
@@ -6712,6 +6731,29 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
   try{enforceCatalogMeta()}catch(e){}
   window.addEventListener('online',()=>{try{enforceCatalogMeta();forcePush()}catch(e){}});
   window.v62CatalogMeta=loadMeta; window.v62EnforceCatalogMeta=enforceCatalogMeta;
+})();
+</script>
+
+<script>
+/* V62.2 — Fiabilisation des mises à jour Safari / application écran d’accueil */
+(function(){
+  const CLEAN_KEY='v62_2_cache_cleanup_done';
+  async function cleanOldAppCache(){
+    try{
+      if(localStorage.getItem(CLEAN_KEY)==='1') return;
+      // On ne touche jamais au localStorage métier : uniquement caches HTTP / ancien service worker.
+      if('caches' in window){
+        const names=await caches.keys();
+        await Promise.all(names.map(n=>caches.delete(n)));
+      }
+      if('serviceWorker' in navigator){
+        const regs=await navigator.serviceWorker.getRegistrations();
+        for(const reg of regs){ try{ await reg.unregister(); }catch(e){} }
+      }
+      localStorage.setItem(CLEAN_KEY,'1');
+    }catch(e){ console.warn('V62.2 nettoyage cache',e); }
+  }
+  window.addEventListener('load',()=>setTimeout(cleanOldAppCache,1200));
 })();
 </script>
 </body>
