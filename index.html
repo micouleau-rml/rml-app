@@ -2442,13 +2442,13 @@ function goSettings(){
     <div class="settings-section" data-settings-section="sync">
     <div class="card">
       <p class="title">Synchronisation cloud</p>
-      <p class="note">V64.2 : Supabase est la base maître. Chaque appareil charge d’abord le cloud avant de pouvoir envoyer des modifications. Le stockage local reste actif hors connexion.</p>
+      <p class="note">V64.3 : Supabase est la base maître. Chaque appareil charge d’abord le cloud avant de pouvoir envoyer des modifications. Le stockage local reste actif hors connexion.</p>
       <div class="sync-card" style="margin-top:10px">
         <button class="btn neutral" style="width:auto;background:#0a8454;color:#fff;border-color:#0a8454" onclick="saveCloudNow()">Sauvegarder sur le cloud</button>
         <button class="btn neutral" style="width:auto" onclick="loadCloudNow()">Recharger depuis le cloud</button>
       </div>
       <div id="syncStatus" class="sync-status">Prêt.</div>
-      <div class="note" style="margin-top:8px">V64.2 : synchronisation maître sécurisée. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
+      <div class="note" style="margin-top:8px">V64.3 : synchronisation maître sécurisée. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
       <div class="card" style="margin-top:12px;background:#f8fafc">
         <p class="title">Historique des sauvegardes</p>
         <p class="note">Les 20 dernières sauvegardes cloud. Tu peux restaurer une version précédente si besoin.</p>
@@ -4724,10 +4724,14 @@ async function loadCloudHistoryIntoPanel(){
     }
     host.innerHTML = rows.map(row => {
       let productsCount = 0;
+      let ordersHistoryCount = 0;
       try{
         const storage = row.data && row.data.storage ? row.data.storage : {};
         const raw = storage["rml_custom_products"] || storage["commande_fournisseur_custom_products_v1"] || "[]";
         productsCount = JSON.parse(raw).length || 0;
+        const rawHistory = storage["commande_fournisseur_history_v1"] || "[]";
+        const parsedHistory = JSON.parse(rawHistory);
+        ordersHistoryCount = Array.isArray(parsedHistory) ? parsedHistory.length : 0;
       }catch(err){}
       const dt = row.created_at ? new Date(row.created_at).toLocaleString() : "";
       const note = row.note || "Sauvegarde";
@@ -4737,10 +4741,11 @@ async function loadCloudHistoryIntoPanel(){
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 0;border-top:1px solid #e2e8f0">
           <div>
             <div style="font-weight:800">${dt}</div>
-            <div style="font-size:13px;color:#64748b">${productsCount} produit(s) • ${note}${rev ? ` • Rév. ${rev}` : ``}${src ? ` • Appareil ${src}` : ``}</div>
+            <div style="font-size:13px;color:#64748b">${productsCount} produit(s) • ${ordersHistoryCount} commande(s) historique • ${note}${rev ? ` • Rév. ${rev}` : ``}${src ? ` • Appareil ${src}` : ``}</div>
           </div>
           <div style="display:flex;gap:7px;flex-wrap:wrap">
             <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="restoreCloudHistoryProductsOnly('${row.id}')">Produits seulement</button>
+            <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="restoreCloudHistoryOrdersOnly('${row.id}')">Historique commandes seulement</button>
             <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="restoreCloudHistoryVersion('${row.id}')">Tout restaurer</button>
           </div>
         </div>
@@ -4826,6 +4831,65 @@ async function restoreCloudHistoryProductsOnly(id){
   }catch(err){
     console.error(err);
     alert("Erreur restauration produits : "+(err.message||err));
+  }
+}
+
+async function restoreCloudHistoryOrdersOnly(id){
+  try{
+    if(!supabaseCloud) throw new Error("Supabase non chargé.");
+    const { data, error } = await supabaseCloud
+      .from(CLOUD_HISTORY_TABLE)
+      .select("data,created_at,note")
+      .eq("id", id)
+      .single();
+    if(error) throw error;
+    const payload = data && data.data;
+    const storage = payload && payload.storage;
+    if(!storage || typeof storage !== "object") throw new Error("Sauvegarde historique invalide.");
+
+    if(!Object.prototype.hasOwnProperty.call(storage, HISTORY_KEY)){
+      alert("Cette sauvegarde ne contient pas d’historique de commandes.");
+      return;
+    }
+    const rawHistory = storage[HISTORY_KEY] || "[]";
+    let restoredHistory;
+    try{ restoredHistory = JSON.parse(rawHistory); }catch(e){ throw new Error("Historique de commandes illisible dans cette sauvegarde."); }
+    if(!Array.isArray(restoredHistory) || !restoredHistory.length){
+      alert("Cette sauvegarde contient 0 commande dans l’historique. Choisis une sauvegarde qui affiche un nombre de commandes supérieur à 0.");
+      return;
+    }
+
+    const dt = data.created_at ? new Date(data.created_at).toLocaleString() : "cette sauvegarde";
+    const ok = confirm("Restaurer UNIQUEMENT les "+restoredHistory.length+" commandes de l’historique de la sauvegarde du "+dt+" ?\n\nLes produits fournisseurs, les commandes en cours et les réglages actuels ne seront pas modifiés.");
+    if(!ok) return;
+
+    // V64.3 : restauration ciblée sans dupliquer l'historique dans localStorage,
+    // afin d'éviter un nouveau dépassement de quota Safari.
+    const previousRaw = localStorage.getItem(HISTORY_KEY);
+    try{
+      localStorage.removeItem(HISTORY_KEY);
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(restoredHistory));
+    }catch(storageErr){
+      try{
+        localStorage.removeItem(HISTORY_KEY);
+        if(previousRaw !== null) localStorage.setItem(HISTORY_KEY, previousRaw);
+      }catch(e){}
+      throw storageErr;
+    }
+
+    try{
+      localStorage.setItem("v61_force_push","1");
+      localStorage.setItem("v61_last_local_change_ms",String(Date.now()));
+      localStorage.setItem("v61_sync_pending","1");
+    }catch(e){}
+    setSyncStatus("Historique restauré : "+restoredHistory.length+" commandes. Envoi vers la base maître...");
+    if(typeof window.v61SyncNow === "function") await window.v61SyncNow();
+    try{ await saveCloudHistoryEntry(window.buildCloudPayload ? window.buildCloudPayload() : buildCloudPayload(), "Historique commandes restauré V64.3"); }catch(e){}
+    alert("✅ "+restoredHistory.length+" commandes restaurées dans l’historique.\n\nLes produits fournisseurs n’ont pas été modifiés.");
+    setTimeout(()=>location.reload(),350);
+  }catch(err){
+    console.error(err);
+    alert("Erreur restauration historique commandes : "+(err.message||err));
   }
 }
 
@@ -5525,7 +5589,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    - dernier changement daté gagne en cas de conflit global
    ============================================================ */
 (function(){
-  const V61_VERSION = "V64.2-sync-maitre-securisee";
+  const V61_VERSION = "V64.3-sync-maitre-securisee";
   const V61_DEVICE_KEY = "v61_device_id";
   const V61_LOCAL_CHANGE_KEY = "v61_last_local_change_ms";
   const V61_PENDING_KEY = "v61_sync_pending";
@@ -6135,7 +6199,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V64.2";
+  const PRO_VERSION = "V64.3";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
