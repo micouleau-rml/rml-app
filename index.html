@@ -2442,13 +2442,13 @@ function goSettings(){
     <div class="settings-section" data-settings-section="sync">
     <div class="card">
       <p class="title">Synchronisation cloud</p>
-      <p class="note">V63.1 synchronise automatiquement toutes les données entre iPhone et Mac. Supabase conserve la révision maître et le stockage local reste actif hors connexion.</p>
+      <p class="note">V64 : Supabase est la base maître. Chaque appareil charge d’abord le cloud avant de pouvoir envoyer des modifications. Le stockage local reste actif hors connexion.</p>
       <div class="sync-card" style="margin-top:10px">
         <button class="btn neutral" style="width:auto;background:#0a8454;color:#fff;border-color:#0a8454" onclick="saveCloudNow()">Sauvegarder sur le cloud</button>
         <button class="btn neutral" style="width:auto" onclick="loadCloudNow()">Recharger depuis le cloud</button>
       </div>
       <div id="syncStatus" class="sync-status">Prêt.</div>
-      <div class="note" style="margin-top:8px">V63.1 : synchronisation maître active. Les boutons manuels restent disponibles en secours.</div>
+      <div class="note" style="margin-top:8px">V64 : synchronisation maître sécurisée. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
       <div class="card" style="margin-top:12px;background:#f8fafc">
         <p class="title">Historique des sauvegardes</p>
         <p class="note">Les 5 dernières sauvegardes cloud. Tu peux restaurer une version précédente si besoin.</p>
@@ -4760,7 +4760,7 @@ async function restoreCloudHistoryVersion(id){
       .single();
     if(error) throw error;
     if(!data || !data.data) throw new Error("Sauvegarde historique introuvable.");
-    // V63.1 : une restauration historique est volontaire. L'ancien mécanisme
+    // V64 : une restauration historique est volontaire. L'ancien mécanisme
     // anti-résurrection catalogue ne doit pas supprimer les produits restaurés.
     try{ localStorage.setItem("v63_history_restore_mode","1"); }catch(e){}
     try{ applyCloudPayload(data.data); }
@@ -5446,7 +5446,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    - dernier changement daté gagne en cas de conflit global
    ============================================================ */
 (function(){
-  const V61_VERSION = "V63.1-sync-maitre-revision";
+  const V61_VERSION = "V64-sync-maitre-securisee";
   const V61_DEVICE_KEY = "v61_device_id";
   const V61_LOCAL_CHANGE_KEY = "v61_last_local_change_ms";
   const V61_PENDING_KEY = "v61_sync_pending";
@@ -5458,6 +5458,8 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
   // monotone plutôt que l'heure des ordinateurs pour départager les snapshots.
   const V63_REV_KEY = "v63_last_applied_revision";
   const V63_BASE_REV_KEY = "v63_local_base_revision";
+  const V64_BOOTSTRAP_KEY = "v64_cloud_bootstrap_ok";
+  let v64BootstrapComplete = false;
 
   // V62.2 : les snapshots V62 / V62.1 / V62.2 utilisent le même schéma de stockage.
   // Une simple différence de numéro de version ne doit jamais empêcher de récupérer les commandes.
@@ -5466,7 +5468,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     if(payload.app && payload.app !== "RML GOUTTIERE ALU") return false;
     if(payload.sharedKey && payload.sharedKey !== CLOUD_SHARED_KEY) return false;
     const v = String(payload.version || "");
-    return /^V6(?:1|2|3)(?:\.|-|$)/i.test(v) || v === "";
+    return /^V6(?:1|2|3|4)(?:\.|-|$)/i.test(v) || v === "";
   }
 
   let v61ApplyingRemote = false;
@@ -5623,7 +5625,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     v61GetSyncStorageKeys().forEach(key=>{
       try{
         const value = localStorage.getItem(key);
-        // V63.1 : un snapshot complet représente aussi les suppressions.
+        // V64 : un snapshot complet représente aussi les suppressions.
         // null = clé volontairement absente ; cela évite d'effacer des données lors
         // de la restauration d'un ancien snapshot qui, lui, ne contenait pas cette clé.
         storage[key] = (value === null ? null : value);
@@ -5633,7 +5635,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       app:"RML GOUTTIERE ALU",
       sharedKey:CLOUD_SHARED_KEY,
       version:V61_VERSION,
-      schemaVersion:631,
+      schemaVersion:640,
       fullSnapshot:true,
       revision:Number(localStorage.getItem(V63_REV_KEY)||0),
       previousRevision:Number(localStorage.getItem(V63_BASE_REV_KEY)||localStorage.getItem(V63_REV_KEY)||0),
@@ -5655,7 +5657,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     v61ApplyingRemote = true;
     try{
       const isFullSnapshot = payload && payload.fullSnapshot === true && Number(payload.schemaVersion||0) >= 631;
-      // V63.1 : les anciennes sauvegardes V61/V62/V63 sont des snapshots partiels.
+      // V64 : les anciennes sauvegardes V61/V62/V63 sont des snapshots partiels.
       // On ne supprime donc PLUS les clés absentes de ces anciens snapshots.
       // Seuls les nouveaux snapshots complets V63.1 ont le droit de représenter une suppression.
       if(isFullSnapshot){
@@ -5741,7 +5743,22 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     }
   }
 
+  function v64PayloadProductCount(payload){
+    try{
+      const st = payload && payload.storage || {};
+      const raw = st[CUSTOM_PRODUCTS_KEY];
+      if(raw == null) return 0;
+      const a = JSON.parse(raw || "[]");
+      return Array.isArray(a) ? a.length : 0;
+    }catch(e){ return 0; }
+  }
+
   async function v61PushNow(){
+    // V64 : aucun appareil n'est autorisé à écrire avant d'avoir lu la base maître.
+    if(!v64BootstrapComplete){
+      v61SetIndicator("syncing","lecture de la base maître");
+      return;
+    }
     if(v61PushRunning || v61ApplyingRemote) return;
     if(!navigator.onLine){ v61SetIndicator("offline","sauvegarde locale active"); return; }
     v61PushRunning = true;
@@ -5766,10 +5783,23 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       }
 
       const payload = window.buildCloudPayload();
+
+      // V64 : sécurité anti-effacement massif. Un appareil vide ou incomplet ne peut
+      // jamais vider le catalogue maître. Une suppression volontaire passe déjà
+      // par V61_FORCE_PUSH_KEY et reste donc autorisée.
+      const remoteProducts = v64PayloadProductCount(remotePayload);
+      const localProductsCount = v64PayloadProductCount(payload);
+      if(!forcePush && remoteProducts >= 100 && localProductsCount < Math.max(20, Math.floor(remoteProducts * 0.50))){
+        nativeSetItem.call(localStorage,V61_PENDING_KEY,"0");
+        v61SetIndicator("error","envoi bloqué : catalogue local incomplet");
+        console.error("V64 sécurité : envoi bloqué", {remoteProducts, localProductsCount});
+        return;
+      }
+
       const nextRev = Math.max(remoteRev, localRev) + 1;
       payload.revision = nextRev;
       payload.previousRevision = remoteRev;
-      payload.schemaVersion = 63;
+      payload.schemaVersion = 640;
       payload.version = V61_VERSION;
       payload.savedAt = new Date().toISOString();
       payload.deviceId = v61DeviceId();
@@ -5884,7 +5914,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       if(typeof flushAllInputsToState === "function") flushAllInputsToState();
       v61MarkLocalChange();
       await v61PushNow();
-      try{ await saveCloudHistoryEntry(window.buildCloudPayload(),"Sauvegarde V63.1 manuelle"); }catch(e){}
+      try{ await saveCloudHistoryEntry(window.buildCloudPayload(),"Sauvegarde V64 manuelle"); }catch(e){}
     }catch(err){
       console.error(err);
       alert("Erreur sauvegarde cloud : " + (err.message||err));
@@ -5897,6 +5927,8 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       const row = await v61ReadCloudRow();
       if(!row || !row.data) throw new Error("Aucune sauvegarde cloud.");
       window.applyCloudPayload(row.data);
+      v64BootstrapComplete = true;
+      nativeSetItem.call(localStorage,V64_BOOTSTRAP_KEY,new Date().toISOString());
       nativeSetItem.call(localStorage,"cloud_last_load_at",new Date().toLocaleString());
       v61SetIndicator("ok","cloud rechargé");
       setTimeout(()=>{ try{ v61RefreshUiFromStorage(); }catch(e){} },80);
@@ -5908,7 +5940,8 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 
   window.addEventListener("online",()=>{
     v61SetIndicator("syncing","connexion retrouvée");
-    if(localStorage.getItem(V61_PENDING_KEY)==="1") v61SchedulePush();
+    if(!v64BootstrapComplete) v61CheckRemote(true);
+    else if(localStorage.getItem(V61_PENDING_KEY)==="1") v61SchedulePush();
     else v61CheckRemote(false);
     v61StartRealtime();
   });
@@ -5933,33 +5966,51 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     setTimeout(async ()=>{
       if(!navigator.onLine){
         v61Ready = true;
-        v61SetIndicator("offline","sauvegarde locale active");
+        v64BootstrapComplete = false;
+        v61SetIndicator("offline","lecture cloud requise avant envoi");
         return;
       }
       try{
         await v61StartRealtime();
         const remoteRow = await v61ReadCloudRow();
         const remotePayload = remoteRow && remoteRow.data;
-        const pending = localStorage.getItem(V61_PENDING_KEY)==="1";
-        const localMain = localStorage.getItem(STORAGE_KEY) || "";
-        const localProducts = localStorage.getItem(CUSTOM_PRODUCTS_KEY) || "";
-        const hasLocalBusinessData = localMain.length > 2 || localProducts.length > 2;
 
-        // V62.2 : seule une sauvegarde réellement incompatible est refusée.
-        // Les V61/V62/V62.1/V62.2 sont lues entre elles afin de ne jamais perdre une commande lors d’une mise à jour.
-        if(remotePayload && !v61IsCompatiblePayload(remotePayload) && hasLocalBusinessData){
-          nativeSetItem.call(localStorage,V61_LOCAL_CHANGE_KEY,String(Date.now()));
-          nativeSetItem.call(localStorage,V61_PENDING_KEY,"1");
-          await v61PushNow();
-        }else if(pending){
-          await v61PushNow();
+        // V64 : CLOUD FIRST obligatoire. On ignore volontairement tout ancien
+        // indicateur pending laissé par une version précédente sur cet appareil.
+        if(remotePayload && v61IsCompatiblePayload(remotePayload)){
+          const remoteProducts = v64PayloadProductCount(remotePayload);
+          const localSnapshot = window.buildCloudPayload();
+          const localProductsCount = v64PayloadProductCount(localSnapshot);
+
+          // Si le cloud est anormalement vide mais que cet appareil possède encore
+          // un gros catalogue, on ne détruit rien et surtout on n'envoie rien.
+          if(remoteProducts === 0 && localProductsCount >= 100){
+            nativeSetItem.call(localStorage,V61_PENDING_KEY,"0");
+            v61SetIndicator("error","cloud vide : données locales protégées");
+            v64BootstrapComplete = false;
+            v61Ready = true;
+            return;
+          }
+
+          window.applyCloudPayload(remotePayload);
+          nativeSetItem.call(localStorage,V61_PENDING_KEY,"0");
+          try{ nativeRemoveItem.call(localStorage,V61_FORCE_PUSH_KEY); }catch(e){}
+          nativeSetItem.call(localStorage,V64_BOOTSTRAP_KEY,new Date().toISOString());
+          v64BootstrapComplete = true;
+          v61Ready = true;
+          v61SetIndicator("ok","base maître chargée");
+          setTimeout(()=>{ try{ v61RefreshUiFromStorage(); }catch(e){} },80);
         }else{
-          await v61CheckRemote(false);
+          // Sans base maître valide, l'appareil reste en lecture seule côté cloud.
+          nativeSetItem.call(localStorage,V61_PENDING_KEY,"0");
+          v64BootstrapComplete = false;
+          v61Ready = true;
+          v61SetIndicator("error","base maître introuvable : envoi bloqué");
         }
-        v61Ready = true;
       }catch(e){
         v61Ready = true;
-        v61SetIndicator("error","cloud inaccessible");
+        v64BootstrapComplete = false;
+        v61SetIndicator("error","cloud inaccessible : envoi bloqué");
       }
     },700);
     setInterval(()=>{
@@ -6003,7 +6054,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V63.1";
+  const PRO_VERSION = "V64";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
@@ -6170,7 +6221,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     window.buildCloudPayload=function(){
       const p=oldBuildCloud.apply(this,arguments);
       p.proVersion=PRO_VERSION;
-      // V63.1 : ne jamais écrire dans localStorage pendant buildCloudPayload().
+      // V64 : ne jamais écrire dans localStorage pendant buildCloudPayload().
       // Cette écriture déclenchait elle-même une nouvelle synchronisation et créait une boucle sans fin.
       p.proRevision=Number(p.revision || localStorage.getItem('v63_last_applied_revision') || 0);
       return p;
@@ -6183,11 +6234,11 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     if(!force && localStorage.getItem(PRO_DAILY_BACKUP_KEY)===today) return false;
     try{
       const payload=window.buildCloudPayload();
-      await saveCloudHistoryEntry(payload,force?'Sauvegarde V63.1 manuelle':'Sauvegarde automatique quotidienne V63.1');
+      await saveCloudHistoryEntry(payload,force?'Sauvegarde V64 manuelle':'Sauvegarde automatique quotidienne V64');
       localStorage.setItem(PRO_DAILY_BACKUP_KEY,today);
       proLog('Sauvegarde cloud',force?'Sauvegarde manuelle créée':'Sauvegarde quotidienne créée');
       try{ if(typeof loadCloudHistoryIntoPanel==='function') loadCloudHistoryIntoPanel(); }catch(e){}
-      if(force) alert('Sauvegarde cloud V63 créée.');
+      if(force) alert('Sauvegarde cloud V64 créée.');
       return true;
     }catch(e){ if(force) alert('Sauvegarde impossible : '+(e.message||e)); return false; }
   }
@@ -6739,7 +6790,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     window.applyCloudPayload=function(payload){
       const restoringHistory = localStorage.getItem('v63_history_restore_mode') === '1';
       if(restoringHistory){
-        // V63.1 : la restauration d'une ancienne sauvegarde doit réellement restaurer
+        // V64 : la restauration d'une ancienne sauvegarde doit réellement restaurer
         // son catalogue. Une métadonnée de suppression plus récente ne doit pas vider
         // à nouveau les produits juste après la restauration.
         try{
