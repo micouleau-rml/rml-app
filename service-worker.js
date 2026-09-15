@@ -1,6 +1,6 @@
-/* RML GOUTTIERE ALU — Service Worker V63
+/* RML GOUTTIERE ALU — Service Worker V63.1
    Réseau d'abord afin de charger immédiatement la dernière version publiée. */
-const CACHE_NAME = 'rml-gouttiere-v63';
+const CACHE_NAME = 'rml-gouttiere-v63-1';
 const CORE = ['./', './index.html', './manifest.json'];
 
 self.addEventListener('install', event => {
