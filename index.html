@@ -2442,13 +2442,13 @@ function goSettings(){
     <div class="settings-section" data-settings-section="sync">
     <div class="card">
       <p class="title">Synchronisation cloud</p>
-      <p class="note">V64.4 : Supabase est la base maître. Chaque appareil charge d’abord le cloud avant de pouvoir envoyer des modifications. Le stockage local reste actif hors connexion.</p>
+      <p class="note">V64.5 : Supabase est la base maître. Chaque appareil charge d’abord le cloud avant de pouvoir envoyer des modifications. Le stockage local reste actif hors connexion.</p>
       <div class="sync-card" style="margin-top:10px">
         <button class="btn neutral" style="width:auto;background:#0a8454;color:#fff;border-color:#0a8454" onclick="saveCloudNow()">Sauvegarder sur le cloud</button>
         <button class="btn neutral" style="width:auto" onclick="loadCloudNow()">Recharger depuis le cloud</button>
       </div>
       <div id="syncStatus" class="sync-status">Prêt.</div>
-      <div class="note" style="margin-top:8px">V64.4 : synchronisation maître sécurisée avec restaurations ciblées. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
+      <div class="note" style="margin-top:8px">V64.5 : synchronisation maître sécurisée avec restaurations ciblées. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
       <div class="card" style="margin-top:12px;background:#f8fafc">
         <p class="title">Historique des sauvegardes</p>
         <p class="note">Les 20 dernières sauvegardes cloud. Tu peux restaurer une version précédente si besoin.</p>
@@ -4791,7 +4791,7 @@ async function restoreCloudHistoryProductsOnly(id){
     mergedStorage["rml_supplier_catalog_meta_v62"]=JSON.stringify(meta);
     mergedStorage[DELETED_PRODUCTS_KEY]="[]";
     const nextRev=Math.max(Number(master.revision||master.proRevision||0),Number(historyPayload.revision||0))+1;
-    const merged=Object.assign({},master,{app:"RML GOUTTIERE ALU",sharedKey:CLOUD_SHARED_KEY,version:"V64.4-sync-ciblee",schemaVersion:644,fullSnapshot:true,revision:nextRev,previousRevision:Number(master.revision||0),savedAt:new Date().toISOString(),storage:mergedStorage});
+    const merged=Object.assign({},master,{app:"RML GOUTTIERE ALU",sharedKey:CLOUD_SHARED_KEY,version:"V64.5-auto-reparation",schemaVersion:644,fullSnapshot:true,revision:nextRev,previousRevision:Number(master.revision||0),savedAt:new Date().toISOString(),storage:mergedStorage});
     const {error:updateErr}=await supabaseCloud.from(CLOUD_TABLE).update({data:merged,updated_at:merged.savedAt}).eq("id",rowId); if(updateErr) throw updateErr;
     try{ applyCloudPayload(merged); }catch(e){ console.warn(e); }
     try{ await saveCloudHistoryEntry(merged,"Catalogue produits restauré V64.4"); }catch(e){}
@@ -4826,7 +4826,7 @@ async function restoreCloudHistoryOrdersOnly(id){
     // garde-fou : la restauration historique n'a matériellement pas le droit de modifier le catalogue.
     if(productsBefore!==undefined) mergedStorage[CUSTOM_PRODUCTS_KEY]=productsBefore;
     const nextRev=Math.max(Number(master.revision||master.proRevision||0),Number(historyPayload.revision||0))+1;
-    const merged=Object.assign({},master,{app:"RML GOUTTIERE ALU",sharedKey:CLOUD_SHARED_KEY,version:"V64.4-sync-ciblee",schemaVersion:644,fullSnapshot:true,revision:nextRev,previousRevision:Number(master.revision||0),savedAt:new Date().toISOString(),storage:mergedStorage});
+    const merged=Object.assign({},master,{app:"RML GOUTTIERE ALU",sharedKey:CLOUD_SHARED_KEY,version:"V64.5-auto-reparation",schemaVersion:644,fullSnapshot:true,revision:nextRev,previousRevision:Number(master.revision||0),savedAt:new Date().toISOString(),storage:mergedStorage});
     const {error:updateErr}=await supabaseCloud.from(CLOUD_TABLE).update({data:merged,updated_at:merged.savedAt}).eq("id",rowId); if(updateErr) throw updateErr;
     try{ applyCloudPayload(merged); }catch(e){ console.warn(e); }
     try{ await saveCloudHistoryEntry(merged,"Historique commandes restauré V64.4"); }catch(e){}
@@ -5532,7 +5532,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    - dernier changement daté gagne en cas de conflit global
    ============================================================ */
 (function(){
-  const V61_VERSION = "V64.4-sync-ciblee";
+  const V61_VERSION = "V64.5-auto-reparation";
   const V61_DEVICE_KEY = "v61_device_id";
   const V61_LOCAL_CHANGE_KEY = "v61_last_local_change_ms";
   const V61_PENDING_KEY = "v61_sync_pending";
@@ -5841,6 +5841,46 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     }catch(e){ return 0; }
   }
 
+  async function v645RepairCatalogFromMaster(remotePayload){
+    try{
+      const st = remotePayload && remotePayload.storage;
+      const remoteCount = v64PayloadProductCount(remotePayload);
+      if(!st || remoteCount < 100) return false;
+      v61SetIndicator("syncing","récupération du catalogue maître");
+      v61ApplyingRemote = true;
+      try{
+        // Libère uniquement les anciennes grosses copies techniques qui peuvent
+        // empêcher Safari d'écrire le catalogue complet (quota localStorage).
+        try{ nativeRemoveItem.call(localStorage,"v61_migration_backup_v622"); }catch(e){}
+        try{ nativeRemoveItem.call(localStorage,"v641_products_backup_before_restore"); }catch(e){}
+        const keys=[CUSTOM_PRODUCTS_KEY,"commande_fournisseur_custom_products_v1","rml_supplier_catalog_meta_v62",DELETED_PRODUCTS_KEY,SUPPLIERS_KEY,SUPPLIER_EMAILS_KEY,SUPPLIER_ADDRESSES_KEY,SUPPLIER_COLORS_KEY,BASE_FAMILY_OVERRIDES_KEY];
+        for(const k of keys){
+          if(!Object.prototype.hasOwnProperty.call(st,k)) continue;
+          if(st[k]===null) nativeRemoveItem.call(localStorage,k);
+          else nativeSetItem.call(localStorage,k,st[k]);
+        }
+        nativeSetItem.call(localStorage,V61_PENDING_KEY,"0");
+        try{ nativeRemoveItem.call(localStorage,V61_FORCE_PUSH_KEY); }catch(e){}
+        const rev=Number(remotePayload.revision||remotePayload.proRevision||0);
+        nativeSetItem.call(localStorage,V63_REV_KEY,String(rev));
+        nativeSetItem.call(localStorage,V63_BASE_REV_KEY,String(rev));
+        nativeSetItem.call(localStorage,V61_LAST_REMOTE_KEY,String(remotePayload.savedAt||""));
+        v61LastSeenRemoteSavedAt=String(remotePayload.savedAt||"");
+      }finally{ v61ApplyingRemote=false; }
+      const check=v64PayloadProductCount(window.buildCloudPayload());
+      if(check < Math.max(20,Math.floor(remoteCount*0.90))) throw new Error("catalogue local encore incomplet après récupération");
+      v64BootstrapComplete=true;
+      nativeSetItem.call(localStorage,V64_BOOTSTRAP_KEY,new Date().toISOString());
+      v61SetIndicator("ok","catalogue maître récupéré : "+check+" produits");
+      setTimeout(()=>{ try{ v61RefreshUiFromStorage(); }catch(e){} },80);
+      return true;
+    }catch(err){
+      console.error("V64.5 auto-réparation catalogue:",err);
+      v61SetIndicator("error","récupération catalogue impossible");
+      return false;
+    }
+  }
+
   async function v61PushNow(){
     // V64 : aucun appareil n'est autorisé à écrire avant d'avoir lu la base maître.
     if(!v64BootstrapComplete){
@@ -5879,8 +5919,9 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       const localProductsCount = v64PayloadProductCount(payload);
       if(!forcePush && remoteProducts >= 100 && localProductsCount < Math.max(20, Math.floor(remoteProducts * 0.50))){
         nativeSetItem.call(localStorage,V61_PENDING_KEY,"0");
-        v61SetIndicator("error","envoi bloqué : catalogue local incomplet");
-        console.error("V64 sécurité : envoi bloqué", {remoteProducts, localProductsCount});
+        v61SetIndicator("syncing","catalogue incomplet : récupération automatique");
+        console.warn("V64.5 : envoi bloqué, auto-réparation", {remoteProducts, localProductsCount});
+        await v645RepairCatalogFromMaster(remotePayload);
         return;
       }
 
@@ -6086,8 +6127,13 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
           nativeSetItem.call(localStorage,V64_BOOTSTRAP_KEY,new Date().toISOString());
           v64BootstrapComplete = true;
           v61Ready = true;
-          v61SetIndicator("ok","base maître chargée");
-          setTimeout(()=>{ try{ v61RefreshUiFromStorage(); }catch(e){} },80);
+          const afterLoadCount=v64PayloadProductCount(window.buildCloudPayload());
+          if(remoteProducts>=100 && afterLoadCount < Math.max(20,Math.floor(remoteProducts*0.90))){
+            await v645RepairCatalogFromMaster(remotePayload);
+          }else{
+            v61SetIndicator("ok","base maître chargée");
+            setTimeout(()=>{ try{ v61RefreshUiFromStorage(); }catch(e){} },80);
+          }
         }else{
           // Sans base maître valide, l'appareil reste en lecture seule côté cloud.
           nativeSetItem.call(localStorage,V61_PENDING_KEY,"0");
@@ -6142,7 +6188,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V64.4";
+  const PRO_VERSION = "V64.5";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
