@@ -1,6 +1,6 @@
-/* RML GOUTTIERE ALU — Service Worker V64.3 */
-const CACHE_NAME = 'rml-gouttiere-v64-3';
-const CORE = ['./', './index.html', './manifest.json'];
-self.addEventListener('install', event => { self.skipWaiting(); event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(CORE).catch(() => {}))); });
-self.addEventListener('activate', event => { event.waitUntil((async () => { const names = await caches.keys(); await Promise.all(names.filter(n => n !== CACHE_NAME).map(n => caches.delete(n))); await self.clients.claim(); })()); });
-self.addEventListener('fetch', event => { const req=event.request; if(req.method!=='GET') return; event.respondWith((async()=>{ try{ const fresh=await fetch(req,{cache:'no-store'}); const cache=await caches.open(CACHE_NAME); cache.put(req,fresh.clone()).catch(()=>{}); return fresh; }catch(e){ return (await caches.match(req)) || (req.mode==='navigate' ? (await caches.match('./index.html')) : null) || Response.error(); } })()); });
+/* RML GOUTTIERE ALU — Service Worker V64.4 */
+const CACHE_NAME='rml-gouttiere-v64-4';
+const CORE=['./','./index.html','./manifest.json'];
+self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE_NAME).then(c=>c.addAll(CORE).catch(()=>{})))});
+self.addEventListener('activate',e=>{e.waitUntil((async()=>{for(const n of await caches.keys())if(n!==CACHE_NAME)await caches.delete(n);await self.clients.claim()})())});
+self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;e.respondWith((async()=>{try{const r=await fetch(e.request,{cache:'no-store'});const c=await caches.open(CACHE_NAME);c.put(e.request,r.clone()).catch(()=>{});return r}catch(err){return(await caches.match(e.request))||(e.request.mode==='navigate'?await caches.match('./index.html'):null)||Response.error()}})())});

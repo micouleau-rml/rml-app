@@ -2442,13 +2442,13 @@ function goSettings(){
     <div class="settings-section" data-settings-section="sync">
     <div class="card">
       <p class="title">Synchronisation cloud</p>
-      <p class="note">V64.3 : Supabase est la base maître. Chaque appareil charge d’abord le cloud avant de pouvoir envoyer des modifications. Le stockage local reste actif hors connexion.</p>
+      <p class="note">V64.4 : Supabase est la base maître. Chaque appareil charge d’abord le cloud avant de pouvoir envoyer des modifications. Le stockage local reste actif hors connexion.</p>
       <div class="sync-card" style="margin-top:10px">
         <button class="btn neutral" style="width:auto;background:#0a8454;color:#fff;border-color:#0a8454" onclick="saveCloudNow()">Sauvegarder sur le cloud</button>
         <button class="btn neutral" style="width:auto" onclick="loadCloudNow()">Recharger depuis le cloud</button>
       </div>
       <div id="syncStatus" class="sync-status">Prêt.</div>
-      <div class="note" style="margin-top:8px">V64.3 : synchronisation maître sécurisée. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
+      <div class="note" style="margin-top:8px">V64.4 : synchronisation maître sécurisée avec restaurations ciblées. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
       <div class="card" style="margin-top:12px;background:#f8fafc">
         <p class="title">Historique des sauvegardes</p>
         <p class="note">Les 20 dernières sauvegardes cloud. Tu peux restaurer une version précédente si besoin.</p>
@@ -4760,137 +4760,80 @@ async function loadCloudHistoryIntoPanel(){
 async function restoreCloudHistoryProductsOnly(id){
   try{
     if(!supabaseCloud) throw new Error("Supabase non chargé.");
-    const { data, error } = await supabaseCloud
-      .from(CLOUD_HISTORY_TABLE)
-      .select("data,created_at,note")
-      .eq("id", id)
-      .single();
+    const { data, error } = await supabaseCloud.from(CLOUD_HISTORY_TABLE).select("data,created_at,note").eq("id", id).single();
     if(error) throw error;
-    const payload = data && data.data;
-    const storage = payload && payload.storage;
-    if(!storage || typeof storage !== "object") throw new Error("Sauvegarde historique invalide.");
+    const historyPayload = data && data.data;
+    const historyStorage = historyPayload && historyPayload.storage;
+    if(!historyStorage || typeof historyStorage !== "object") throw new Error("Sauvegarde historique invalide.");
 
     const productKeys = ["rml_custom_products", "commande_fournisseur_custom_products_v1"];
     let products = null;
     for(const key of productKeys){
-      if(!Object.prototype.hasOwnProperty.call(storage,key)) continue;
-      try{
-        const parsed = JSON.parse(storage[key] || "[]");
-        if(Array.isArray(parsed) && parsed.length){ products = parsed; break; }
-      }catch(e){}
+      if(!Object.prototype.hasOwnProperty.call(historyStorage,key)) continue;
+      try{ const parsed=JSON.parse(historyStorage[key]||"[]"); if(Array.isArray(parsed)&&parsed.length){ products=parsed; break; } }catch(e){}
     }
-    if(!products || !products.length){
-      alert("Cette sauvegarde ne contient aucun produit fournisseur. Choisis une sauvegarde qui affiche un nombre de produits supérieur à 0.");
-      return;
-    }
+    if(!products || !products.length){ alert("Cette sauvegarde ne contient aucun produit fournisseur."); return; }
+    const dt=data.created_at?new Date(data.created_at).toLocaleString():"cette sauvegarde";
+    if(!confirm("Restaurer UNIQUEMENT les "+products.length+" produits fournisseurs de la sauvegarde du "+dt+" ?\n\nL’historique des commandes et les autres données cloud seront conservés.")) return;
 
-    const dt = data.created_at ? new Date(data.created_at).toLocaleString() : "cette sauvegarde";
-    const ok = confirm("Restaurer UNIQUEMENT les "+products.length+" produits fournisseurs de la sauvegarde du "+dt+" ?\n\nLes commandes, l’historique et les réglages actuels ne seront pas remplacés.");
-    if(!ok) return;
-
-    // V64.2 : pas de copie locale du catalogue avant restauration.
-    // La sauvegarde Supabase choisie reste la copie de secours ; dupliquer plusieurs
-    // milliers de produits dans localStorage pouvait dépasser le quota Safari.
-    try{ localStorage.removeItem("v641_products_backup_before_restore"); }catch(e){}
-
-    // V64.2 : une restauration volontaire de catalogue crée une génération neuve.
-    // Ainsi aucune ancienne métadonnée de suppression ne peut effacer les produits restaurés.
-    const generation = Date.now();
-    const meta = {};
-    const restored = products.map((p,i)=>{
-      const x = Object.assign({},p);
-      const supplier = String(x.supplier||"").trim();
-      if(supplier){
-        const k = supplier.toUpperCase();
-        meta[k] = {generation:generation,action:"catalog-restore",updatedAt:new Date(generation).toISOString()};
-        if(x.imported) x.catalog_generation_v62 = generation;
-      }
-      return x;
-    });
-    const raw = JSON.stringify(restored);
-    // Libère d'abord l'ancienne copie doublon. Le catalogue principal est désormais
-    // stocké une seule fois sous rml_custom_products pour économiser le quota Safari.
-    try{ localStorage.removeItem("commande_fournisseur_custom_products_v1"); }catch(e){}
-    try{ localStorage.removeItem("v641_products_backup_before_restore"); }catch(e){}
-    localStorage.setItem("rml_custom_products",raw);
-    localStorage.setItem("rml_supplier_catalog_meta_v62",JSON.stringify(meta));
-    // Les anciennes tombstones ne doivent pas supprimer à nouveau ce catalogue volontairement restauré.
-    localStorage.setItem("rml_deleted_products_v1","[]");
-
-    try{ if(typeof syncCustomProductPricesToState === "function") syncCustomProductPricesToState(); }catch(e){}
-    try{
-      localStorage.setItem("v61_force_push","1");
-      localStorage.setItem("v61_last_local_change_ms",String(Date.now()));
-      localStorage.setItem("v61_sync_pending","1");
-    }catch(e){}
-    setSyncStatus("Catalogue restauré : "+restored.length+" produits. Envoi vers la base maître...");
-    if(typeof window.v61SyncNow === "function") await window.v61SyncNow();
-    try{ await saveCloudHistoryEntry(window.buildCloudPayload ? window.buildCloudPayload() : buildCloudPayload(), "Catalogue produits restauré V64.2"); }catch(e){}
-    alert("✅ "+restored.length+" produits fournisseurs restaurés.\n\nLes commandes et l’historique n’ont pas été modifiés.");
+    // V64.4 : restauration ciblée = fusion DIRECTE dans la base maître.
+    // On ne construit plus un snapshot complet depuis l'appareil : impossible ainsi
+    // qu'un historique ciblé ou un appareil incomplet efface les autres données.
+    const rowId = await ensureCloudRow();
+    const {data:masterRow,error:masterErr}=await supabaseCloud.from(CLOUD_TABLE).select("id,data,updated_at").eq("id",rowId).single();
+    if(masterErr) throw masterErr;
+    const master = masterRow && masterRow.data && typeof masterRow.data==='object' ? JSON.parse(JSON.stringify(masterRow.data)) : {};
+    const mergedStorage = master.storage && typeof master.storage==='object' ? Object.assign({},master.storage) : {};
+    const generation=Date.now(), meta={};
+    const restored=products.map(p=>{ const x=Object.assign({},p); const supplier=String(x.supplier||"").trim(); if(supplier){ meta[supplier.toUpperCase()]={generation,action:"catalog-restore",updatedAt:new Date(generation).toISOString()}; if(x.imported)x.catalog_generation_v62=generation; } return x; });
+    mergedStorage[CUSTOM_PRODUCTS_KEY]=JSON.stringify(restored);
+    mergedStorage["commande_fournisseur_custom_products_v1"]=null;
+    mergedStorage["rml_supplier_catalog_meta_v62"]=JSON.stringify(meta);
+    mergedStorage[DELETED_PRODUCTS_KEY]="[]";
+    const nextRev=Math.max(Number(master.revision||master.proRevision||0),Number(historyPayload.revision||0))+1;
+    const merged=Object.assign({},master,{app:"RML GOUTTIERE ALU",sharedKey:CLOUD_SHARED_KEY,version:"V64.4-sync-ciblee",schemaVersion:644,fullSnapshot:true,revision:nextRev,previousRevision:Number(master.revision||0),savedAt:new Date().toISOString(),storage:mergedStorage});
+    const {error:updateErr}=await supabaseCloud.from(CLOUD_TABLE).update({data:merged,updated_at:merged.savedAt}).eq("id",rowId); if(updateErr) throw updateErr;
+    try{ applyCloudPayload(merged); }catch(e){ console.warn(e); }
+    try{ await saveCloudHistoryEntry(merged,"Catalogue produits restauré V64.4"); }catch(e){}
+    setSyncStatus("Catalogue restauré : "+restored.length+" produits.");
+    alert("✅ "+restored.length+" produits restaurés.\n\nL’historique des commandes et les autres données n’ont pas été modifiés.");
     setTimeout(()=>location.reload(),350);
-  }catch(err){
-    console.error(err);
-    alert("Erreur restauration produits : "+(err.message||err));
-  }
+  }catch(err){ console.error(err); alert("Erreur restauration produits : "+(err.message||err)); }
 }
 
 async function restoreCloudHistoryOrdersOnly(id){
   try{
     if(!supabaseCloud) throw new Error("Supabase non chargé.");
-    const { data, error } = await supabaseCloud
-      .from(CLOUD_HISTORY_TABLE)
-      .select("data,created_at,note")
-      .eq("id", id)
-      .single();
+    const {data,error}=await supabaseCloud.from(CLOUD_HISTORY_TABLE).select("data,created_at,note").eq("id",id).single();
     if(error) throw error;
-    const payload = data && data.data;
-    const storage = payload && payload.storage;
-    if(!storage || typeof storage !== "object") throw new Error("Sauvegarde historique invalide.");
+    const historyPayload=data&&data.data, historyStorage=historyPayload&&historyPayload.storage;
+    if(!historyStorage || typeof historyStorage!=="object") throw new Error("Sauvegarde historique invalide.");
+    if(!Object.prototype.hasOwnProperty.call(historyStorage,HISTORY_KEY)){ alert("Cette sauvegarde ne contient pas d’historique de commandes."); return; }
+    let restoredHistory; try{ restoredHistory=JSON.parse(historyStorage[HISTORY_KEY]||"[]"); }catch(e){ throw new Error("Historique de commandes illisible."); }
+    if(!Array.isArray(restoredHistory)||!restoredHistory.length){ alert("Cette sauvegarde contient 0 commande dans l’historique."); return; }
+    const dt=data.created_at?new Date(data.created_at).toLocaleString():"cette sauvegarde";
+    if(!confirm("Restaurer UNIQUEMENT les "+restoredHistory.length+" commandes de l’historique du "+dt+" ?\n\nLe catalogue produits actuellement dans Supabase sera conservé à l’identique.")) return;
 
-    if(!Object.prototype.hasOwnProperty.call(storage, HISTORY_KEY)){
-      alert("Cette sauvegarde ne contient pas d’historique de commandes.");
-      return;
-    }
-    const rawHistory = storage[HISTORY_KEY] || "[]";
-    let restoredHistory;
-    try{ restoredHistory = JSON.parse(rawHistory); }catch(e){ throw new Error("Historique de commandes illisible dans cette sauvegarde."); }
-    if(!Array.isArray(restoredHistory) || !restoredHistory.length){
-      alert("Cette sauvegarde contient 0 commande dans l’historique. Choisis une sauvegarde qui affiche un nombre de commandes supérieur à 0.");
-      return;
-    }
-
-    const dt = data.created_at ? new Date(data.created_at).toLocaleString() : "cette sauvegarde";
-    const ok = confirm("Restaurer UNIQUEMENT les "+restoredHistory.length+" commandes de l’historique de la sauvegarde du "+dt+" ?\n\nLes produits fournisseurs, les commandes en cours et les réglages actuels ne seront pas modifiés.");
-    if(!ok) return;
-
-    // V64.3 : restauration ciblée sans dupliquer l'historique dans localStorage,
-    // afin d'éviter un nouveau dépassement de quota Safari.
-    const previousRaw = localStorage.getItem(HISTORY_KEY);
-    try{
-      localStorage.removeItem(HISTORY_KEY);
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(restoredHistory));
-    }catch(storageErr){
-      try{
-        localStorage.removeItem(HISTORY_KEY);
-        if(previousRaw !== null) localStorage.setItem(HISTORY_KEY, previousRaw);
-      }catch(e){}
-      throw storageErr;
-    }
-
-    try{
-      localStorage.setItem("v61_force_push","1");
-      localStorage.setItem("v61_last_local_change_ms",String(Date.now()));
-      localStorage.setItem("v61_sync_pending","1");
-    }catch(e){}
-    setSyncStatus("Historique restauré : "+restoredHistory.length+" commandes. Envoi vers la base maître...");
-    if(typeof window.v61SyncNow === "function") await window.v61SyncNow();
-    try{ await saveCloudHistoryEntry(window.buildCloudPayload ? window.buildCloudPayload() : buildCloudPayload(), "Historique commandes restauré V64.3"); }catch(e){}
-    alert("✅ "+restoredHistory.length+" commandes restaurées dans l’historique.\n\nLes produits fournisseurs n’ont pas été modifiés.");
+    // V64.4 : on fusionne UNE SEULE clé dans le snapshot maître déjà présent dans Supabase.
+    // Aucun snapshot complet n'est créé depuis l'iPhone/Mac pendant cette opération.
+    const rowId=await ensureCloudRow();
+    const {data:masterRow,error:masterErr}=await supabaseCloud.from(CLOUD_TABLE).select("id,data,updated_at").eq("id",rowId).single();
+    if(masterErr) throw masterErr;
+    const master=masterRow&&masterRow.data&&typeof masterRow.data==='object'?JSON.parse(JSON.stringify(masterRow.data)):{};
+    const mergedStorage=master.storage&&typeof master.storage==='object'?Object.assign({},master.storage):{};
+    const productsBefore=mergedStorage[CUSTOM_PRODUCTS_KEY];
+    mergedStorage[HISTORY_KEY]=JSON.stringify(restoredHistory);
+    // garde-fou : la restauration historique n'a matériellement pas le droit de modifier le catalogue.
+    if(productsBefore!==undefined) mergedStorage[CUSTOM_PRODUCTS_KEY]=productsBefore;
+    const nextRev=Math.max(Number(master.revision||master.proRevision||0),Number(historyPayload.revision||0))+1;
+    const merged=Object.assign({},master,{app:"RML GOUTTIERE ALU",sharedKey:CLOUD_SHARED_KEY,version:"V64.4-sync-ciblee",schemaVersion:644,fullSnapshot:true,revision:nextRev,previousRevision:Number(master.revision||0),savedAt:new Date().toISOString(),storage:mergedStorage});
+    const {error:updateErr}=await supabaseCloud.from(CLOUD_TABLE).update({data:merged,updated_at:merged.savedAt}).eq("id",rowId); if(updateErr) throw updateErr;
+    try{ applyCloudPayload(merged); }catch(e){ console.warn(e); }
+    try{ await saveCloudHistoryEntry(merged,"Historique commandes restauré V64.4"); }catch(e){}
+    setSyncStatus("Historique restauré : "+restoredHistory.length+" commandes.");
+    alert("✅ "+restoredHistory.length+" commandes restaurées.\n\nLe catalogue produits cloud a été conservé à l’identique.");
     setTimeout(()=>location.reload(),350);
-  }catch(err){
-    console.error(err);
-    alert("Erreur restauration historique commandes : "+(err.message||err));
-  }
+  }catch(err){ console.error(err); alert("Erreur restauration historique commandes : "+(err.message||err)); }
 }
 
 async function restoreCloudHistoryVersion(id){
@@ -5589,7 +5532,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    - dernier changement daté gagne en cas de conflit global
    ============================================================ */
 (function(){
-  const V61_VERSION = "V64.3-sync-maitre-securisee";
+  const V61_VERSION = "V64.4-sync-ciblee";
   const V61_DEVICE_KEY = "v61_device_id";
   const V61_LOCAL_CHANGE_KEY = "v61_last_local_change_ms";
   const V61_PENDING_KEY = "v61_sync_pending";
@@ -6199,7 +6142,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V64.3";
+  const PRO_VERSION = "V64.4";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
