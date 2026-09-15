@@ -2442,16 +2442,16 @@ function goSettings(){
     <div class="settings-section" data-settings-section="sync">
     <div class="card">
       <p class="title">Synchronisation cloud</p>
-      <p class="note">V64.1 : Supabase est la base maître. Chaque appareil charge d’abord le cloud avant de pouvoir envoyer des modifications. Le stockage local reste actif hors connexion.</p>
+      <p class="note">V64.2 : Supabase est la base maître. Chaque appareil charge d’abord le cloud avant de pouvoir envoyer des modifications. Le stockage local reste actif hors connexion.</p>
       <div class="sync-card" style="margin-top:10px">
         <button class="btn neutral" style="width:auto;background:#0a8454;color:#fff;border-color:#0a8454" onclick="saveCloudNow()">Sauvegarder sur le cloud</button>
         <button class="btn neutral" style="width:auto" onclick="loadCloudNow()">Recharger depuis le cloud</button>
       </div>
       <div id="syncStatus" class="sync-status">Prêt.</div>
-      <div class="note" style="margin-top:8px">V64.1 : synchronisation maître sécurisée. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
+      <div class="note" style="margin-top:8px">V64.2 : synchronisation maître sécurisée. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
       <div class="card" style="margin-top:12px;background:#f8fafc">
         <p class="title">Historique des sauvegardes</p>
-        <p class="note">Les 5 dernières sauvegardes cloud. Tu peux restaurer une version précédente si besoin.</p>
+        <p class="note">Les 20 dernières sauvegardes cloud. Tu peux restaurer une version précédente si besoin.</p>
         <div id="cloudHistoryList" style="margin-top:10px"><div class="note">Aucune sauvegarde d’historique disponible.</div></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
           <button class="btn neutral" style="width:auto" onclick="loadCloudHistoryIntoPanel()">Actualiser l’historique</button>
@@ -4715,7 +4715,7 @@ async function loadCloudHistoryIntoPanel(){
       .from(CLOUD_HISTORY_TABLE)
       .select("id,created_at,note,data")
       .order("created_at", { ascending: false })
-      .limit(5);
+      .limit(20);
     if(error) throw error;
     const rows = Array.isArray(data) ? data : [];
     if(!rows.length){
@@ -4783,15 +4783,12 @@ async function restoreCloudHistoryProductsOnly(id){
     const ok = confirm("Restaurer UNIQUEMENT les "+products.length+" produits fournisseurs de la sauvegarde du "+dt+" ?\n\nLes commandes, l’historique et les réglages actuels ne seront pas remplacés.");
     if(!ok) return;
 
-    // Copie de secours du catalogue actuel avant remplacement.
-    try{
-      localStorage.setItem("v641_products_backup_before_restore", JSON.stringify({
-        savedAt:new Date().toISOString(),
-        products:JSON.parse(localStorage.getItem("rml_custom_products")||"[]")
-      }));
-    }catch(e){}
+    // V64.2 : pas de copie locale du catalogue avant restauration.
+    // La sauvegarde Supabase choisie reste la copie de secours ; dupliquer plusieurs
+    // milliers de produits dans localStorage pouvait dépasser le quota Safari.
+    try{ localStorage.removeItem("v641_products_backup_before_restore"); }catch(e){}
 
-    // V64.1 : une restauration volontaire de catalogue crée une génération neuve.
+    // V64.2 : une restauration volontaire de catalogue crée une génération neuve.
     // Ainsi aucune ancienne métadonnée de suppression ne peut effacer les produits restaurés.
     const generation = Date.now();
     const meta = {};
@@ -4806,8 +4803,11 @@ async function restoreCloudHistoryProductsOnly(id){
       return x;
     });
     const raw = JSON.stringify(restored);
+    // Libère d'abord l'ancienne copie doublon. Le catalogue principal est désormais
+    // stocké une seule fois sous rml_custom_products pour économiser le quota Safari.
+    try{ localStorage.removeItem("commande_fournisseur_custom_products_v1"); }catch(e){}
+    try{ localStorage.removeItem("v641_products_backup_before_restore"); }catch(e){}
     localStorage.setItem("rml_custom_products",raw);
-    localStorage.setItem("commande_fournisseur_custom_products_v1",raw);
     localStorage.setItem("rml_supplier_catalog_meta_v62",JSON.stringify(meta));
     // Les anciennes tombstones ne doivent pas supprimer à nouveau ce catalogue volontairement restauré.
     localStorage.setItem("rml_deleted_products_v1","[]");
@@ -4820,7 +4820,7 @@ async function restoreCloudHistoryProductsOnly(id){
     }catch(e){}
     setSyncStatus("Catalogue restauré : "+restored.length+" produits. Envoi vers la base maître...");
     if(typeof window.v61SyncNow === "function") await window.v61SyncNow();
-    try{ await saveCloudHistoryEntry(window.buildCloudPayload ? window.buildCloudPayload() : buildCloudPayload(), "Catalogue produits restauré V64.1"); }catch(e){}
+    try{ await saveCloudHistoryEntry(window.buildCloudPayload ? window.buildCloudPayload() : buildCloudPayload(), "Catalogue produits restauré V64.2"); }catch(e){}
     alert("✅ "+restored.length+" produits fournisseurs restaurés.\n\nLes commandes et l’historique n’ont pas été modifiés.");
     setTimeout(()=>location.reload(),350);
   }catch(err){
@@ -4974,7 +4974,6 @@ function getExportStorageKeys(){
   // On garde les clés actuelles + les anciennes pour rester compatible.
   return [
     "commande_fournisseur_state_v1",
-    "commande_fournisseur_custom_products_v1",
     "commande_fournisseur_supplier_emails_v1",
     "commande_fournisseur_suppliers_v1",
     "rml_custom_products",
@@ -5526,7 +5525,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    - dernier changement daté gagne en cas de conflit global
    ============================================================ */
 (function(){
-  const V61_VERSION = "V64.1-sync-maitre-securisee";
+  const V61_VERSION = "V64.2-sync-maitre-securisee";
   const V61_DEVICE_KEY = "v61_device_id";
   const V61_LOCAL_CHANGE_KEY = "v61_last_local_change_ms";
   const V61_PENDING_KEY = "v61_sync_pending";
@@ -5577,6 +5576,8 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       key === V61_DEVICE_KEY ||
       key === V61_LOCAL_CHANGE_KEY ||
       key === V61_PENDING_KEY ||
+      key === "commande_fournisseur_custom_products_v1" ||
+      key === "v641_products_backup_before_restore" ||
       key === V61_LAST_REMOTE_KEY ||
       key === LAST_SAVE_AT_KEY ||
       key === META_BACKUP_KEY ||
@@ -6134,7 +6135,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V64.1";
+  const PRO_VERSION = "V64.2";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";

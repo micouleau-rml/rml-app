@@ -1,5 +1,5 @@
-/* RML GOUTTIERE ALU — Service Worker V64.1 */
-const CACHE_NAME = 'rml-gouttiere-v64-1';
+/* RML GOUTTIERE ALU — Service Worker V64.2 */
+const CACHE_NAME = 'rml-gouttiere-v64-2';
 const CORE = ['./', './index.html', './manifest.json'];
 self.addEventListener('install', event => { self.skipWaiting(); event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(CORE).catch(() => {}))); });
 self.addEventListener('activate', event => { event.waitUntil((async () => { const names = await caches.keys(); await Promise.all(names.filter(n => n !== CACHE_NAME).map(n => caches.delete(n))); await self.clients.claim(); })()); });
