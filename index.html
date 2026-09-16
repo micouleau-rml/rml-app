@@ -2442,14 +2442,14 @@ function goSettings(){
     <div class="settings-section" data-settings-section="sync">
     <div class="card">
       <p class="title">Synchronisation cloud</p>
-      <p class="note">V64.10 : Supabase est la base maître. Chaque appareil charge d’abord le cloud avant de pouvoir envoyer des modifications. Le stockage local reste actif hors connexion.</p>
+      <p class="note">V65 : Supabase est la base maître. Chaque appareil charge d’abord le cloud avant de pouvoir envoyer des modifications. Le stockage local reste actif hors connexion.</p>
       <div class="sync-card" style="margin-top:10px">
         <button class="btn neutral" style="width:auto;background:#0a8454;color:#fff;border-color:#0a8454" onclick="saveCloudNow()">Sauvegarder sur le cloud</button>
         <button class="btn neutral" style="width:auto" onclick="loadCloudNow()">Recharger depuis le cloud</button>
       </div>
       <div id="syncStatus" class="sync-status">Prêt.</div>
-      <div class="note" style="margin-top:8px">V64.10 : synchronisation maître sécurisée avec restaurations ciblées. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
-      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V64.10 : les 4 étapes de chargement sont affichées dans le bandeau de synchronisation.</div>
+      <div class="note" style="margin-top:8px">V65 : synchronisation maître sécurisée avec restaurations ciblées. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
+      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V65 : catalogue volumineux stocké dans IndexedDB pour supprimer la limite localStorage de Safari.</div>
       <div class="card" style="margin-top:12px;background:#f8fafc">
         <p class="title">Historique des sauvegardes</p>
         <p class="note">Les 20 dernières sauvegardes cloud. Tu peux restaurer une version précédente si besoin.</p>
@@ -4885,7 +4885,7 @@ async function restoreCloudHistorySafeBase(id){
     ms["rml_supplier_catalog_meta_v62"]=JSON.stringify(meta);
 
     const nextRev=Math.max(Number(master.revision||master.proRevision||0),Number(hp.revision||hp.proRevision||0))+1;
-    const merged=Object.assign({},master,{app:"RML GOUTTIERE ALU",sharedKey:CLOUD_SHARED_KEY,version:"V64.9-restauration-base-saine",schemaVersion:649,fullSnapshot:true,revision:nextRev,previousRevision:Number(master.revision||0),savedAt:new Date().toISOString(),storage:ms});
+    const merged=Object.assign({},master,{app:"RML GOUTTIERE ALU",sharedKey:CLOUD_SHARED_KEY,version:"V65-restauration-base-saine",schemaVersion:650,fullSnapshot:true,revision:nextRev,previousRevision:Number(master.revision||0),savedAt:new Date().toISOString(),storage:ms});
     const {error:ue}=await supabaseCloud.from(CLOUD_TABLE).update({data:merged,updated_at:merged.savedAt}).eq("id",rowId);
     if(ue) throw ue;
     // V64.9 : après la fusion dans Supabase, on installe LOCALEMENT uniquement
@@ -4911,12 +4911,12 @@ async function restoreCloudHistorySafeBase(id){
     try{ const a=JSON.parse(localStorage.getItem(CUSTOM_PRODUCTS_KEY)||"[]"); installedProducts=Array.isArray(a)?a.length:0; }catch(e){}
     try{ const a=JSON.parse(localStorage.getItem(HISTORY_KEY)||"[]"); installedOrders=Array.isArray(a)?a.length:0; }catch(e){}
     if(installedProducts < Math.max(20,Math.floor(products.length*0.90))) throw new Error("Catalogue local incomplet après restauration : "+installedProducts+" / "+products.length+" produits");
-    try{ await saveCloudHistoryEntry(merged,"Base métier restaurée V64.9"); }catch(e){}
+    try{ await saveCloudHistoryEntry(merged,"Base métier restaurée V65"); }catch(e){}
     setSyncStatus("Base restaurée : "+installedProducts+" produits • "+installedOrders+" commandes historique.");
-    alert("✅ Restauration V64.9 terminée.\n\n"+installedProducts+" produits et "+installedOrders+" commandes d’historique installés sur ce Mac.\nLes fournisseurs/familles disponibles dans la sauvegarde ont été restaurés.");
+    alert("✅ Restauration V65 terminée.\n\n"+installedProducts+" produits et "+installedOrders+" commandes d’historique installés sur ce Mac.\nLes fournisseurs/familles disponibles dans la sauvegarde ont été restaurés.");
     setTimeout(()=>location.reload(),700);
   }catch(err){
-    console.error("Erreur restauration base saine V64.9 :",err);
+    console.error("Erreur restauration base saine V65 :",err);
     alert("Erreur restauration base saine : "+(err&&err.message?err.message:err));
   }
 }
@@ -5617,7 +5617,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    - dernier changement daté gagne en cas de conflit global
    ============================================================ */
 (function(){
-  const V61_VERSION = "V64.10-stockage-compact-safari";
+  const V61_VERSION = "V65-stockage-compact-safari";
   const V61_DEVICE_KEY = "v61_device_id";
   const V61_LOCAL_CHANGE_KEY = "v61_last_local_change_ms";
   const V61_PENDING_KEY = "v61_sync_pending";
@@ -5744,7 +5744,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     const detail = stage+" : "+msg+" | cloud="+(remoteProducts==null?"?":remoteProducts)+" produits | local="+localProducts+" produits / "+localOrders+" commandes";
     try{ localStorage.setItem("v649_last_sync_error",detail); }catch(e){}
     v61SetIndicator("error",detail);
-    console.error("[V64.10]",detail,err);
+    console.error("[V65]",detail,err);
   }
 
   function v61InstallIndicator(){
@@ -5787,39 +5787,73 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
   const nativeGetItem = Storage.prototype.getItem;
   const nativeSetItem = Storage.prototype.setItem;
   const nativeRemoveItem = Storage.prototype.removeItem;
-  const V6410_COMPACT_PRODUCTS_KEY = "rml_custom_products_compact_v6410";
+  // V65 : le gros catalogue ne doit plus occuper localStorage dans Safari.
+  // Il est conservé en mémoire pendant l'utilisation et persisté dans IndexedDB.
+  // L'API localStorage reste compatible avec tout le code historique de l'application.
+  const V65_IDB_NAME = "rml-gouttiere-v65";
+  const V65_IDB_STORE = "catalogue";
+  const V65_IDB_KEY = "custom_products";
+  let v65ProductsMemory = null;
 
-  function v6410CompactProductsJson(jsonText){
-    const arr = JSON.parse(String(jsonText||"[]"));
+  function v65OpenDb(){
+    return new Promise((resolve,reject)=>{
+      try{
+        const req=indexedDB.open(V65_IDB_NAME,1);
+        req.onupgradeneeded=()=>{ const db=req.result; if(!db.objectStoreNames.contains(V65_IDB_STORE)) db.createObjectStore(V65_IDB_STORE); };
+        req.onsuccess=()=>resolve(req.result);
+        req.onerror=()=>reject(req.error||new Error("IndexedDB indisponible"));
+      }catch(e){ reject(e); }
+    });
+  }
+  async function v65IdbPutProducts(text){
+    const db=await v65OpenDb();
+    return new Promise((resolve,reject)=>{
+      const tx=db.transaction(V65_IDB_STORE,"readwrite");
+      tx.objectStore(V65_IDB_STORE).put(String(text||"[]"),V65_IDB_KEY);
+      tx.oncomplete=()=>{ db.close(); resolve(true); };
+      tx.onerror=()=>{ const e=tx.error; db.close(); reject(e||new Error("Écriture IndexedDB impossible")); };
+    });
+  }
+  async function v65IdbGetProducts(){
+    const db=await v65OpenDb();
+    return new Promise((resolve,reject)=>{
+      const tx=db.transaction(V65_IDB_STORE,"readonly");
+      const req=tx.objectStore(V65_IDB_STORE).get(V65_IDB_KEY);
+      req.onsuccess=()=>{ const v=req.result; db.close(); resolve(v==null?null:String(v)); };
+      req.onerror=()=>{ const e=req.error; db.close(); reject(e||new Error("Lecture IndexedDB impossible")); };
+    });
+  }
+  async function v65IdbDeleteProducts(){
+    try{ const db=await v65OpenDb(); await new Promise((resolve,reject)=>{ const tx=db.transaction(V65_IDB_STORE,"readwrite"); tx.objectStore(V65_IDB_STORE).delete(V65_IDB_KEY); tx.oncomplete=resolve; tx.onerror=()=>reject(tx.error); }); db.close(); }catch(e){}
+  }
+  function v65StoreProducts(jsonText){
+    const text=String(jsonText||"[]");
+    const arr=JSON.parse(text);
     if(!Array.isArray(arr)) throw new Error("Catalogue produits invalide");
-    const keySet = new Set();
-    arr.forEach(o=>{ if(o && typeof o === "object" && !Array.isArray(o)) Object.keys(o).forEach(k=>keySet.add(k)); });
-    const keys = Array.from(keySet);
-    const rows = arr.map(o=>keys.map(k=>Object.prototype.hasOwnProperty.call(o||{},k)?o[k]:null));
-    return JSON.stringify({v:1,k:keys,r:rows});
-  }
-  function v6410ExpandProductsJson(compactText){
-    const c = JSON.parse(String(compactText||"{}"));
-    if(!c || c.v!==1 || !Array.isArray(c.k) || !Array.isArray(c.r)) return "[]";
-    const arr = c.r.map(row=>{ const o={}; c.k.forEach((k,i)=>{ const v=row[i]; if(v!==null && v!==undefined) o[k]=v; }); return o; });
-    return JSON.stringify(arr);
-  }
-  function v6410StoreProducts(jsonText){
-    const compact = v6410CompactProductsJson(jsonText);
-    nativeSetItem.call(localStorage,V6410_COMPACT_PRODUCTS_KEY,compact);
+    v65ProductsMemory=text;
+    // Nettoyage des anciennes copies localStorage responsables du quota Safari.
     try{ nativeRemoveItem.call(localStorage,CUSTOM_PRODUCTS_KEY); }catch(e){}
     try{ nativeRemoveItem.call(localStorage,"commande_fournisseur_custom_products_v1"); }catch(e){}
-    return compact;
+    try{ nativeRemoveItem.call(localStorage,"rml_custom_products_compact_v6410"); }catch(e){}
+    v65IdbPutProducts(text).catch(e=>console.error("[V65] IndexedDB catalogue",e));
+    return text;
   }
 
-  // V64.10 : Safari limite fortement localStorage. Le gros catalogue est conservé
-  // sous forme compacte, mais toute l'application continue de voir le JSON normal.
+  // Récupère en arrière-plan le catalogue IndexedDB pour le mode hors connexion.
+  v65IdbGetProducts().then(text=>{
+    if(text && v65ProductsMemory===null){
+      try{ const a=JSON.parse(text); if(Array.isArray(a) && a.length){ v65ProductsMemory=text; } }catch(e){}
+    }
+  }).catch(()=>{});
+
   Storage.prototype.getItem = function(key){
     if(this===localStorage && key===CUSTOM_PRODUCTS_KEY){
-      const normal=nativeGetItem.call(this,key);
-      if(normal!==null) return normal;
-      const compact=nativeGetItem.call(this,V6410_COMPACT_PRODUCTS_KEY);
-      if(compact!==null){ try{ return v6410ExpandProductsJson(compact); }catch(e){ return null; } }
+      if(v65ProductsMemory!==null) return v65ProductsMemory;
+      const old=nativeGetItem.call(this,key);
+      if(old!==null){
+        try{ v65StoreProducts(old); return old; }catch(e){ return old; }
+      }
+      return null;
     }
     return nativeGetItem.call(this,key);
   };
@@ -5828,7 +5862,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     try{ previous = this === localStorage ? localStorage.getItem(key) : null; }catch(e){}
     let result;
     if(this===localStorage && key===CUSTOM_PRODUCTS_KEY){
-      v6410StoreProducts(String(value));
+      v65StoreProducts(String(value));
       result = undefined;
     }else{
       result = nativeSetItem.call(this,key,value);
@@ -5839,9 +5873,13 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
   Storage.prototype.removeItem = function(key){
     let existed = false;
     try{ existed = this === localStorage && localStorage.getItem(key) !== null; }catch(e){}
-    const result = nativeRemoveItem.call(this,key);
+    if(this===localStorage && key===CUSTOM_PRODUCTS_KEY){
+      v65ProductsMemory=null;
+      try{ nativeRemoveItem.call(this,key); }catch(e){}
+      try{ nativeRemoveItem.call(this,"rml_custom_products_compact_v6410"); }catch(e){}
+      v65IdbDeleteProducts();
+    }else nativeRemoveItem.call(this,key);
     if(this === localStorage && v61Ready && v61IsAppDataKey(key) && !v61ApplyingRemote && existed) v61MarkLocalChange();
-    return result;
   };
 
   // Remplace le snapshot cloud ancien par un snapshot V61 complet de l'application.
@@ -5915,9 +5953,9 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
         if(v61IsAppDataKey(k)){
           if(storage[k] === null){
             nativeRemoveItem.call(localStorage,k);
-            if(k===CUSTOM_PRODUCTS_KEY) try{ nativeRemoveItem.call(localStorage,V6410_COMPACT_PRODUCTS_KEY); }catch(e){}
+            if(k===CUSTOM_PRODUCTS_KEY){ v65ProductsMemory=null; v65IdbDeleteProducts(); }
           }else if(k===CUSTOM_PRODUCTS_KEY){
-            v6410StoreProducts(storage[k]);
+            v65StoreProducts(storage[k]);
           }else nativeSetItem.call(localStorage,k,storage[k]);
         }
       });
@@ -6025,9 +6063,9 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
           if(!Object.prototype.hasOwnProperty.call(st,k)) continue;
           if(st[k]===null){
             nativeRemoveItem.call(localStorage,k);
-            if(k===CUSTOM_PRODUCTS_KEY) try{ nativeRemoveItem.call(localStorage,V6410_COMPACT_PRODUCTS_KEY); }catch(e){}
+            if(k===CUSTOM_PRODUCTS_KEY){ v65ProductsMemory=null; v65IdbDeleteProducts(); }
           }else if(k===CUSTOM_PRODUCTS_KEY){
-            v6410StoreProducts(st[k]);
+            v65StoreProducts(st[k]);
           }else nativeSetItem.call(localStorage,k,st[k]);
         }
         nativeSetItem.call(localStorage,V61_PENDING_KEY,"0");
@@ -6372,7 +6410,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V64.10";
+  const PRO_VERSION = "V65";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
