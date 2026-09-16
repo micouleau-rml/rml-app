@@ -2442,14 +2442,14 @@ function goSettings(){
     <div class="settings-section" data-settings-section="sync">
     <div class="card">
       <p class="title">Synchronisation cloud</p>
-      <p class="note">V65 : Supabase est la base maître. Chaque appareil charge d’abord le cloud avant de pouvoir envoyer des modifications. Le stockage local reste actif hors connexion.</p>
+      <p class="note">V65.1 : Supabase est la base maître. Chaque appareil charge d’abord le cloud avant de pouvoir envoyer des modifications. Le stockage local reste actif hors connexion.</p>
       <div class="sync-card" style="margin-top:10px">
         <button class="btn neutral" style="width:auto;background:#0a8454;color:#fff;border-color:#0a8454" onclick="saveCloudNow()">Sauvegarder sur le cloud</button>
         <button class="btn neutral" style="width:auto" onclick="loadCloudNow()">Recharger depuis le cloud</button>
       </div>
       <div id="syncStatus" class="sync-status">Prêt.</div>
-      <div class="note" style="margin-top:8px">V65 : synchronisation maître sécurisée avec restaurations ciblées. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
-      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V65 : catalogue volumineux stocké dans IndexedDB pour supprimer la limite localStorage de Safari.</div>
+      <div class="note" style="margin-top:8px">V65.1 : synchronisation maître sécurisée avec restaurations ciblées. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
+      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V65.1 : catalogue volumineux stocké dans IndexedDB pour supprimer la limite localStorage de Safari.</div>
       <div class="card" style="margin-top:12px;background:#f8fafc">
         <p class="title">Historique des sauvegardes</p>
         <p class="note">Les 20 dernières sauvegardes cloud. Tu peux restaurer une version précédente si besoin.</p>
@@ -5617,7 +5617,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    - dernier changement daté gagne en cas de conflit global
    ============================================================ */
 (function(){
-  const V61_VERSION = "V65-stockage-compact-safari";
+  const V61_VERSION = "V65.1-pwa-cloud-row-auto";
   const V61_DEVICE_KEY = "v61_device_id";
   const V61_LOCAL_CHANGE_KEY = "v61_last_local_change_ms";
   const V61_PENDING_KEY = "v61_sync_pending";
@@ -5982,11 +5982,22 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 
   async function v61ReadCloudRow(){
     if(!supabaseCloud) throw new Error("Supabase non chargé.");
-    let rowId = localStorage.getItem(CLOUD_ROW_ID_KEY);
-    if(!rowId) rowId = await ensureCloudRow();
-    const {data,error} = await supabaseCloud.from(CLOUD_TABLE).select("id,data,updated_at").eq("id",rowId).single();
-    if(error) throw error;
-    return data;
+    // V65.1 : Safari et la PWA peuvent conserver des identifiants de ligne cloud
+    // différents. On revalide donc systématiquement l'identifiant avant chaque lecture.
+    let rowId = await ensureCloudRow();
+    let res = await supabaseCloud.from(CLOUD_TABLE).select("id,data,updated_at").eq("id",rowId).single();
+    if(!res.error && res.data && res.data.data) return res.data;
+
+    // Si l'application installée avait mémorisé une ancienne ligne supprimée/invalide,
+    // on recherche directement la base maître partagée au lieu de déclarer le cloud vide.
+    try{ nativeRemoveItem.call(localStorage,CLOUD_ROW_ID_KEY); }catch(e){}
+    const shared = await findSharedCloudRow();
+    if(shared && shared.id && shared.data){
+      try{ nativeSetItem.call(localStorage,CLOUD_ROW_ID_KEY,String(shared.id)); }catch(e){}
+      return shared;
+    }
+    if(res.error) throw res.error;
+    return null;
   }
 
 
@@ -6410,7 +6421,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V65";
+  const PRO_VERSION = "V65.1";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
