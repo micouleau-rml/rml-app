@@ -2442,14 +2442,14 @@ function goSettings(){
     <div class="settings-section" data-settings-section="sync">
     <div class="card">
       <p class="title">Synchronisation cloud</p>
-      <p class="note">V66.2 : Supabase est l’unique base maître. Au démarrage, chaque appareil charge la dernière base. Ensuite seules les données modifiées sont synchronisées. Les appareils ouverts se mettent à jour en temps réel. La sauvegarde JSON manuelle reste disponible en secours.</p>
+      <p class="note">V66.3 : Supabase est l’unique base maître. Au démarrage, chaque appareil charge la dernière base. Ensuite seules les données modifiées sont synchronisées. Les appareils ouverts se mettent à jour en temps réel. La sauvegarde JSON manuelle reste disponible en secours.</p>
       <div class="sync-card" style="margin-top:10px">
         <button class="btn neutral" style="width:auto;background:#0a8454;color:#fff;border-color:#0a8454" onclick="saveCloudNow()">Sauvegarder sur le cloud</button>
         <button class="btn neutral" style="width:auto" onclick="loadCloudNow()">Recharger depuis le cloud</button>
       </div>
       <div id="syncStatus" class="sync-status">Prêt.</div>
       <div class="note" style="margin-top:8px">V66 : synchronisation maître sécurisée avec restaurations ciblées. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
-      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V66.2 : catalogue volumineux stocké dans IndexedDB pour supprimer la limite localStorage de Safari.</div>
+      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V66.3 : initialisation automatique des appareils vides, puis synchronisation différentielle et temps réel.</div>
       <div class="card" style="margin-top:12px;background:#f8fafc">
         <p class="title">Historique des sauvegardes</p>
         <p class="note">Les 20 dernières sauvegardes cloud. Tu peux restaurer une version précédente si besoin.</p>
@@ -5630,7 +5630,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    - dernier changement daté gagne en cas de conflit global
    ============================================================ */
 (function(){
-  const V61_VERSION = "V66.2-fast-start";
+  const V61_VERSION = "V66.3-fast-start";
   const V61_DEVICE_KEY = "v61_device_id";
   const V61_LOCAL_CHANGE_KEY = "v61_last_local_change_ms";
   const V61_PENDING_KEY = "v61_sync_pending";
@@ -6048,9 +6048,32 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     }
   };
 
+  async function v663ReadMasterForBootstrap(){
+    if(!supabaseCloud) throw new Error("Supabase non chargé.");
+    // Appareil vide uniquement : demander UNE ligne snapshot complète, jamais les deltas V66.
+    // Cela évite le scan de toute la table qui provoquait le timeout.
+    let q = await supabaseCloud.from(CLOUD_TABLE)
+      .select("id,data,updated_at")
+      .contains("data",{sharedKey:CLOUD_SHARED_KEY,fullSnapshot:true})
+      .order("updated_at",{ascending:false}).limit(1);
+    if(q.error) throw q.error;
+    let row=Array.isArray(q.data)&&q.data.length?q.data[0]:null;
+    if(row && row.data && v64PayloadProductCount(row.data)>=100) return row;
+
+    // Secours : dernière sauvegarde historique complète saine.
+    q = await supabaseCloud.from(CLOUD_HISTORY_TABLE)
+      .select("id,created_at,note,data")
+      .order("created_at",{ascending:false}).limit(12);
+    if(q.error) throw q.error;
+    const rows=Array.isArray(q.data)?q.data:[];
+    const healthy=rows.find(r=>r&&r.data&&v64PayloadProductCount(r.data)>=100);
+    if(healthy) return {id:null,data:healthy.data,updated_at:healthy.created_at,fromHistory:true};
+    return null;
+  }
+
   async function v61ReadCloudRow(){
     if(!supabaseCloud) throw new Error("Supabase non chargé.");
-    // V66.2 : une seule requête suffit normalement au démarrage.
+    // V66.3 : une seule requête suffit normalement au démarrage.
     // On cherche directement la ligne maître par sharedKey, sans faire d'abord
     // ensureCloudRow() puis une seconde lecture de la même ligne.
     const shared = await findSharedCloudRow();
@@ -6297,7 +6320,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     if(!supabaseCloud) return;
     try{
       if(v61RealtimeChannel){ try{supabaseCloud.removeChannel(v61RealtimeChannel);}catch(e){} }
-      // V66.2 : écoute toute la table mais n'applique QUE les petits paquets delta V66.
+      // V66.3 : écoute toute la table mais n'applique QUE les petits paquets delta V66.
       // Aucun rechargement du gros snapshot maître.
       v61RealtimeChannel = supabaseCloud
         .channel("rml-v66-deltas-" + CLOUD_SHARED_KEY)
@@ -6310,17 +6333,20 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
               const k=String(remote.v66Key), v=remote.v66Value;
               if(k===CUSTOM_PRODUCTS_KEY){ if(v===null) v65StoreProducts("[]"); else v65StoreProducts(String(v)); }
               else if(v===null) nativeRemoveItem.call(localStorage,k); else nativeSetItem.call(localStorage,k,String(v));
-            }catch(e){ console.error("[V66.2] réception temps réel",e); }
+            }catch(e){ console.error("[V66.3] réception temps réel",e); }
             finally{ v61ApplyingRemote=false; }
             v61SetIndicator("ok","mise à jour reçue • temps réel");
             setTimeout(()=>{ try{v61RefreshUiFromStorage();}catch(e){} },20);
           }
         })
         .subscribe(status=>{
-          if(status === "SUBSCRIBED") v61SetIndicator("ok","à jour • temps réel actif");
+          if(status === "SUBSCRIBED"){
+            if(v64BootstrapComplete) v61SetIndicator("ok","à jour • temps réel actif");
+            else v61SetIndicator("syncing","connexion temps réel prête • initialisation en cours");
+          }
           else if(status === "CHANNEL_ERROR" || status === "TIMED_OUT") v61SetIndicator("offline","données locales disponibles • temps réel en attente");
         });
-    }catch(err){ console.warn("V66.2 realtime:",err); }
+    }catch(err){ console.warn("V66.3 realtime:",err); }
   }
 
   async function v662LoadDeltas(){
@@ -6404,43 +6430,55 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
   window.addEventListener("load",()=>{
     v61InstallIndicator();
     setTimeout(async ()=>{
-      // V66.2 LOCAL-FIRST : l'application s'ouvre immédiatement avec sa copie locale saine.
-      // Supabase ne sert ensuite qu'à recevoir/envoyer les modifications V66.
       let localProducts=0;
       try{ const a=JSON.parse(localStorage.getItem(CUSTOM_PRODUCTS_KEY)||"[]"); localProducts=Array.isArray(a)?a.length:0; }catch(e){}
       v61Ready=true;
       v64BootstrapComplete = localProducts>=100;
-      try{ nativeSetItem.call(localStorage,V61_PENDING_KEY,"0"); }catch(e){}
       try{ v61RefreshUiFromStorage(); }catch(e){}
 
       if(!navigator.onLine){
-        v61SetIndicator("offline","hors connexion • données locales disponibles");
+        v61SetIndicator("offline",localProducts>=100?"hors connexion • données locales disponibles":"hors connexion • appareil non initialisé");
         return;
       }
-      v61SetIndicator("syncing","vérification des modifications Supabase");
+
       try{
-        const n=await v662LoadDeltas();
-        try{ v61RefreshUiFromStorage(); }catch(e){}
-        if(localProducts>=100 || n>0){
+        // V66.3 : une installation vide reçoit une seule fois la base complète.
+        if(localProducts<100){
+          v61SetIndicator("syncing","première installation • récupération de la base maître");
+          const master=await v663ReadMasterForBootstrap();
+          if(!master||!master.data) throw new Error("aucune sauvegarde maître complète trouvée");
+          window.applyCloudPayload(master.data);
+          try{ const a=JSON.parse(localStorage.getItem(CUSTOM_PRODUCTS_KEY)||"[]"); localProducts=Array.isArray(a)?a.length:0; }catch(e){localProducts=0;}
+          if(localProducts<100) throw new Error("catalogue maître non installé");
           v64BootstrapComplete=true;
           nativeSetItem.call(localStorage,V64_BOOTSTRAP_KEY,new Date().toISOString());
-          v61SetIndicator("ok","à jour • "+(n?n+" modification"+(n>1?"s":"")+" reçue"+(n>1?"s":""):"aucune modification"));
-          setTimeout(()=>{ try{v61StartRealtime();}catch(e){} },30);
-        }else{
-          // Appareil réellement neuf : on ne pousse surtout rien. Le JSON permet aussi une restauration manuelle.
-          v64BootstrapComplete=false;
-          v61SetIndicator("error","appareil neuf • aucune donnée locale • restauration requise");
+          try{ v61RefreshUiFromStorage(); }catch(e){}
         }
+
+        // Puis seulement les petits deltas, y compris l'historique récent.
+        v61SetIndicator("syncing","mise à jour des dernières modifications");
+        const n=await v662LoadDeltas();
+        try{ v61RefreshUiFromStorage(); }catch(e){}
+        v64BootstrapComplete=true;
+        nativeSetItem.call(localStorage,V64_BOOTSTRAP_KEY,new Date().toISOString());
+        v61SetIndicator("ok","à jour • temps réel");
+        setTimeout(()=>{ try{v61StartRealtime();}catch(e){} },30);
+
+        // Sur un appareil déjà sain, republie le petit historique afin que la commande
+        // la plus récente soit disponible aux autres appareils. Jamais le catalogue ici.
+        try{
+          const hv=nativeGetItem.call(localStorage,HISTORY_KEY);
+          if(hv!==null){ V66_CHANGED_KEYS.add(HISTORY_KEY); setTimeout(v66PushChangedKeys,180); }
+        }catch(e){}
       }catch(e){
-        console.error("V66.2 deltas",e);
-        // Une panne Supabase ne bloque plus l'application si sa copie locale est saine.
+        console.error("V66.3 démarrage",e);
         if(localProducts>=100){
           v64BootstrapComplete=true;
           v61SetIndicator("offline","Supabase temporairement indisponible • données locales disponibles");
           setTimeout(()=>{ try{v61StartRealtime();}catch(x){} },1000);
         }else{
           v64BootstrapComplete=false;
-          v61SetIndicator("error","Supabase indisponible et aucune donnée locale");
+          v61SetIndicator("error","initialisation impossible • aucune donnée locale");
         }
       }
     },20);
@@ -6479,7 +6517,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V66.2";
+  const PRO_VERSION = "V66.3";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
