@@ -2442,13 +2442,13 @@ function goSettings(){
     <div class="settings-section" data-settings-section="sync">
     <div class="card">
       <p class="title">Synchronisation cloud</p>
-      <p class="note">V64.7 : Supabase est la base maître. Chaque appareil charge d’abord le cloud avant de pouvoir envoyer des modifications. Le stockage local reste actif hors connexion.</p>
+      <p class="note">V64.8 : Supabase est la base maître. Chaque appareil charge d’abord le cloud avant de pouvoir envoyer des modifications. Le stockage local reste actif hors connexion.</p>
       <div class="sync-card" style="margin-top:10px">
         <button class="btn neutral" style="width:auto;background:#0a8454;color:#fff;border-color:#0a8454" onclick="saveCloudNow()">Sauvegarder sur le cloud</button>
         <button class="btn neutral" style="width:auto" onclick="loadCloudNow()">Recharger depuis le cloud</button>
       </div>
       <div id="syncStatus" class="sync-status">Prêt.</div>
-      <div class="note" style="margin-top:8px">V64.7 : synchronisation maître sécurisée avec restaurations ciblées. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
+      <div class="note" style="margin-top:8px">V64.8 : synchronisation maître sécurisée avec restaurations ciblées. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
       <div class="card" style="margin-top:12px;background:#f8fafc">
         <p class="title">Historique des sauvegardes</p>
         <p class="note">Les 20 dernières sauvegardes cloud. Tu peux restaurer une version précédente si besoin.</p>
@@ -4746,6 +4746,7 @@ async function loadCloudHistoryIntoPanel(){
           <div style="display:flex;gap:7px;flex-wrap:wrap">
             <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="restoreCloudHistoryProductsOnly('${row.id}')">Produits seulement</button>
             <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="restoreCloudHistoryOrdersOnly('${row.id}')">Historique commandes seulement</button>
+            <button class="btn neutral" style="width:auto;padding:10px 14px;border-color:#16a34a;color:#166534" onclick="restoreCloudHistorySafeBase('${row.id}')">Catalogue + fournisseurs + historique</button>
             <button class="btn neutral" style="width:auto;padding:10px 14px" onclick="restoreCloudHistoryVersion('${row.id}')">Tout restaurer</button>
           </div>
         </div>
@@ -4841,6 +4842,60 @@ async function restoreCloudHistoryOrdersOnly(id){
     alert("✅ "+restoredHistory.length+" commandes restaurées.\n\nLe catalogue produits cloud a été conservé à l’identique.");
     setTimeout(()=>location.reload(),350);
   }catch(err){ console.error(err); alert("Erreur restauration historique commandes : "+(err.message||err)); }
+}
+
+async function restoreCloudHistorySafeBase(id){
+  try{
+    if(!supabaseCloud) throw new Error("Supabase non chargé.");
+    const {data,error}=await supabaseCloud.from(CLOUD_HISTORY_TABLE).select("data,created_at,note").eq("id",id).single();
+    if(error) throw error;
+    const hp=data&&data.data, hs=hp&&hp.storage;
+    if(!hs || typeof hs!=="object") throw new Error("Sauvegarde historique invalide.");
+
+    let products=[];
+    for(const k of [CUSTOM_PRODUCTS_KEY,"commande_fournisseur_custom_products_v1"]){
+      try{ const a=JSON.parse(hs[k]||"[]"); if(Array.isArray(a)&&a.length){ products=a; break; } }catch(e){}
+    }
+    let orders=[];
+    try{ orders=JSON.parse(hs[HISTORY_KEY]||"[]"); }catch(e){ throw new Error("Historique de commandes illisible."); }
+    if(!Array.isArray(orders)) orders=[];
+    if(!products.length) throw new Error("Cette sauvegarde ne contient aucun produit fournisseur.");
+
+    const dt=data.created_at?new Date(data.created_at).toLocaleString():"cette sauvegarde";
+    const supplierKeys=[SUPPLIERS_KEY,SUPPLIER_EMAILS_KEY,SUPPLIER_ADDRESSES_KEY,SUPPLIER_ORDER_KEY,SUPPLIER_COLORS_KEY,"rml_supplier_colors",BASE_FAMILY_OVERRIDES_KEY,"rml_supplier_open_map_v1","rml_supplier_inner_open_map_v1"];
+    const availableSupplierKeys=supplierKeys.filter(k=>Object.prototype.hasOwnProperty.call(hs,k));
+    const warning=(products.length===3683 && orders.length===9)?"\n\n✅ Cette sauvegarde correspond aux 3683 produits et 9 commandes attendus.":"\n\n⚠️ Contrôle : cette sauvegarde contient "+products.length+" produits et "+orders.length+" commandes.";
+    if(!confirm("Restaurer la BASE MÉTIER de la sauvegarde du "+dt+" ?\n\nSeront restaurés :\n• "+products.length+" produits\n• fournisseurs / familles disponibles\n• "+orders.length+" commandes d’historique\n\nLes commandes EN COURS, réglages société et autres données actuelles seront conservés."+warning)) return;
+
+    const rowId=await ensureCloudRow();
+    const {data:mr,error:me}=await supabaseCloud.from(CLOUD_TABLE).select("id,data,updated_at").eq("id",rowId).single();
+    if(me) throw me;
+    const master=mr&&mr.data&&typeof mr.data==='object'?JSON.parse(JSON.stringify(mr.data)):{};
+    const ms=master.storage&&typeof master.storage==='object'?Object.assign({},master.storage):{};
+
+    // Catalogue + historique uniquement : les commandes en cours restent celles du maître actuel.
+    ms[CUSTOM_PRODUCTS_KEY]=JSON.stringify(products);
+    delete ms["commande_fournisseur_custom_products_v1"];
+    ms[HISTORY_KEY]=JSON.stringify(orders);
+    availableSupplierKeys.forEach(k=>{ ms[k]=hs[k]; });
+    ms[DELETED_PRODUCTS_KEY]="[]";
+    const generation=Date.now(), meta={};
+    products.forEach(p=>{ const supplier=String(p&&p.supplier||"").trim(); if(supplier) meta[supplier.toUpperCase()]={generation,action:"safe-base-restore",updatedAt:new Date(generation).toISOString()}; });
+    ms["rml_supplier_catalog_meta_v62"]=JSON.stringify(meta);
+
+    const nextRev=Math.max(Number(master.revision||master.proRevision||0),Number(hp.revision||hp.proRevision||0))+1;
+    const merged=Object.assign({},master,{app:"RML GOUTTIERE ALU",sharedKey:CLOUD_SHARED_KEY,version:"V64.8-restauration-base-saine",schemaVersion:648,fullSnapshot:true,revision:nextRev,previousRevision:Number(master.revision||0),savedAt:new Date().toISOString(),storage:ms});
+    const {error:ue}=await supabaseCloud.from(CLOUD_TABLE).update({data:merged,updated_at:merged.savedAt}).eq("id",rowId);
+    if(ue) throw ue;
+    try{ applyCloudPayload(merged); }catch(e){ console.warn("Application locale après restauration :",e); }
+    try{ await saveCloudHistoryEntry(merged,"Base métier restaurée V64.8"); }catch(e){}
+    setSyncStatus("Base restaurée : "+products.length+" produits • "+orders.length+" commandes historique.");
+    alert("✅ Restauration terminée.\n\n"+products.length+" produits et "+orders.length+" commandes d’historique restaurés.\nLes commandes en cours et les autres réglages ont été conservés.");
+    setTimeout(()=>location.reload(),500);
+  }catch(err){
+    console.error("Erreur restauration base saine V64.8 :",err);
+    alert("Erreur restauration base saine : "+(err&&err.message?err.message:err));
+  }
 }
 
 async function restoreCloudHistoryVersion(id){
@@ -5539,7 +5594,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    - dernier changement daté gagne en cas de conflit global
    ============================================================ */
 (function(){
-  const V61_VERSION = "V64.7-cloud-first-catalogue";
+  const V61_VERSION = "V64.8-cloud-first-catalogue";
   const V61_DEVICE_KEY = "v61_device_id";
   const V61_LOCAL_CHANGE_KEY = "v61_last_local_change_ms";
   const V61_PENDING_KEY = "v61_sync_pending";
@@ -6218,7 +6273,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V64.7";
+  const PRO_VERSION = "V64.8";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
