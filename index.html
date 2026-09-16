@@ -2442,14 +2442,14 @@ function goSettings(){
     <div class="settings-section" data-settings-section="sync">
     <div class="card">
       <p class="title">Synchronisation cloud</p>
-      <p class="note">V65.1 : Supabase est la base maître. Chaque appareil charge d’abord le cloud avant de pouvoir envoyer des modifications. Le stockage local reste actif hors connexion.</p>
+      <p class="note">V65.2 : Supabase est la base maître. Chaque appareil charge d’abord le cloud avant de pouvoir envoyer des modifications. Le stockage local reste actif hors connexion.</p>
       <div class="sync-card" style="margin-top:10px">
         <button class="btn neutral" style="width:auto;background:#0a8454;color:#fff;border-color:#0a8454" onclick="saveCloudNow()">Sauvegarder sur le cloud</button>
         <button class="btn neutral" style="width:auto" onclick="loadCloudNow()">Recharger depuis le cloud</button>
       </div>
       <div id="syncStatus" class="sync-status">Prêt.</div>
-      <div class="note" style="margin-top:8px">V65.1 : synchronisation maître sécurisée avec restaurations ciblées. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
-      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V65.1 : catalogue volumineux stocké dans IndexedDB pour supprimer la limite localStorage de Safari.</div>
+      <div class="note" style="margin-top:8px">V65.2 : synchronisation maître sécurisée avec restaurations ciblées. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
+      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V65.2 : catalogue volumineux stocké dans IndexedDB pour supprimer la limite localStorage de Safari.</div>
       <div class="card" style="margin-top:12px;background:#f8fafc">
         <p class="title">Historique des sauvegardes</p>
         <p class="note">Les 20 dernières sauvegardes cloud. Tu peux restaurer une version précédente si besoin.</p>
@@ -4591,18 +4591,31 @@ function setSyncStatus(message){
 
 async function findSharedCloudRow(){
   if(!supabaseCloud) throw new Error("Supabase non chargé.");
+
+  // V65.2 : ne dépend plus d'un identifiant mémorisé par Safari/PWA.
+  // Recherche d'abord explicitement la ligne maître par son sharedKey JSON.
+  try{
+    const q = await supabaseCloud
+      .from(CLOUD_TABLE)
+      .select("id,data,updated_at")
+      .contains("data", {sharedKey:CLOUD_SHARED_KEY})
+      .order("updated_at", { ascending:false })
+      .limit(5);
+    if(!q.error && Array.isArray(q.data)){
+      const shared=q.data.find(row=>row && row.data && row.data.sharedKey===CLOUD_SHARED_KEY);
+      if(shared) return shared;
+    }
+  }catch(e){}
+
+  // Deuxième recherche : toutes les lignes visibles de l'application.
   const { data, error } = await supabaseCloud
     .from(CLOUD_TABLE)
     .select("id,data,updated_at")
     .order("updated_at", { ascending: false });
   if(error) throw error;
   const rows = Array.isArray(data) ? data : [];
-
-  // 1) row already migrated to shared key
   const shared = rows.find(row => row && row.data && row.data.sharedKey === CLOUD_SHARED_KEY);
   if(shared) return shared;
-
-  // 2) fallback: most recent legacy row for this app
   const legacy = rows.find(row => row && row.data && row.data.app === "RML GOUTTIERE ALU");
   return legacy || null;
 }
@@ -5617,7 +5630,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    - dernier changement daté gagne en cas de conflit global
    ============================================================ */
 (function(){
-  const V61_VERSION = "V65.1-pwa-cloud-row-auto";
+  const V61_VERSION = "V65.2-pwa-cloud-row-auto";
   const V61_DEVICE_KEY = "v61_device_id";
   const V61_LOCAL_CHANGE_KEY = "v61_last_local_change_ms";
   const V61_PENDING_KEY = "v61_sync_pending";
@@ -5982,7 +5995,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 
   async function v61ReadCloudRow(){
     if(!supabaseCloud) throw new Error("Supabase non chargé.");
-    // V65.1 : Safari et la PWA peuvent conserver des identifiants de ligne cloud
+    // V65.2 : Safari et la PWA peuvent conserver des identifiants de ligne cloud
     // différents. On revalide donc systématiquement l'identifiant avant chaque lecture.
     let rowId = await ensureCloudRow();
     let res = await supabaseCloud.from(CLOUD_TABLE).select("id,data,updated_at").eq("id",rowId).single();
@@ -6367,11 +6380,40 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
             setTimeout(()=>{ try{ v61RefreshUiFromStorage(); }catch(e){} },80);
           }
         }else{
-          // Sans base maître valide, l'appareil reste en lecture seule côté cloud.
-          nativeSetItem.call(localStorage,V61_PENDING_KEY,"0");
-          v64BootstrapComplete = false;
-          v61Ready = true;
-          v61SetIndicator("error","base maître introuvable : envoi bloqué");
+          // V65.2 : si la PWA ne voit pas la ligne maître mais voit l'historique,
+          // elle peut se reconstruire EN LECTURE SEULE depuis la dernière sauvegarde saine.
+          // Cette récupération n'autorise jamais un envoi vers Supabase.
+          let recovered=false;
+          try{
+            v61SetIndicator("syncing","base maître non visible • recherche sauvegarde saine");
+            const h=await supabaseCloud.from(CLOUD_HISTORY_TABLE)
+              .select("id,created_at,note,data")
+              .order("created_at",{ascending:false}).limit(30);
+            if(!h.error && Array.isArray(h.data)){
+              const safe=h.data.find(r=>r && r.data && v61IsCompatiblePayload(r.data) && v64PayloadProductCount(r.data)>=100);
+              if(safe){
+                const n=v64PayloadProductCount(safe.data);
+                v61SetIndicator("syncing","récupération secours • "+n+" produits");
+                window.applyCloudPayload(safe.data);
+                await v645RepairCatalogFromMaster(safe.data);
+                const check=v64PayloadProductCount(window.buildCloudPayload());
+                if(check>=Math.max(20,Math.floor(n*0.90))){
+                  recovered=true;
+                  v61Ready=true;
+                  v64BootstrapComplete=false; // lecture seule : aucune écriture sans ligne maître courante
+                  nativeSetItem.call(localStorage,V61_PENDING_KEY,"0");
+                  v61SetIndicator("ok","données récupérées • mode protégé sans envoi");
+                  setTimeout(()=>{try{v61RefreshUiFromStorage();}catch(e){}},80);
+                }
+              }
+            }
+          }catch(re){ console.error("V65.2 récupération secours",re); }
+          if(!recovered){
+            nativeSetItem.call(localStorage,V61_PENDING_KEY,"0");
+            v64BootstrapComplete = false;
+            v61Ready = true;
+            v61SetIndicator("error","base maître introuvable : envoi bloqué");
+          }
         }
       }catch(e){
         v61Ready = true;
@@ -6421,7 +6463,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V65.1";
+  const PRO_VERSION = "V65.2";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
