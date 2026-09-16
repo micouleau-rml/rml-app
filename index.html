@@ -853,7 +853,25 @@ save();
     groups: groups
   };
   saveValidatedSupplierOrders(orders);
-  alert("Commande validée pour " + supplierName + ".");
+
+  // V66.4 : la validation alimente immédiatement l’historique avec exactement
+  // les mêmes lignes que le récapitulatif. Les deux clés sont ensuite envoyées
+  // ensemble par la file de synchronisation V66.
+  try{
+    withPreviewGroups(groups, function(){
+      saveCurrentOrderToHistory();
+    }, supplierName);
+  }catch(e){
+    console.error("V66.4 historique validation", e);
+  }
+
+  // Le proxy localStorage a déjà placé VALIDATED_SUPPLIER_ORDERS_KEY et
+  // HISTORY_KEY dans V66_CHANGED_KEYS. On déclenche un seul envoi groupé.
+  try{
+    if(typeof v61SchedulePush === "function") v61SchedulePush();
+  }catch(e){}
+
+  alert("Commande validée et enregistrée dans l’historique pour " + supplierName + ".");
 }
 function deleteValidatedSupplierOrder(supplierName, silent){
   const clean = String(supplierName || "").trim();
@@ -2442,14 +2460,14 @@ function goSettings(){
     <div class="settings-section" data-settings-section="sync">
     <div class="card">
       <p class="title">Synchronisation cloud</p>
-      <p class="note">V66.3 : Supabase est l’unique base maître. Au démarrage, chaque appareil charge la dernière base. Ensuite seules les données modifiées sont synchronisées. Les appareils ouverts se mettent à jour en temps réel. La sauvegarde JSON manuelle reste disponible en secours.</p>
+      <p class="note">V66.4 : Supabase est l’unique base maître. Au démarrage, chaque appareil charge la dernière base. Ensuite seules les données modifiées sont synchronisées. Les appareils ouverts se mettent à jour en temps réel. La sauvegarde JSON manuelle reste disponible en secours.</p>
       <div class="sync-card" style="margin-top:10px">
         <button class="btn neutral" style="width:auto;background:#0a8454;color:#fff;border-color:#0a8454" onclick="saveCloudNow()">Sauvegarder sur le cloud</button>
         <button class="btn neutral" style="width:auto" onclick="loadCloudNow()">Recharger depuis le cloud</button>
       </div>
       <div id="syncStatus" class="sync-status">Prêt.</div>
       <div class="note" style="margin-top:8px">V66 : synchronisation maître sécurisée avec restaurations ciblées. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
-      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V66.3 : initialisation automatique des appareils vides, puis synchronisation différentielle et temps réel.</div>
+      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V66.4 : initialisation automatique des appareils vides, puis synchronisation différentielle et temps réel.</div>
       <div class="card" style="margin-top:12px;background:#f8fafc">
         <p class="title">Historique des sauvegardes</p>
         <p class="note">Les 20 dernières sauvegardes cloud. Tu peux restaurer une version précédente si besoin.</p>
@@ -5630,7 +5648,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    - dernier changement daté gagne en cas de conflit global
    ============================================================ */
 (function(){
-  const V61_VERSION = "V66.3-fast-start";
+  const V61_VERSION = "V66.4-fast-start";
   const V61_DEVICE_KEY = "v61_device_id";
   const V61_LOCAL_CHANGE_KEY = "v61_last_local_change_ms";
   const V61_PENDING_KEY = "v61_sync_pending";
@@ -5792,7 +5810,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 
   async function v66WriteDelta(key){
     const value = key===CUSTOM_PRODUCTS_KEY ? localStorage.getItem(key) : nativeGetItem.call(localStorage,key);
-    const packet={app:"RML GOUTTIERE ALU",version:"V66",sharedKey:CLOUD_SHARED_KEY,v66Type:V66_DELTA_TAG,
+    const packet={app:"RML GOUTTIERE ALU",version:"V66.4",sharedKey:CLOUD_SHARED_KEY,v66Type:V66_DELTA_TAG,
       v66Key:String(key),v66Value:value===null?null:String(value),savedAt:new Date().toISOString(),deviceId:v61DeviceId()};
     const old=await v66FindDeltaRow(key);
     if(old&&old.id){
@@ -6073,7 +6091,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 
   async function v61ReadCloudRow(){
     if(!supabaseCloud) throw new Error("Supabase non chargé.");
-    // V66.3 : une seule requête suffit normalement au démarrage.
+    // V66.4 : une seule requête suffit normalement au démarrage.
     // On cherche directement la ligne maître par sharedKey, sans faire d'abord
     // ensureCloudRow() puis une seconde lecture de la même ligne.
     const shared = await findSharedCloudRow();
@@ -6320,7 +6338,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     if(!supabaseCloud) return;
     try{
       if(v61RealtimeChannel){ try{supabaseCloud.removeChannel(v61RealtimeChannel);}catch(e){} }
-      // V66.3 : écoute toute la table mais n'applique QUE les petits paquets delta V66.
+      // V66.4 : écoute toute la table mais n'applique QUE les petits paquets delta V66.
       // Aucun rechargement du gros snapshot maître.
       v61RealtimeChannel = supabaseCloud
         .channel("rml-v66-deltas-" + CLOUD_SHARED_KEY)
@@ -6333,7 +6351,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
               const k=String(remote.v66Key), v=remote.v66Value;
               if(k===CUSTOM_PRODUCTS_KEY){ if(v===null) v65StoreProducts("[]"); else v65StoreProducts(String(v)); }
               else if(v===null) nativeRemoveItem.call(localStorage,k); else nativeSetItem.call(localStorage,k,String(v));
-            }catch(e){ console.error("[V66.3] réception temps réel",e); }
+            }catch(e){ console.error("[V66.4] réception temps réel",e); }
             finally{ v61ApplyingRemote=false; }
             v61SetIndicator("ok","mise à jour reçue • temps réel");
             setTimeout(()=>{ try{v61RefreshUiFromStorage();}catch(e){} },20);
@@ -6346,7 +6364,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
           }
           else if(status === "CHANNEL_ERROR" || status === "TIMED_OUT") v61SetIndicator("offline","données locales disponibles • temps réel en attente");
         });
-    }catch(err){ console.warn("V66.3 realtime:",err); }
+    }catch(err){ console.warn("V66.4 realtime:",err); }
   }
 
   async function v662LoadDeltas(){
@@ -6442,7 +6460,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       }
 
       try{
-        // V66.3 : une installation vide reçoit une seule fois la base complète.
+        // V66.4 : une installation vide reçoit une seule fois la base complète.
         if(localProducts<100){
           v61SetIndicator("syncing","première installation • récupération de la base maître");
           const master=await v663ReadMasterForBootstrap();
@@ -6471,7 +6489,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
           if(hv!==null){ V66_CHANGED_KEYS.add(HISTORY_KEY); setTimeout(v66PushChangedKeys,180); }
         }catch(e){}
       }catch(e){
-        console.error("V66.3 démarrage",e);
+        console.error("V66.4 démarrage",e);
         if(localProducts>=100){
           v64BootstrapComplete=true;
           v61SetIndicator("offline","Supabase temporairement indisponible • données locales disponibles");
@@ -6517,7 +6535,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V66.3";
+  const PRO_VERSION = "V66.4";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
