@@ -1,3 +1,1 @@
-const CACHE_NAME='rml-gouttiere-v64-8';
-self.addEventListener('install',e=>self.skipWaiting());
-self.addEventListener('activate',e=>e.waitUntil(clients.claim()));
+const CACHE='rml-gouttiere-v64-9'; self.addEventListener('install',e=>self.skipWaiting()); self.addEventListener('activate',e=>e.waitUntil(clients.claim()));
