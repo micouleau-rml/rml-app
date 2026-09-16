@@ -854,7 +854,7 @@ save();
   };
   saveValidatedSupplierOrders(orders);
 
-  // V66.4 : la validation alimente immédiatement l’historique avec exactement
+  // V66.5 : la validation alimente immédiatement l’historique avec exactement
   // les mêmes lignes que le récapitulatif. Les deux clés sont ensuite envoyées
   // ensemble par la file de synchronisation V66.
   try{
@@ -862,7 +862,7 @@ save();
       saveCurrentOrderToHistory();
     }, supplierName);
   }catch(e){
-    console.error("V66.4 historique validation", e);
+    console.error("V66.5 historique validation", e);
   }
 
   // Le proxy localStorage a déjà placé VALIDATED_SUPPLIER_ORDERS_KEY et
@@ -2460,14 +2460,14 @@ function goSettings(){
     <div class="settings-section" data-settings-section="sync">
     <div class="card">
       <p class="title">Synchronisation cloud</p>
-      <p class="note">V66.4 : Supabase est l’unique base maître. Au démarrage, chaque appareil charge la dernière base. Ensuite seules les données modifiées sont synchronisées. Les appareils ouverts se mettent à jour en temps réel. La sauvegarde JSON manuelle reste disponible en secours.</p>
+      <p class="note">V66.5 : Supabase est l’unique base maître. Au démarrage, chaque appareil charge la dernière base. Ensuite seules les données modifiées sont synchronisées. Les appareils ouverts se mettent à jour en temps réel. La sauvegarde JSON manuelle reste disponible en secours.</p>
       <div class="sync-card" style="margin-top:10px">
         <button class="btn neutral" style="width:auto;background:#0a8454;color:#fff;border-color:#0a8454" onclick="saveCloudNow()">Sauvegarder sur le cloud</button>
         <button class="btn neutral" style="width:auto" onclick="loadCloudNow()">Recharger depuis le cloud</button>
       </div>
       <div id="syncStatus" class="sync-status">Prêt.</div>
       <div class="note" style="margin-top:8px">V66 : synchronisation maître sécurisée avec restaurations ciblées. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
-      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V66.4 : initialisation automatique des appareils vides, puis synchronisation différentielle et temps réel.</div>
+      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V66.5 : initialisation automatique des appareils vides, puis synchronisation différentielle et temps réel.</div>
       <div class="card" style="margin-top:12px;background:#f8fafc">
         <p class="title">Historique des sauvegardes</p>
         <p class="note">Les 20 dernières sauvegardes cloud. Tu peux restaurer une version précédente si besoin.</p>
@@ -2960,29 +2960,17 @@ async function sharePdfForValidatedSupplier(supplierName){
 
 function saveValidatedOrderToHistory(supplierName){
   const order = getValidatedOrderBySupplierName(supplierName);
-  if(!order){
-    alert("Aucune commande à enregistrer.");
-    return false;
-  }
-
+  if(!order){ alert("Aucune commande à enregistrer."); return false; }
   return withPreviewGroups(order.groups, function(){
-    const now = new Date();
+    const when = order.validatedAt || new Date().toISOString();
+    const now = new Date(when);
     const monthKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
-    const entry = {
-      orderNumber: getOrderNumber(),
-      date: getTodayFR(),
-      createdAt: now.toISOString(),
-      monthKey: monthKey,
-      supplier: String(supplierName || "").trim(),
-      orderUser: String(orderUser || ""),
-      orderMessage: String(orderMessage || ""),
-      text: recapText(),
-      groups: order.groups,
-      state: JSON.parse(JSON.stringify(state || {}))
-    };
-    const history = getHistory();
-    history.unshift(entry);
-    saveHistory(history);
+    const entry = {orderNumber:getOrderNumber(),date:now.toLocaleDateString("fr-FR"),createdAt:when,monthKey,
+      supplier:String(supplierName||"").trim(),orderUser:String(orderUser||""),orderMessage:String(orderMessage||""),
+      text:recapText(),groups:order.groups,state:JSON.parse(JSON.stringify(state||{}))};
+    const history=getHistory();
+    const merged=v665MergeHistoryRaw(JSON.stringify([entry]),JSON.stringify(history));
+    saveHistory(JSON.parse(merged));
     alert("Commande enregistrée dans l'historique.");
     return true;
   }, supplierName);
@@ -5648,7 +5636,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    - dernier changement daté gagne en cas de conflit global
    ============================================================ */
 (function(){
-  const V61_VERSION = "V66.4-fast-start";
+  const V61_VERSION = "V66.5-fast-start";
   const V61_DEVICE_KEY = "v61_device_id";
   const V61_LOCAL_CHANGE_KEY = "v61_last_local_change_ms";
   const V61_PENDING_KEY = "v61_sync_pending";
@@ -5808,11 +5796,66 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     return Array.isArray(data)&&data.length?data[0]:null;
   }
 
+  // V66.5 : l'historique est cumulatif. Une synchronisation ne doit jamais
+  // remplacer une liste par une liste plus ancienne et faire disparaître une commande.
+  function v665HistoryArray(raw){
+    try{ const a=JSON.parse(raw||"[]"); return Array.isArray(a)?a:[]; }catch(e){ return []; }
+  }
+  function v665OrderFingerprint(o){
+    if(!o||typeof o!=="object") return "";
+    const supplier=String(o.supplier||"").trim().toUpperCase();
+    const created=String(o.createdAt||o.validatedAt||"");
+    const num=String(o.orderNumber||"");
+    let groups="";
+    try{ groups=JSON.stringify(o.groups||[]); }catch(e){}
+    // createdAt + fournisseur est prioritaire; le contenu permet de reconnaître les anciennes entrées.
+    return supplier+"|"+created+"|"+num+"|"+groups;
+  }
+  function v665MergeHistoryRaw(aRaw,bRaw){
+    const all=[...v665HistoryArray(aRaw),...v665HistoryArray(bRaw)];
+    const seen=new Set(), out=[];
+    for(const o of all){
+      const fp=v665OrderFingerprint(o);
+      if(!fp || seen.has(fp)) continue;
+      seen.add(fp); out.push(o);
+    }
+    out.sort((a,b)=>new Date(b.createdAt||b.validatedAt||0)-new Date(a.createdAt||a.validatedAt||0));
+    return JSON.stringify(out.slice(0,250));
+  }
+  function v665RepairHistoryFromValidated(){
+    let orders={}; try{orders=getValidatedSupplierOrders()||{};}catch(e){return 0;}
+    let hist=v665HistoryArray(nativeGetItem.call(localStorage,HISTORY_KEY));
+    let added=0;
+    for(const [supplier,order] of Object.entries(orders)){
+      if(!order||!Array.isArray(order.groups)||!order.groups.length) continue;
+      const when=String(order.validatedAt||new Date().toISOString());
+      // Une commande validée est considérée présente si fournisseur + heure de validation + groupes correspondent.
+      const exists=hist.some(h=>String(h.supplier||'').trim().toUpperCase()===String(supplier).trim().toUpperCase() &&
+        String(h.createdAt||'')===when && JSON.stringify(h.groups||[])===JSON.stringify(order.groups||[]));
+      if(exists) continue;
+      const d=new Date(when); const monthKey=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      hist.push({orderNumber:"",date:d.toLocaleDateString('fr-FR'),createdAt:when,monthKey,
+        supplier:String(supplier||'').trim(),orderUser:String(orderUser||''),orderMessage:String(orderMessage||''),
+        text:"Commande restaurée automatiquement depuis le récapitulatif V66.5",groups:order.groups,state:{}});
+      added++;
+    }
+    if(added){
+      hist.sort((a,b)=>new Date(b.createdAt||0)-new Date(a.createdAt||0));
+      nativeSetItem.call(localStorage,HISTORY_KEY,JSON.stringify(hist.slice(0,250)));
+      V66_CHANGED_KEYS.add(HISTORY_KEY);
+    }
+    return added;
+  }
+
   async function v66WriteDelta(key){
-    const value = key===CUSTOM_PRODUCTS_KEY ? localStorage.getItem(key) : nativeGetItem.call(localStorage,key);
-    const packet={app:"RML GOUTTIERE ALU",version:"V66.4",sharedKey:CLOUD_SHARED_KEY,v66Type:V66_DELTA_TAG,
-      v66Key:String(key),v66Value:value===null?null:String(value),savedAt:new Date().toISOString(),deviceId:v61DeviceId()};
+    let value = key===CUSTOM_PRODUCTS_KEY ? localStorage.getItem(key) : nativeGetItem.call(localStorage,key);
     const old=await v66FindDeltaRow(key);
+    if(key===HISTORY_KEY && old && old.data){
+      value=v665MergeHistoryRaw(value,old.data.v66Value);
+      nativeSetItem.call(localStorage,HISTORY_KEY,value);
+    }
+    const packet={app:"RML GOUTTIERE ALU",version:"V66.5",sharedKey:CLOUD_SHARED_KEY,v66Type:V66_DELTA_TAG,
+      v66Key:String(key),v66Value:value===null?null:String(value),savedAt:new Date().toISOString(),deviceId:v61DeviceId()};
     if(old&&old.id){
       const {error}=await supabaseCloud.from(CLOUD_TABLE).update({data:packet,updated_at:packet.savedAt}).eq("id",old.id);
       if(error) throw error;
@@ -6091,7 +6134,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 
   async function v61ReadCloudRow(){
     if(!supabaseCloud) throw new Error("Supabase non chargé.");
-    // V66.4 : une seule requête suffit normalement au démarrage.
+    // V66.5 : une seule requête suffit normalement au démarrage.
     // On cherche directement la ligne maître par sharedKey, sans faire d'abord
     // ensureCloudRow() puis une seconde lecture de la même ligne.
     const shared = await findSharedCloudRow();
@@ -6338,7 +6381,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     if(!supabaseCloud) return;
     try{
       if(v61RealtimeChannel){ try{supabaseCloud.removeChannel(v61RealtimeChannel);}catch(e){} }
-      // V66.4 : écoute toute la table mais n'applique QUE les petits paquets delta V66.
+      // V66.5 : écoute toute la table mais n'applique QUE les petits paquets delta V66.
       // Aucun rechargement du gros snapshot maître.
       v61RealtimeChannel = supabaseCloud
         .channel("rml-v66-deltas-" + CLOUD_SHARED_KEY)
@@ -6350,8 +6393,9 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
               v61ApplyingRemote=true;
               const k=String(remote.v66Key), v=remote.v66Value;
               if(k===CUSTOM_PRODUCTS_KEY){ if(v===null) v65StoreProducts("[]"); else v65StoreProducts(String(v)); }
+              else if(k===HISTORY_KEY){ nativeSetItem.call(localStorage,HISTORY_KEY,v665MergeHistoryRaw(nativeGetItem.call(localStorage,HISTORY_KEY),v)); }
               else if(v===null) nativeRemoveItem.call(localStorage,k); else nativeSetItem.call(localStorage,k,String(v));
-            }catch(e){ console.error("[V66.4] réception temps réel",e); }
+            }catch(e){ console.error("[V66.5] réception temps réel",e); }
             finally{ v61ApplyingRemote=false; }
             v61SetIndicator("ok","mise à jour reçue • temps réel");
             setTimeout(()=>{ try{v61RefreshUiFromStorage();}catch(e){} },20);
@@ -6364,7 +6408,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
           }
           else if(status === "CHANNEL_ERROR" || status === "TIMED_OUT") v61SetIndicator("offline","données locales disponibles • temps réel en attente");
         });
-    }catch(err){ console.warn("V66.4 realtime:",err); }
+    }catch(err){ console.warn("V66.5 realtime:",err); }
   }
 
   async function v662LoadDeltas(){
@@ -6460,7 +6504,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       }
 
       try{
-        // V66.4 : une installation vide reçoit une seule fois la base complète.
+        // V66.5 : une installation vide reçoit une seule fois la base complète.
         if(localProducts<100){
           v61SetIndicator("syncing","première installation • récupération de la base maître");
           const master=await v663ReadMasterForBootstrap();
@@ -6476,20 +6520,21 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
         // Puis seulement les petits deltas, y compris l'historique récent.
         v61SetIndicator("syncing","mise à jour des dernières modifications");
         const n=await v662LoadDeltas();
+        const repairedHistory=v665RepairHistoryFromValidated();
         try{ v61RefreshUiFromStorage(); }catch(e){}
         v64BootstrapComplete=true;
         nativeSetItem.call(localStorage,V64_BOOTSTRAP_KEY,new Date().toISOString());
         v61SetIndicator("ok","à jour • temps réel");
         setTimeout(()=>{ try{v61StartRealtime();}catch(e){} },30);
 
-        // Sur un appareil déjà sain, republie le petit historique afin que la commande
+        // Sur un appareil déjà sain, fusionne le petit historique afin que la commande
         // la plus récente soit disponible aux autres appareils. Jamais le catalogue ici.
         try{
           const hv=nativeGetItem.call(localStorage,HISTORY_KEY);
           if(hv!==null){ V66_CHANGED_KEYS.add(HISTORY_KEY); setTimeout(v66PushChangedKeys,180); }
         }catch(e){}
       }catch(e){
-        console.error("V66.4 démarrage",e);
+        console.error("V66.5 démarrage",e);
         if(localProducts>=100){
           v64BootstrapComplete=true;
           v61SetIndicator("offline","Supabase temporairement indisponible • données locales disponibles");
@@ -6535,7 +6580,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V66.4";
+  const PRO_VERSION = "V66.5";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
