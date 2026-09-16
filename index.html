@@ -2442,13 +2442,13 @@ function goSettings(){
     <div class="settings-section" data-settings-section="sync">
     <div class="card">
       <p class="title">Synchronisation cloud</p>
-      <p class="note">V64.5 : Supabase est la base maître. Chaque appareil charge d’abord le cloud avant de pouvoir envoyer des modifications. Le stockage local reste actif hors connexion.</p>
+      <p class="note">V64.7 : Supabase est la base maître. Chaque appareil charge d’abord le cloud avant de pouvoir envoyer des modifications. Le stockage local reste actif hors connexion.</p>
       <div class="sync-card" style="margin-top:10px">
         <button class="btn neutral" style="width:auto;background:#0a8454;color:#fff;border-color:#0a8454" onclick="saveCloudNow()">Sauvegarder sur le cloud</button>
         <button class="btn neutral" style="width:auto" onclick="loadCloudNow()">Recharger depuis le cloud</button>
       </div>
       <div id="syncStatus" class="sync-status">Prêt.</div>
-      <div class="note" style="margin-top:8px">V64.5 : synchronisation maître sécurisée avec restaurations ciblées. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
+      <div class="note" style="margin-top:8px">V64.7 : synchronisation maître sécurisée avec restaurations ciblées. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
       <div class="card" style="margin-top:12px;background:#f8fafc">
         <p class="title">Historique des sauvegardes</p>
         <p class="note">Les 20 dernières sauvegardes cloud. Tu peux restaurer une version précédente si besoin.</p>
@@ -5539,7 +5539,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    - dernier changement daté gagne en cas de conflit global
    ============================================================ */
 (function(){
-  const V61_VERSION = "V64.5-auto-reparation";
+  const V61_VERSION = "V64.7-cloud-first-catalogue";
   const V61_DEVICE_KEY = "v61_device_id";
   const V61_LOCAL_CHANGE_KEY = "v61_last_local_change_ms";
   const V61_PENDING_KEY = "v61_sync_pending";
@@ -5743,12 +5743,19 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
   window.applyCloudPayload = function(payload){
     const storage = payload && payload.storage;
     if(!storage || typeof storage !== "object") throw new Error("Sauvegarde cloud invalide.");
-    // V62.2 : copie de sécurité locale avant tout remplacement par le cloud.
-    try{
-      const backup = {};
-      v61GetSyncStorageKeys().forEach(k=>{ const v=localStorage.getItem(k); if(v!==null) backup[k]=v; });
-      nativeSetItem.call(localStorage,"v61_migration_backup_v622",JSON.stringify({savedAt:new Date().toISOString(),storage:backup}));
-    }catch(e){}
+    // V64.7 : sur un nouvel appareil, le catalogue maître doit pouvoir entrer
+    // même si localStorage est presque plein. On ne duplique donc jamais un gros
+    // catalogue local avant une réception cloud et on libère les anciennes copies techniques.
+    const incomingProductsCount = v64PayloadProductCount(payload);
+    try{ nativeRemoveItem.call(localStorage,"v61_migration_backup_v622"); }catch(e){}
+    try{ nativeRemoveItem.call(localStorage,"v641_products_backup_before_restore"); }catch(e){}
+    if(incomingProductsCount < 100){
+      try{
+        const backup = {};
+        v61GetSyncStorageKeys().forEach(k=>{ const v=localStorage.getItem(k); if(v!==null) backup[k]=v; });
+        nativeSetItem.call(localStorage,"v61_migration_backup_v622",JSON.stringify({savedAt:new Date().toISOString(),storage:backup}));
+      }catch(e){}
+    }
     v61ApplyingRemote = true;
     try{
       const isFullSnapshot = payload && payload.fullSnapshot === true && Number(payload.schemaVersion||0) >= 631;
@@ -5763,14 +5770,30 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
         }
         localKeys.forEach(k=>{ try{ nativeRemoveItem.call(localStorage,k); }catch(e){} });
       }
-      Object.keys(storage).forEach(k=>{
+      // V64.7 : écrit le catalogue EN PREMIER, puis le reste. Une erreur d'écriture
+      // du catalogue n'est plus masquée : tant qu'il n'est pas installé, le bootstrap
+      // reste incomplet et cet appareil ne peut rien envoyer vers Supabase.
+      const orderedKeys = Object.keys(storage).sort((a,b)=>{
+        if(a===CUSTOM_PRODUCTS_KEY) return -1;
+        if(b===CUSTOM_PRODUCTS_KEY) return 1;
+        return 0;
+      });
+      orderedKeys.forEach(k=>{
         if(v61IsAppDataKey(k)){
-          try{
-            if(storage[k] === null) nativeRemoveItem.call(localStorage,k);
-            else nativeSetItem.call(localStorage,k,storage[k]);
-          }catch(e){}
+          if(storage[k] === null) nativeRemoveItem.call(localStorage,k);
+          else nativeSetItem.call(localStorage,k,storage[k]);
         }
       });
+      if(incomingProductsCount >= 100){
+        let installedCount=0;
+        try{
+          const installed=JSON.parse(localStorage.getItem(CUSTOM_PRODUCTS_KEY)||"[]");
+          installedCount=Array.isArray(installed)?installed.length:0;
+        }catch(e){}
+        if(installedCount < Math.max(20,Math.floor(incomingProductsCount*0.90))){
+          throw new Error("Catalogue maître non installé : "+installedCount+" / "+incomingProductsCount+" produits");
+        }
+      }
       const appliedRevision = Number(payload.revision || payload.proRevision || 0);
       nativeSetItem.call(localStorage,V61_PENDING_KEY,"0");
       nativeSetItem.call(localStorage,V63_REV_KEY,String(appliedRevision));
@@ -5882,7 +5905,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       setTimeout(()=>{ try{ v61RefreshUiFromStorage(); }catch(e){} },80);
       return true;
     }catch(err){
-      console.error("V64.5 auto-réparation catalogue:",err);
+      console.error("V64.7 auto-réparation catalogue:",err);
       v61SetIndicator("error","récupération catalogue impossible");
       return false;
     }
@@ -5927,7 +5950,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       if(!forcePush && remoteProducts >= 100 && localProductsCount < Math.max(20, Math.floor(remoteProducts * 0.50))){
         nativeSetItem.call(localStorage,V61_PENDING_KEY,"0");
         v61SetIndicator("syncing","catalogue incomplet : récupération automatique");
-        console.warn("V64.5 : envoi bloqué, auto-réparation", {remoteProducts, localProductsCount});
+        console.warn("V64.7 : envoi bloqué, auto-réparation", {remoteProducts, localProductsCount});
         await v645RepairCatalogFromMaster(remotePayload);
         return;
       }
@@ -6195,7 +6218,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V64.6";
+  const PRO_VERSION = "V64.7";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
