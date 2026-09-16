@@ -2442,14 +2442,14 @@ function goSettings(){
     <div class="settings-section" data-settings-section="sync">
     <div class="card">
       <p class="title">Synchronisation cloud</p>
-      <p class="note">V66 : Supabase est l’unique base maître. Au démarrage, chaque appareil charge la dernière base. Ensuite seules les données modifiées sont synchronisées. Les appareils ouverts se mettent à jour en temps réel. La sauvegarde JSON manuelle reste disponible en secours.</p>
+      <p class="note">V66.1 : Supabase est l’unique base maître. Au démarrage, chaque appareil charge la dernière base. Ensuite seules les données modifiées sont synchronisées. Les appareils ouverts se mettent à jour en temps réel. La sauvegarde JSON manuelle reste disponible en secours.</p>
       <div class="sync-card" style="margin-top:10px">
         <button class="btn neutral" style="width:auto;background:#0a8454;color:#fff;border-color:#0a8454" onclick="saveCloudNow()">Sauvegarder sur le cloud</button>
         <button class="btn neutral" style="width:auto" onclick="loadCloudNow()">Recharger depuis le cloud</button>
       </div>
       <div id="syncStatus" class="sync-status">Prêt.</div>
       <div class="note" style="margin-top:8px">V66 : synchronisation maître sécurisée avec restaurations ciblées. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
-      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V66 : catalogue volumineux stocké dans IndexedDB pour supprimer la limite localStorage de Safari.</div>
+      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V66.1 : catalogue volumineux stocké dans IndexedDB pour supprimer la limite localStorage de Safari.</div>
       <div class="card" style="margin-top:12px;background:#f8fafc">
         <p class="title">Historique des sauvegardes</p>
         <p class="note">Les 20 dernières sauvegardes cloud. Tu peux restaurer une version précédente si besoin.</p>
@@ -5630,7 +5630,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    - dernier changement daté gagne en cas de conflit global
    ============================================================ */
 (function(){
-  const V61_VERSION = "V66-pwa-cloud-row-auto";
+  const V61_VERSION = "V66.1-fast-start";
   const V61_DEVICE_KEY = "v61_device_id";
   const V61_LOCAL_CHANGE_KEY = "v61_last_local_change_ms";
   const V61_PENDING_KEY = "v61_sync_pending";
@@ -6050,21 +6050,14 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 
   async function v61ReadCloudRow(){
     if(!supabaseCloud) throw new Error("Supabase non chargé.");
-    // V66 : Safari et la PWA peuvent conserver des identifiants de ligne cloud
-    // différents. On revalide donc systématiquement l'identifiant avant chaque lecture.
-    let rowId = await ensureCloudRow();
-    let res = await supabaseCloud.from(CLOUD_TABLE).select("id,data,updated_at").eq("id",rowId).single();
-    if(!res.error && res.data && res.data.data) return res.data;
-
-    // Si l'application installée avait mémorisé une ancienne ligne supprimée/invalide,
-    // on recherche directement la base maître partagée au lieu de déclarer le cloud vide.
-    try{ nativeRemoveItem.call(localStorage,CLOUD_ROW_ID_KEY); }catch(e){}
+    // V66.1 : une seule requête suffit normalement au démarrage.
+    // On cherche directement la ligne maître par sharedKey, sans faire d'abord
+    // ensureCloudRow() puis une seconde lecture de la même ligne.
     const shared = await findSharedCloudRow();
     if(shared && shared.id && shared.data){
       try{ nativeSetItem.call(localStorage,CLOUD_ROW_ID_KEY,String(shared.id)); }catch(e){}
       return shared;
     }
-    if(res.error) throw res.error;
     return null;
   }
 
@@ -6300,10 +6293,12 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     }
   }
 
-  async function v61StartRealtime(){
+  async function v61StartRealtime(masterRowId){
     if(!supabaseCloud) return;
     try{
-      const rowId = await ensureCloudRow();
+      // V66.1 : au démarrage on réutilise l'id déjà obtenu pendant la lecture maître.
+      // Aucun aller-retour Supabase supplémentaire avant l'affichage.
+      const rowId = masterRowId || localStorage.getItem(CLOUD_ROW_ID_KEY) || await ensureCloudRow();
       if(v61RealtimeChannel){ try{supabaseCloud.removeChannel(v61RealtimeChannel);}catch(e){} }
       v61RealtimeChannel = supabaseCloud
         .channel("rml-v61-" + CLOUD_SHARED_KEY)
@@ -6404,10 +6399,10 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       }
       let v649Stage="connexion Supabase", v649RemoteProducts=null;
       try{
-        v61SetIndicator("syncing","étape 1/4 • connexion Supabase");
-        await v61StartRealtime();
+        // V66.1 FAST START : on charge d'abord la base maître et on affiche les données.
+        // Le canal temps réel est branché seulement après, en arrière-plan.
         v649Stage="lecture de la base maître";
-        v61SetIndicator("syncing","étape 2/4 • lecture de la base maître");
+        v61SetIndicator("syncing","chargement de la base maître Supabase");
         const remoteRow = await v61ReadCloudRow();
         const remotePayload = remoteRow && remoteRow.data;
 
@@ -6444,8 +6439,10 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
             await v645RepairCatalogFromMaster(remotePayload);
           }else{
             v61SetIndicator("ok","base maître chargée");
-            setTimeout(()=>{ try{ v61RefreshUiFromStorage(); }catch(e){} },80);
+            setTimeout(()=>{ try{ v61RefreshUiFromStorage(); }catch(e){} },20);
           }
+          // Le temps réel ne bloque jamais l'ouverture de l'application.
+          setTimeout(()=>{ try{ v61StartRealtime(remoteRow && remoteRow.id); }catch(e){} },120);
         }else{
           // V66 : si la PWA ne voit pas la ligne maître mais voit l'historique,
           // elle peut se reconstruire EN LECTURE SEULE depuis la dernière sauvegarde saine.
@@ -6488,7 +6485,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
         try{ nativeSetItem.call(localStorage,V61_PENDING_KEY,"0"); }catch(x){}
         v649ErrorDetail(v649Stage,e,v649RemoteProducts);
       }
-    },700);
+    },80);
     setInterval(()=>{
       if(navigator.onLine){
         if(localStorage.getItem(V61_PENDING_KEY)==="1") v61SchedulePush();
@@ -6530,7 +6527,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V66";
+  const PRO_VERSION = "V66.1";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
