@@ -2442,14 +2442,14 @@ function goSettings(){
     <div class="settings-section" data-settings-section="sync">
     <div class="card">
       <p class="title">Synchronisation cloud</p>
-      <p class="note">V64.9 : Supabase est la base maître. Chaque appareil charge d’abord le cloud avant de pouvoir envoyer des modifications. Le stockage local reste actif hors connexion.</p>
+      <p class="note">V64.10 : Supabase est la base maître. Chaque appareil charge d’abord le cloud avant de pouvoir envoyer des modifications. Le stockage local reste actif hors connexion.</p>
       <div class="sync-card" style="margin-top:10px">
         <button class="btn neutral" style="width:auto;background:#0a8454;color:#fff;border-color:#0a8454" onclick="saveCloudNow()">Sauvegarder sur le cloud</button>
         <button class="btn neutral" style="width:auto" onclick="loadCloudNow()">Recharger depuis le cloud</button>
       </div>
       <div id="syncStatus" class="sync-status">Prêt.</div>
-      <div class="note" style="margin-top:8px">V64.9 : synchronisation maître sécurisée avec restaurations ciblées. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
-      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V64.9 : les 4 étapes de chargement sont affichées dans le bandeau de synchronisation.</div>
+      <div class="note" style="margin-top:8px">V64.10 : synchronisation maître sécurisée avec restaurations ciblées. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
+      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V64.10 : les 4 étapes de chargement sont affichées dans le bandeau de synchronisation.</div>
       <div class="card" style="margin-top:12px;background:#f8fafc">
         <p class="title">Historique des sauvegardes</p>
         <p class="note">Les 20 dernières sauvegardes cloud. Tu peux restaurer une version précédente si besoin.</p>
@@ -5617,7 +5617,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    - dernier changement daté gagne en cas de conflit global
    ============================================================ */
 (function(){
-  const V61_VERSION = "V64.9-diagnostic-recuperation";
+  const V61_VERSION = "V64.10-stockage-compact-safari";
   const V61_DEVICE_KEY = "v61_device_id";
   const V61_LOCAL_CHANGE_KEY = "v61_last_local_change_ms";
   const V61_PENDING_KEY = "v61_sync_pending";
@@ -5670,6 +5670,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       key === V61_PENDING_KEY ||
       key === "commande_fournisseur_custom_products_v1" ||
       key === "v641_products_backup_before_restore" ||
+      key === "rml_custom_products_compact_v6410" ||
       key === V61_LAST_REMOTE_KEY ||
       key === LAST_SAVE_AT_KEY ||
       key === META_BACKUP_KEY ||
@@ -5743,7 +5744,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     const detail = stage+" : "+msg+" | cloud="+(remoteProducts==null?"?":remoteProducts)+" produits | local="+localProducts+" produits / "+localOrders+" commandes";
     try{ localStorage.setItem("v649_last_sync_error",detail); }catch(e){}
     v61SetIndicator("error",detail);
-    console.error("[V64.9]",detail,err);
+    console.error("[V64.10]",detail,err);
   }
 
   function v61InstallIndicator(){
@@ -5783,12 +5784,55 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 
   // Intercepte les écritures locales de l'application afin que fournisseurs,
   // prix, couleurs, commandes, historique et réglages partent tous au cloud.
+  const nativeGetItem = Storage.prototype.getItem;
   const nativeSetItem = Storage.prototype.setItem;
   const nativeRemoveItem = Storage.prototype.removeItem;
+  const V6410_COMPACT_PRODUCTS_KEY = "rml_custom_products_compact_v6410";
+
+  function v6410CompactProductsJson(jsonText){
+    const arr = JSON.parse(String(jsonText||"[]"));
+    if(!Array.isArray(arr)) throw new Error("Catalogue produits invalide");
+    const keySet = new Set();
+    arr.forEach(o=>{ if(o && typeof o === "object" && !Array.isArray(o)) Object.keys(o).forEach(k=>keySet.add(k)); });
+    const keys = Array.from(keySet);
+    const rows = arr.map(o=>keys.map(k=>Object.prototype.hasOwnProperty.call(o||{},k)?o[k]:null));
+    return JSON.stringify({v:1,k:keys,r:rows});
+  }
+  function v6410ExpandProductsJson(compactText){
+    const c = JSON.parse(String(compactText||"{}"));
+    if(!c || c.v!==1 || !Array.isArray(c.k) || !Array.isArray(c.r)) return "[]";
+    const arr = c.r.map(row=>{ const o={}; c.k.forEach((k,i)=>{ const v=row[i]; if(v!==null && v!==undefined) o[k]=v; }); return o; });
+    return JSON.stringify(arr);
+  }
+  function v6410StoreProducts(jsonText){
+    const compact = v6410CompactProductsJson(jsonText);
+    nativeSetItem.call(localStorage,V6410_COMPACT_PRODUCTS_KEY,compact);
+    try{ nativeRemoveItem.call(localStorage,CUSTOM_PRODUCTS_KEY); }catch(e){}
+    try{ nativeRemoveItem.call(localStorage,"commande_fournisseur_custom_products_v1"); }catch(e){}
+    return compact;
+  }
+
+  // V64.10 : Safari limite fortement localStorage. Le gros catalogue est conservé
+  // sous forme compacte, mais toute l'application continue de voir le JSON normal.
+  Storage.prototype.getItem = function(key){
+    if(this===localStorage && key===CUSTOM_PRODUCTS_KEY){
+      const normal=nativeGetItem.call(this,key);
+      if(normal!==null) return normal;
+      const compact=nativeGetItem.call(this,V6410_COMPACT_PRODUCTS_KEY);
+      if(compact!==null){ try{ return v6410ExpandProductsJson(compact); }catch(e){ return null; } }
+    }
+    return nativeGetItem.call(this,key);
+  };
   Storage.prototype.setItem = function(key,value){
     let previous = null;
     try{ previous = this === localStorage ? localStorage.getItem(key) : null; }catch(e){}
-    const result = nativeSetItem.call(this,key,value);
+    let result;
+    if(this===localStorage && key===CUSTOM_PRODUCTS_KEY){
+      v6410StoreProducts(String(value));
+      result = undefined;
+    }else{
+      result = nativeSetItem.call(this,key,value);
+    }
     if(this === localStorage && v61Ready && v61IsAppDataKey(key) && !v61ApplyingRemote && previous !== String(value)) v61MarkLocalChange();
     return result;
   };
@@ -5869,8 +5913,12 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       });
       orderedKeys.forEach(k=>{
         if(v61IsAppDataKey(k)){
-          if(storage[k] === null) nativeRemoveItem.call(localStorage,k);
-          else nativeSetItem.call(localStorage,k,storage[k]);
+          if(storage[k] === null){
+            nativeRemoveItem.call(localStorage,k);
+            if(k===CUSTOM_PRODUCTS_KEY) try{ nativeRemoveItem.call(localStorage,V6410_COMPACT_PRODUCTS_KEY); }catch(e){}
+          }else if(k===CUSTOM_PRODUCTS_KEY){
+            v6410StoreProducts(storage[k]);
+          }else nativeSetItem.call(localStorage,k,storage[k]);
         }
       });
       if(incomingProductsCount >= 100){
@@ -5975,8 +6023,12 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
         const keys=[CUSTOM_PRODUCTS_KEY,"commande_fournisseur_custom_products_v1","rml_supplier_catalog_meta_v62",DELETED_PRODUCTS_KEY,SUPPLIERS_KEY,SUPPLIER_EMAILS_KEY,SUPPLIER_ADDRESSES_KEY,SUPPLIER_COLORS_KEY,BASE_FAMILY_OVERRIDES_KEY];
         for(const k of keys){
           if(!Object.prototype.hasOwnProperty.call(st,k)) continue;
-          if(st[k]===null) nativeRemoveItem.call(localStorage,k);
-          else nativeSetItem.call(localStorage,k,st[k]);
+          if(st[k]===null){
+            nativeRemoveItem.call(localStorage,k);
+            if(k===CUSTOM_PRODUCTS_KEY) try{ nativeRemoveItem.call(localStorage,V6410_COMPACT_PRODUCTS_KEY); }catch(e){}
+          }else if(k===CUSTOM_PRODUCTS_KEY){
+            v6410StoreProducts(st[k]);
+          }else nativeSetItem.call(localStorage,k,st[k]);
         }
         nativeSetItem.call(localStorage,V61_PENDING_KEY,"0");
         try{ nativeRemoveItem.call(localStorage,V61_FORCE_PUSH_KEY); }catch(e){}
@@ -6320,7 +6372,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V64.9";
+  const PRO_VERSION = "V64.10";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
