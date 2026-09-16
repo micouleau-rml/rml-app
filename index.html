@@ -2442,14 +2442,14 @@ function goSettings(){
     <div class="settings-section" data-settings-section="sync">
     <div class="card">
       <p class="title">Synchronisation cloud</p>
-      <p class="note">V65.2 : Supabase est la base maître. Chaque appareil charge d’abord le cloud avant de pouvoir envoyer des modifications. Le stockage local reste actif hors connexion.</p>
+      <p class="note">V66 : Supabase est l’unique base maître. Au démarrage, chaque appareil charge la dernière base. Ensuite seules les données modifiées sont synchronisées. Les appareils ouverts se mettent à jour en temps réel. La sauvegarde JSON manuelle reste disponible en secours.</p>
       <div class="sync-card" style="margin-top:10px">
         <button class="btn neutral" style="width:auto;background:#0a8454;color:#fff;border-color:#0a8454" onclick="saveCloudNow()">Sauvegarder sur le cloud</button>
         <button class="btn neutral" style="width:auto" onclick="loadCloudNow()">Recharger depuis le cloud</button>
       </div>
       <div id="syncStatus" class="sync-status">Prêt.</div>
-      <div class="note" style="margin-top:8px">V65.2 : synchronisation maître sécurisée avec restaurations ciblées. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
-      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V65.2 : catalogue volumineux stocké dans IndexedDB pour supprimer la limite localStorage de Safari.</div>
+      <div class="note" style="margin-top:8px">V66 : synchronisation maître sécurisée avec restaurations ciblées. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
+      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V66 : catalogue volumineux stocké dans IndexedDB pour supprimer la limite localStorage de Safari.</div>
       <div class="card" style="margin-top:12px;background:#f8fafc">
         <p class="title">Historique des sauvegardes</p>
         <p class="note">Les 20 dernières sauvegardes cloud. Tu peux restaurer une version précédente si besoin.</p>
@@ -4592,7 +4592,7 @@ function setSyncStatus(message){
 async function findSharedCloudRow(){
   if(!supabaseCloud) throw new Error("Supabase non chargé.");
 
-  // V65.2 : ne dépend plus d'un identifiant mémorisé par Safari/PWA.
+  // V66 : ne dépend plus d'un identifiant mémorisé par Safari/PWA.
   // Recherche d'abord explicitement la ligne maître par son sharedKey JSON.
   try{
     const q = await supabaseCloud
@@ -5630,14 +5630,14 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    - dernier changement daté gagne en cas de conflit global
    ============================================================ */
 (function(){
-  const V61_VERSION = "V65.2-pwa-cloud-row-auto";
+  const V61_VERSION = "V66-pwa-cloud-row-auto";
   const V61_DEVICE_KEY = "v61_device_id";
   const V61_LOCAL_CHANGE_KEY = "v61_last_local_change_ms";
   const V61_PENDING_KEY = "v61_sync_pending";
   const V61_FORCE_PUSH_KEY = "v61_force_push"; // V1.5 : une suppression locale doit gagner sur un ancien snapshot cloud
   const V61_LAST_REMOTE_KEY = "v61_last_remote_saved_at";
   const V61_POLL_MS = 2500;
-  const V61_PUSH_DELAY_MS = 900;
+  const V61_PUSH_DELAY_MS = 300;
   // V63 : Supabase est la sauvegarde maître. On utilise un numéro de révision
   // monotone plutôt que l'heure des ordinateurs pour départager les snapshots.
   const V63_REV_KEY = "v63_last_applied_revision";
@@ -5771,8 +5771,63 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     v61SetIndicator(navigator.onLine ? "waiting" : "offline");
   }
 
-  function v61MarkLocalChange(){
+  // V66 : file des seules clés réellement modifiées.
+  // Le snapshot maître historique reste utilisé uniquement pour le premier chargement/migration.
+  const V66_DELTA_TAG = "RML-V66-DELTA";
+  const V66_CHANGED_KEYS = new Set();
+  let v66DeltaRunning = false;
+
+  function v66QueueKey(key){
+    if(key && v61IsAppDataKey(key)) V66_CHANGED_KEYS.add(String(key));
+  }
+
+  async function v66FindDeltaRow(key){
+    const {data,error}=await supabaseCloud.from(CLOUD_TABLE)
+      .select("id,data,updated_at")
+      .contains("data",{sharedKey:CLOUD_SHARED_KEY,v66Type:V66_DELTA_TAG,v66Key:String(key)})
+      .order("updated_at",{ascending:false}).limit(1);
+    if(error) throw error;
+    return Array.isArray(data)&&data.length?data[0]:null;
+  }
+
+  async function v66WriteDelta(key){
+    const value = key===CUSTOM_PRODUCTS_KEY ? localStorage.getItem(key) : nativeGetItem.call(localStorage,key);
+    const packet={app:"RML GOUTTIERE ALU",version:"V66",sharedKey:CLOUD_SHARED_KEY,v66Type:V66_DELTA_TAG,
+      v66Key:String(key),v66Value:value===null?null:String(value),savedAt:new Date().toISOString(),deviceId:v61DeviceId()};
+    const old=await v66FindDeltaRow(key);
+    if(old&&old.id){
+      const {error}=await supabaseCloud.from(CLOUD_TABLE).update({data:packet,updated_at:packet.savedAt}).eq("id",old.id);
+      if(error) throw error;
+    }else{
+      const {error}=await supabaseCloud.from(CLOUD_TABLE).insert([{data:packet,updated_at:packet.savedAt}]);
+      if(error) throw error;
+    }
+  }
+
+  async function v66PushChangedKeys(){
+    if(v66DeltaRunning||v61ApplyingRemote||!v64BootstrapComplete) return;
+    if(!navigator.onLine){ v61SetIndicator("offline","hors connexion • envoi en attente"); return; }
+    const keys=[...V66_CHANGED_KEYS];
+    if(!keys.length){ v61SetIndicator("ok","à jour • temps réel"); return; }
+    v66DeltaRunning=true; v61SetIndicator("syncing","envoi de "+keys.length+" modification"+(keys.length>1?"s":""));
+    try{
+      // Protection catalogue : jamais de catalogue vide envoyé comme modification.
+      if(keys.includes(CUSTOM_PRODUCTS_KEY)){
+        let n=0; try{const a=JSON.parse(localStorage.getItem(CUSTOM_PRODUCTS_KEY)||"[]"); n=Array.isArray(a)?a.length:0;}catch(e){}
+        if(n<20) throw new Error("catalogue local incomplet : envoi bloqué");
+      }
+      for(const key of keys){ await v66WriteDelta(key); V66_CHANGED_KEYS.delete(key); }
+      nativeSetItem.call(localStorage,V61_PENDING_KEY,"0");
+      v61SetIndicator("ok","à jour • temps réel");
+    }catch(e){
+      console.error("[V66] delta",e); nativeSetItem.call(localStorage,V61_PENDING_KEY,"1");
+      v61SetIndicator("error",(e&&e.message)||"envoi Supabase impossible");
+    }finally{v66DeltaRunning=false;}
+  }
+
+  function v61MarkLocalChange(key){
     if(v61ApplyingRemote) return;
+    v66QueueKey(key);
     const now = Date.now();
     try{
       if(localStorage.getItem(V61_PENDING_KEY)!=="1"){
@@ -5782,7 +5837,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       nativeSetItem.call(localStorage,V61_PENDING_KEY,"1");
     }catch(e){}
     if(!navigator.onLine){
-      v61SetIndicator("offline","modifications gardées sur l’appareil");
+      v61SetIndicator("offline","hors connexion • envoi en attente");
       return;
     }
     v61SchedulePush();
@@ -5792,7 +5847,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     if(v61ApplyingRemote) return;
     clearTimeout(v61PushTimer);
     v61SetIndicator("syncing");
-    v61PushTimer = setTimeout(v61PushNow, V61_PUSH_DELAY_MS);
+    v61PushTimer = setTimeout(v66PushChangedKeys, V61_PUSH_DELAY_MS);
   }
 
   // Intercepte les écritures locales de l'application afin que fournisseurs,
@@ -5880,7 +5935,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     }else{
       result = nativeSetItem.call(this,key,value);
     }
-    if(this === localStorage && v61Ready && v61IsAppDataKey(key) && !v61ApplyingRemote && previous !== String(value)) v61MarkLocalChange();
+    if(this === localStorage && v61Ready && v61IsAppDataKey(key) && !v61ApplyingRemote && previous !== String(value)) v61MarkLocalChange(key);
     return result;
   };
   Storage.prototype.removeItem = function(key){
@@ -5892,7 +5947,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       try{ nativeRemoveItem.call(this,"rml_custom_products_compact_v6410"); }catch(e){}
       v65IdbDeleteProducts();
     }else nativeRemoveItem.call(this,key);
-    if(this === localStorage && v61Ready && v61IsAppDataKey(key) && !v61ApplyingRemote && existed) v61MarkLocalChange();
+    if(this === localStorage && v61Ready && v61IsAppDataKey(key) && !v61ApplyingRemote && existed) v61MarkLocalChange(key);
   };
 
   // Remplace le snapshot cloud ancien par un snapshot V61 complet de l'application.
@@ -5995,7 +6050,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
 
   async function v61ReadCloudRow(){
     if(!supabaseCloud) throw new Error("Supabase non chargé.");
-    // V65.2 : Safari et la PWA peuvent conserver des identifiants de ligne cloud
+    // V66 : Safari et la PWA peuvent conserver des identifiants de ligne cloud
     // différents. On revalide donc systématiquement l'identifiant avant chaque lecture.
     let rowId = await ensureCloudRow();
     let res = await supabaseCloud.from(CLOUD_TABLE).select("id,data,updated_at").eq("id",rowId).single();
@@ -6121,7 +6176,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       return;
     }
     if(v61PushRunning || v61ApplyingRemote) return;
-    if(!navigator.onLine){ v61SetIndicator("offline","sauvegarde locale active"); return; }
+    if(!navigator.onLine){ v61SetIndicator("offline","hors connexion • Supabase indisponible"); return; }
     v61PushRunning = true;
     v61SetIndicator("syncing");
     try{
@@ -6182,7 +6237,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     }catch(err){
       console.error("V63 push:",err);
       nativeSetItem.call(localStorage,V61_PENDING_KEY,"1");
-      v61SetIndicator(navigator.onLine?"error":"offline", navigator.onLine ? "nouvel essai automatique" : "sauvegarde locale active");
+      v61SetIndicator(navigator.onLine?"error":"offline", navigator.onLine ? "nouvel essai automatique" : "hors connexion • Supabase indisponible");
     }finally{
       v61PushRunning = false;
     }
@@ -6241,7 +6296,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       }
     }catch(err){
       console.warn("V63 check remote:",err);
-      if(!navigator.onLine) v61SetIndicator("offline","sauvegarde locale active");
+      if(!navigator.onLine) v61SetIndicator("offline","hors connexion • Supabase indisponible");
     }
   }
 
@@ -6258,6 +6313,18 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
           // et de garder la même logique de conflit sur tous les appareils.
           const remote = payload && payload.new && payload.new.data;
           if(remote && remote.deviceId === v61DeviceId()) return;
+          if(remote && remote.v66Type===V66_DELTA_TAG && remote.sharedKey===CLOUD_SHARED_KEY && remote.v66Key){
+            try{
+              v61ApplyingRemote=true;
+              const k=String(remote.v66Key), v=remote.v66Value;
+              if(k===CUSTOM_PRODUCTS_KEY){ if(v===null) v65StoreProducts("[]"); else v65StoreProducts(String(v)); }
+              else if(v===null) nativeRemoveItem.call(localStorage,k); else nativeSetItem.call(localStorage,k,String(v));
+            }catch(e){ console.error("[V66] réception temps réel",e); }
+            finally{ v61ApplyingRemote=false; }
+            v61SetIndicator("ok","mise à jour reçue • temps réel");
+            setTimeout(()=>{ try{v61RefreshUiFromStorage();}catch(e){} },40);
+            return;
+          }
           setTimeout(()=>{ try{ v61CheckRemote(false); }catch(e){} },40);
         })
         .subscribe(status=>{
@@ -6310,7 +6377,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     else v61CheckRemote(false);
     v61StartRealtime();
   });
-  window.addEventListener("offline",()=>v61SetIndicator("offline","sauvegarde locale active"));
+  window.addEventListener("offline",()=>v61SetIndicator("offline","hors connexion • Supabase indisponible"));
 
   // Dès que l'utilisateur revient sur l'application, on contrôle le cloud.
   // Safari iOS peut suspendre une connexion Realtime lorsque l'écran se verrouille
@@ -6380,7 +6447,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
             setTimeout(()=>{ try{ v61RefreshUiFromStorage(); }catch(e){} },80);
           }
         }else{
-          // V65.2 : si la PWA ne voit pas la ligne maître mais voit l'historique,
+          // V66 : si la PWA ne voit pas la ligne maître mais voit l'historique,
           // elle peut se reconstruire EN LECTURE SEULE depuis la dernière sauvegarde saine.
           // Cette récupération n'autorise jamais un envoi vers Supabase.
           let recovered=false;
@@ -6407,7 +6474,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
                 }
               }
             }
-          }catch(re){ console.error("V65.2 récupération secours",re); }
+          }catch(re){ console.error("V66 récupération secours",re); }
           if(!recovered){
             nativeSetItem.call(localStorage,V61_PENDING_KEY,"0");
             v64BootstrapComplete = false;
@@ -6463,7 +6530,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V65.2";
+  const PRO_VERSION = "V66";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
