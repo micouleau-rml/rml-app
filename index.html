@@ -2460,14 +2460,14 @@ function goSettings(){
     <div class="settings-section" data-settings-section="sync">
     <div class="card">
       <p class="title">Synchronisation cloud</p>
-      <p class="note">V66.6 : Supabase est l’unique base maître. Au démarrage, chaque appareil charge la dernière base. Ensuite seules les données modifiées sont synchronisées. Les appareils ouverts se mettent à jour en temps réel. La sauvegarde JSON manuelle reste disponible en secours.</p>
+      <p class="note">V66.7 : Supabase est l’unique base maître. Au démarrage, chaque appareil charge la dernière base. Ensuite seules les données modifiées sont synchronisées. Les appareils ouverts se mettent à jour en temps réel. La sauvegarde JSON manuelle reste disponible en secours.</p>
       <div class="sync-card" style="margin-top:10px">
         <button class="btn neutral" style="width:auto;background:#0a8454;color:#fff;border-color:#0a8454" onclick="saveCloudNow()">Sauvegarder sur le cloud</button>
         <button class="btn neutral" style="width:auto" onclick="loadCloudNow()">Recharger depuis le cloud</button>
       </div>
       <div id="syncStatus" class="sync-status">Prêt.</div>
       <div class="note" style="margin-top:8px">V66 : synchronisation maître sécurisée avec restaurations ciblées. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
-      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V66.6 : initialisation automatique des appareils vides, puis synchronisation différentielle et temps réel.</div>
+      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V66.7 : initialisation automatique des appareils vides, puis synchronisation différentielle et temps réel.</div>
       <div class="card" style="margin-top:12px;background:#f8fafc">
         <p class="title">Historique des sauvegardes</p>
         <p class="note">Les 20 dernières sauvegardes cloud. Tu peux restaurer une version précédente si besoin.</p>
@@ -3563,6 +3563,29 @@ async function restoreLastHistoryDeletion(){
   alert("Historique restauré.");
 }
 
+function v667HistoryDisplayText(entry){
+  const raw = String((entry && entry.text) || "").trim();
+  const isAuto = /^Commande restaurée automatiquement depuis le récapitulatif/i.test(raw);
+  if(raw && !isAuto) return raw;
+  const groups = Array.isArray(entry && entry.groups) ? entry.groups : [];
+  const out = [];
+  groups.forEach(group => {
+    const family = String(group && group.family || "").trim();
+    if(family) out.push(family);
+    (Array.isArray(group && group.lines) ? group.lines : []).forEach(line => {
+      const qty = line && line.qty != null ? String(line.qty) : "";
+      const unit = String(line && line.unit || "").trim();
+      const variant = String(line && (line.variant || line.label || line.name) || "").trim();
+      const color = String(line && line.color || "").trim();
+      const ref = String(line && line.ref || "").trim();
+      const parts = [qty + (unit ? " " + unit : ""), variant, color, ref ? "Réf. " + ref : ""].filter(Boolean);
+      if(parts.length) out.push("• " + parts.join(" · "));
+    });
+    if(family) out.push("");
+  });
+  return out.join("\n").trim() || raw || "Aucun détail enregistré pour cette commande.";
+}
+
 function showHistory(){
   document.getElementById("home").classList.add("hidden");
   document.getElementById("family").classList.add("hidden");
@@ -3627,7 +3650,7 @@ function showHistory(){
               <button class="btn neutral" onclick="historyRestore(${globalIndex})">Restaurer</button>
               <button class="btn neutral history-delete-btn" onclick="historyDelete(${globalIndex})">Supprimer</button>
             </div>
-            <pre style="white-space:pre-wrap;font-family:inherit;font-size:13px;color:#334155;margin:0">${esc(entry.text || "")}</pre>
+            <pre style="white-space:pre-wrap;font-family:inherit;font-size:13px;color:#334155;margin:0">${esc(v667HistoryDisplayText(entry))}</pre>
           </div>
         `).join("");
 
@@ -3845,7 +3868,14 @@ async function historyDelete(index){
   }catch(e){}
 
   history.splice(index, 1);
+  // V66.7 : une suppression doit REMPLACER l'historique cloud, et non le fusionner
+  // avec l'ancienne liste (sinon la commande supprimée réapparaît immédiatement).
+  window.V667_HISTORY_REPLACE_ONCE = true;
   saveHistory(history);
+  try{
+    if(typeof v66WriteDelta === "function") await v66WriteDelta(HISTORY_KEY);
+    if(typeof V66_CHANGED_KEYS !== "undefined") V66_CHANGED_KEYS.delete(HISTORY_KEY);
+  }catch(e){ console.warn("V66.7 suppression historique cloud", e); }
   try{ await syncHistoryToDropbox(); }catch(e){}
   showHistory();
 }
@@ -3869,7 +3899,12 @@ async function historyClearAll(){
     }));
   }catch(e){}
 
+  window.V667_HISTORY_REPLACE_ONCE = true;
   saveHistory([]);
+  try{
+    if(typeof v66WriteDelta === "function") await v66WriteDelta(HISTORY_KEY);
+    if(typeof V66_CHANGED_KEYS !== "undefined") V66_CHANGED_KEYS.delete(HISTORY_KEY);
+  }catch(e){ console.warn("V66.7 effacement historique cloud", e); }
   try{ await syncHistoryToDropbox(); }catch(e){}
   showHistory();
   alert("Historique supprimé. La sauvegarde de secours peut être restaurée avec « Restaurer la dernière suppression ».");
@@ -5680,7 +5715,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    - dernier changement daté gagne en cas de conflit global
    ============================================================ */
 (function(){
-  const V61_VERSION = "V66.6-fast-start";
+  const V61_VERSION = "V66.7-fast-start";
   const V61_DEVICE_KEY = "v61_device_id";
   const V61_LOCAL_CHANGE_KEY = "v61_last_local_change_ms";
   const V61_PENDING_KEY = "v61_sync_pending";
@@ -5895,10 +5930,15 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     let value = key===CUSTOM_PRODUCTS_KEY ? localStorage.getItem(key) : nativeGetItem.call(localStorage,key);
     const old=await v66FindDeltaRow(key);
     if(key===HISTORY_KEY && old && old.data){
-      value=v665MergeHistoryRaw(value,old.data.v66Value);
-      nativeSetItem.call(localStorage,HISTORY_KEY,value);
+      if(window.V667_HISTORY_REPLACE_ONCE){
+        // Suppression volontaire : la liste locale devient la nouvelle vérité cloud.
+        window.V667_HISTORY_REPLACE_ONCE = false;
+      }else{
+        value=v665MergeHistoryRaw(value,old.data.v66Value);
+        nativeSetItem.call(localStorage,HISTORY_KEY,value);
+      }
     }
-    const packet={app:"RML GOUTTIERE ALU",version:"V66.6",sharedKey:CLOUD_SHARED_KEY,v66Type:V66_DELTA_TAG,
+    const packet={app:"RML GOUTTIERE ALU",version:"V66.7",sharedKey:CLOUD_SHARED_KEY,v66Type:V66_DELTA_TAG,
       v66Key:String(key),v66Value:value===null?null:String(value),savedAt:new Date().toISOString(),deviceId:v61DeviceId()};
     if(old&&old.id){
       const {error}=await supabaseCloud.from(CLOUD_TABLE).update({data:packet,updated_at:packet.savedAt}).eq("id",old.id);
@@ -6564,7 +6604,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
         // Puis seulement les petits deltas, y compris l'historique récent.
         v61SetIndicator("syncing","mise à jour des dernières modifications");
         const n=await v662LoadDeltas();
-        const repairedHistory=v665RepairHistoryFromValidated();
+        const repairedHistory=0; // V66.7 : ne recrée plus de faux historiques depuis le récapitulatif
         try{ v61RefreshUiFromStorage(); }catch(e){}
         v64BootstrapComplete=true;
         nativeSetItem.call(localStorage,V64_BOOTSTRAP_KEY,new Date().toISOString());
@@ -6624,7 +6664,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V66.6";
+  const PRO_VERSION = "V66.7";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
