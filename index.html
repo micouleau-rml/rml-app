@@ -2460,14 +2460,14 @@ function goSettings(){
     <div class="settings-section" data-settings-section="sync">
     <div class="card">
       <p class="title">Synchronisation cloud</p>
-      <p class="note">V66.8 : Supabase est l’unique base maître. Au démarrage, chaque appareil charge la dernière base. Ensuite seules les données modifiées sont synchronisées. Les appareils ouverts se mettent à jour en temps réel. La sauvegarde JSON manuelle reste disponible en secours.</p>
+      <p class="note">V66.9 : Supabase est l’unique base maître. Au démarrage, chaque appareil charge la dernière base. Ensuite seules les données modifiées sont synchronisées. Les appareils ouverts se mettent à jour en temps réel. La sauvegarde JSON manuelle reste disponible en secours.</p>
       <div class="sync-card" style="margin-top:10px">
         <button class="btn neutral" style="width:auto;background:#0a8454;color:#fff;border-color:#0a8454" onclick="saveCloudNow()">Sauvegarder sur le cloud</button>
         <button class="btn neutral" style="width:auto" onclick="loadCloudNow()">Recharger depuis le cloud</button>
       </div>
       <div id="syncStatus" class="sync-status">Prêt.</div>
       <div class="note" style="margin-top:8px">V66 : synchronisation maître sécurisée avec restaurations ciblées. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
-      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V66.8 : initialisation automatique des appareils vides, synchronisation différentielle, temps réel et suppressions d’historique synchronisées.</div>
+      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V66.9 : initialisation automatique des appareils vides, synchronisation différentielle, temps réel et suppressions d’historique synchronisées.</div>
       <div class="card" style="margin-top:12px;background:#f8fafc">
         <p class="title">Historique des sauvegardes</p>
         <p class="note">Les 20 dernières sauvegardes cloud. Tu peux restaurer une version précédente si besoin.</p>
@@ -3533,12 +3533,17 @@ function toggleHistoryGroup(id){
 
 const RML_HISTORY_TOMBSTONES_KEY = "rml_history_deleted_v668";
 function rmlHistoryDeleteFingerprint(o){
+  // V66.9 : identifiant STABLE de commande. Ne dépend plus du contenu des lignes,
+  // qui peut être reconstruit différemment d'un appareil à l'autre.
   if(!o||typeof o!=="object") return "";
-  const supplier=String(o.supplier||"").trim().toUpperCase();
-  const created=String(o.createdAt||o.validatedAt||"");
-  const num=String(o.orderNumber||"");
+  const supplier=String(o.supplier||((o.groups||[])[0]||{}).supplier||"").trim().toUpperCase();
+  const created=String(o.createdAt||o.validatedAt||"").trim();
+  const num=String(o.orderNumber||"").trim();
+  if(created) return supplier+"|"+created+"|"+num;
+  const date=String(o.date||"").trim();
+  if(num||date) return supplier+"|"+date+"|"+num;
   let groups=""; try{groups=JSON.stringify(o.groups||[]);}catch(e){}
-  return supplier+"|"+created+"|"+num+"|"+groups;
+  return supplier+"|"+groups;
 }
 function rmlGetHistoryTombstones(){
   try{const a=JSON.parse(localStorage.getItem(RML_HISTORY_TOMBSTONES_KEY)||"[]");return Array.isArray(a)?a:[];}catch(e){return [];}
@@ -3597,7 +3602,7 @@ async function restoreLastHistoryDeletion(){
     if(typeof v66WriteDelta==="function") await v66WriteDelta(RML_HISTORY_TOMBSTONES_KEY);
     if(typeof v66WriteDelta==="function") await v66WriteDelta(HISTORY_KEY);
     if(typeof V66_CHANGED_KEYS!=="undefined"){V66_CHANGED_KEYS.delete(RML_HISTORY_TOMBSTONES_KEY);V66_CHANGED_KEYS.delete(HISTORY_KEY);}
-  }catch(e){console.warn("V66.8 restauration historique cloud",e);}
+  }catch(e){console.warn("V66.9 restauration historique cloud",e);}
   try{ localStorage.removeItem(HISTORY_DELETE_BACKUP_KEY); }catch(e){}
   try{ await syncHistoryToDropbox(); }catch(e){}
   showHistory();
@@ -3898,7 +3903,7 @@ async function historyDelete(index){
   if(String(validation || "").trim().toUpperCase() !== "SUPPRIMER"){ alert("Suppression annulée."); return; }
   try{localStorage.setItem(HISTORY_DELETE_BACKUP_KEY,JSON.stringify({type:"single",deletedAt:new Date().toISOString(),index,entry:JSON.parse(JSON.stringify(entry))}));}catch(e){}
 
-  // V66.8 : mémorise la suppression volontaire AVANT de modifier l'historique.
+  // V66.9 : mémorise la suppression volontaire AVANT de modifier l'historique.
   // Ainsi aucun autre appareil ni ancienne copie cloud ne peut réinjecter la commande.
   rmlMarkHistoryDeleted(entry);
   history.splice(index,1);
@@ -3909,7 +3914,7 @@ async function historyDelete(index){
     if(typeof v66WriteDelta==="function") await v66WriteDelta(RML_HISTORY_TOMBSTONES_KEY);
     if(typeof v66WriteDelta==="function") await v66WriteDelta(HISTORY_KEY);
     if(typeof V66_CHANGED_KEYS!=="undefined"){V66_CHANGED_KEYS.delete(RML_HISTORY_TOMBSTONES_KEY);V66_CHANGED_KEYS.delete(HISTORY_KEY);}
-  }catch(e){console.warn("V66.8 suppression historique cloud",e);}
+  }catch(e){console.warn("V66.9 suppression historique cloud",e);}
   try{await syncHistoryToDropbox();}catch(e){}
   showHistory();
 }
@@ -3927,7 +3932,7 @@ async function historyClearAll(){
     if(typeof v66WriteDelta==="function") await v66WriteDelta(RML_HISTORY_TOMBSTONES_KEY);
     if(typeof v66WriteDelta==="function") await v66WriteDelta(HISTORY_KEY);
     if(typeof V66_CHANGED_KEYS!=="undefined"){V66_CHANGED_KEYS.delete(RML_HISTORY_TOMBSTONES_KEY);V66_CHANGED_KEYS.delete(HISTORY_KEY);}
-  }catch(e){console.warn("V66.8 effacement historique cloud",e);}
+  }catch(e){console.warn("V66.9 effacement historique cloud",e);}
   try{await syncHistoryToDropbox();}catch(e){}
   showHistory();
   alert("Historique supprimé. La suppression est synchronisée sur les autres appareils.");
@@ -5738,7 +5743,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    - dernier changement daté gagne en cas de conflit global
    ============================================================ */
 (function(){
-  const V61_VERSION = "V66.8-fast-start";
+  const V61_VERSION = "V66.9-fast-start";
   const V61_DEVICE_KEY = "v61_device_id";
   const V61_LOCAL_CHANGE_KEY = "v61_last_local_change_ms";
   const V61_PENDING_KEY = "v61_sync_pending";
@@ -5958,7 +5963,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       value=v665MergeHistoryRaw(value,old.data.v66Value);
       nativeSetItem.call(localStorage,HISTORY_KEY,value);
     }
-    const packet={app:"RML GOUTTIERE ALU",version:"V66.8",sharedKey:CLOUD_SHARED_KEY,v66Type:V66_DELTA_TAG,
+    const packet={app:"RML GOUTTIERE ALU",version:"V66.9",sharedKey:CLOUD_SHARED_KEY,v66Type:V66_DELTA_TAG,
       v66Key:String(key),v66Value:value===null?null:String(value),savedAt:new Date().toISOString(),deviceId:v61DeviceId()};
     if(old&&old.id){
       const {error}=await supabaseCloud.from(CLOUD_TABLE).update({data:packet,updated_at:packet.savedAt}).eq("id",old.id);
@@ -6532,7 +6537,14 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
         if(!d || d.v66Type!==V66_DELTA_TAG || d.sharedKey!==CLOUD_SHARED_KEY || !d.v66Key) continue;
         const k=String(d.v66Key), v=d.v66Value;
         if(k===CUSTOM_PRODUCTS_KEY){ if(v===null) v65StoreProducts("[]"); else v65StoreProducts(String(v)); }
-        else if(k===HISTORY_KEY){ nativeSetItem.call(localStorage,HISTORY_KEY,v665MergeHistoryRaw(nativeGetItem.call(localStorage,HISTORY_KEY),v)); }
+        else if(k===RML_HISTORY_TOMBSTONES_KEY){
+          if(v===null) nativeSetItem.call(localStorage,k,"[]"); else nativeSetItem.call(localStorage,k,String(v));
+          rmlFilterDeletedHistoryNow();
+        }
+        else if(k===HISTORY_KEY){
+          nativeSetItem.call(localStorage,HISTORY_KEY,v665MergeHistoryRaw(nativeGetItem.call(localStorage,HISTORY_KEY),v));
+          rmlFilterDeletedHistoryNow();
+        }
         else if(v===null) nativeRemoveItem.call(localStorage,k); else nativeSetItem.call(localStorage,k,String(v));
         n++;
       }
@@ -6627,7 +6639,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
         // Puis seulement les petits deltas, y compris l'historique récent.
         v61SetIndicator("syncing","mise à jour des dernières modifications");
         const n=await v662LoadDeltas();
-        const repairedHistory=0; // V66.8 : ne recrée plus de faux historiques depuis le récapitulatif
+        const repairedHistory=0; // V66.9 : ne recrée plus de faux historiques depuis le récapitulatif
         try{ v61RefreshUiFromStorage(); }catch(e){}
         v64BootstrapComplete=true;
         nativeSetItem.call(localStorage,V64_BOOTSTRAP_KEY,new Date().toISOString());
@@ -6687,7 +6699,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V66.8";
+  const PRO_VERSION = "V66.9";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
