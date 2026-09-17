@@ -354,7 +354,7 @@ const DATA = {
 };
 const STORAGE_KEY = "commande_fournisseur_boutons_ronds_v2";
 const HISTORY_KEY = "commande_fournisseur_history_v1";
-const HISTORY_DELETE_BACKUP_KEY = "commande_fournisseur_history_delete_backup_v62_1";
+const HISTORY_DELETE_BACKUP_KEY = "commande_fournisseur_history_delete_backup_v62_1"; // ancien format, purgé en V66.11
 const PDF_HISTORY_KEY = "commande_fournisseur_pdf_history_v1";
 const DROPBOX_TOKEN_KEY = "dropbox_access_token_v1";
 const DROPBOX_HISTORY_PATH = "/COMMANDES_MICOULEAU/commande_history.json";
@@ -698,20 +698,39 @@ function inferSupplierFromProduct(p){
 
 function getSupplierOptionsRaw(){
   try{
+    const deletedSuppliers = new Set(getDeletedSuppliers());
     const raw = JSON.parse(localStorage.getItem(SUPPLIERS_KEY) || "[]");
-    const list = Array.isArray(raw) ? raw.map(normalizeSupplierName).filter(Boolean) : [];
+    const list = Array.isArray(raw) ? raw.map(normalizeSupplierName).filter(name => name && !deletedSuppliers.has(name)) : [];
     const merged = [...DEFAULT_SUPPLIER_OPTIONS];
     list.forEach(name => {
       if(!merged.includes(name)) merged.push(name);
     });
     getCustomProducts().forEach(p => {
       const s = inferSupplierFromProduct(p);
-      if(s && !merged.includes(s)) merged.push(s);
+      if(s && !deletedSuppliers.has(s) && !merged.includes(s)) merged.push(s);
     });
     return [...new Set(merged.map(normalizeSupplierName).filter(Boolean))];
   }catch(e){
     return DEFAULT_SUPPLIER_OPTIONS.slice();
   }
+}
+const DELETED_SUPPLIERS_KEY = "rml_deleted_suppliers_v6611";
+function getDeletedSuppliers(){
+  try{
+    const list = JSON.parse(localStorage.getItem(DELETED_SUPPLIERS_KEY) || "[]");
+    return Array.isArray(list) ? list.map(normalizeSupplierName).filter(Boolean) : [];
+  }catch(e){ return []; }
+}
+function markDeletedSupplier(name){
+  const clean = normalizeSupplierName(name);
+  if(!clean) return;
+  const list = getDeletedSuppliers();
+  if(!list.includes(clean)) list.push(clean);
+  localStorage.setItem(DELETED_SUPPLIERS_KEY, JSON.stringify(list));
+}
+function unmarkDeletedSupplier(name){
+  const clean = normalizeSupplierName(name);
+  localStorage.setItem(DELETED_SUPPLIERS_KEY, JSON.stringify(getDeletedSuppliers().filter(v => v !== clean)));
 }
 function getSupplierOptions(){
   return normalizeSupplierOrder(getSupplierOptionsRaw());
@@ -737,6 +756,7 @@ function addSupplier(){
     return;
   }
   list.push(clean);
+  unmarkDeletedSupplier(clean);
   saveSupplierOptions(list);
   input.value = "";
   alert("Fournisseur ajouté en majuscules.");
@@ -750,19 +770,53 @@ function deleteSupplier(name){
     alert("Ce fournisseur de base ne peut pas être supprimé.");
     return;
   }
+  markDeletedSupplier(clean);
   const list = getSupplierOptions().filter(v => v !== clean);
   saveSupplierOptions(list);
   saveSupplierOrder(list);
+
   const emails = getSupplierEmails();
   delete emails[clean];
   saveSupplierEmails(emails);
-  const products = getCustomProducts().map(p => {
-    if(String((p && p.supplier) || "").trim() === clean){
-      return { ...p, supplier: DEFAULT_SUPPLIER };
-    }
-    return p;
-  });
-  saveCustomProducts(products);
+
+  try{
+    const addresses = getSupplierAddresses();
+    delete addresses[clean];
+    saveSupplierAddresses(addresses);
+  }catch(e){}
+
+  try{
+    const colors = getSupplierColors();
+    delete colors[clean];
+    localStorage.setItem(SUPPLIER_COLORS_KEY, JSON.stringify(colors));
+  }catch(e){}
+
+  // V66.11 : supprimer réellement les produits du fournisseur au lieu de les
+  // déplacer vers un autre fournisseur. Les marqueurs empêchent leur retour.
+  const allProducts = getCustomProducts();
+  const removedProducts = allProducts.filter(p => normalizeSupplierName((p && p.supplier) || DEFAULT_SUPPLIER) === clean);
+  removedProducts.forEach(p => { try{ markDeletedProduct(p); }catch(e){} });
+  saveCustomProducts(allProducts.filter(p => normalizeSupplierName((p && p.supplier) || DEFAULT_SUPPLIER) !== clean));
+
+  // Supprime aussi les commandes validées et quantités encore rattachées au fournisseur.
+  try{
+    const orders = getValidatedSupplierOrders();
+    markValidatedOrderDeleted(clean, orders[clean]);
+    delete orders[clean];
+    saveValidatedSupplierOrders(orders);
+  }catch(e){}
+  try{
+    removedProducts.forEach(p => {
+      const productName = String((p && p.name) || "").trim();
+      if(!productName) return;
+      Object.keys(state || {}).forEach(key => {
+        if(String(key).startsWith(productName + "||")) delete state[key];
+      });
+    });
+    save();
+  }catch(e){}
+
+  try{ if(typeof v61SchedulePush === "function") v61SchedulePush(); }catch(e){}
   goSettings();
 }
 
@@ -772,11 +826,35 @@ let currentFamily = null;
 let currentSupplierName = "";
 
 const VALIDATED_SUPPLIER_ORDERS_KEY = "rml_validated_supplier_orders_v1";
+const DELETED_VALIDATED_ORDERS_KEY = "rml_deleted_validated_orders_v6611";
+
+function validatedOrderFingerprint(supplierName, order){
+  return normalizeSupplierName(supplierName) + "|" + String((order && order.validatedAt) || "");
+}
+function getDeletedValidatedOrders(){
+  try{
+    const list = JSON.parse(localStorage.getItem(DELETED_VALIDATED_ORDERS_KEY) || "[]");
+    return Array.isArray(list) ? list : [];
+  }catch(e){ return []; }
+}
+function markValidatedOrderDeleted(supplierName, order){
+  const fp = validatedOrderFingerprint(supplierName, order);
+  if(!fp || fp.endsWith("|")) return;
+  const list = getDeletedValidatedOrders().filter(v => v !== fp);
+  list.push(fp);
+  localStorage.setItem(DELETED_VALIDATED_ORDERS_KEY, JSON.stringify(list.slice(-500)));
+}
 
 function getValidatedSupplierOrders(){
   try{
     const raw = JSON.parse(localStorage.getItem(VALIDATED_SUPPLIER_ORDERS_KEY) || "{}");
-    return raw && typeof raw === "object" ? raw : {};
+    if(!raw || typeof raw !== "object") return {};
+    const deleted = new Set(getDeletedValidatedOrders());
+    const clean = {};
+    Object.entries(raw).forEach(([supplier, order]) => {
+      if(!deleted.has(validatedOrderFingerprint(supplier, order))) clean[supplier] = order;
+    });
+    return clean;
   }catch(e){
     return {};
   }
@@ -865,8 +943,8 @@ save();
     console.error("V66.6 historique validation", e);
   }
 
-  // V66.10 : affichage LOCAL immédiat. Le récapitulatif ne doit jamais attendre Supabase.
-  try{ goRecap(); }catch(e){ console.error("V66.10 affichage récapitulatif", e); }
+  // V66.11 : affichage LOCAL immédiat. Le récapitulatif ne doit jamais attendre Supabase.
+  try{ goRecap(); }catch(e){ console.error("V66.11 affichage récapitulatif", e); }
 
   // La synchronisation cloud se poursuit ensuite en arrière-plan.
   try{
@@ -878,10 +956,13 @@ save();
 function deleteValidatedSupplierOrder(supplierName, silent){
   const clean = String(supplierName || "").trim();
   if(!clean) return;
+
+  if(!silent && !confirm('Supprimer définitivement la commande de "' + clean + '" du récapitulatif ?')) return;
  
   syncInputs();
   
   const orders = getValidatedSupplierOrders();
+  markValidatedOrderDeleted(clean, orders[clean]);
   delete orders[clean];
   saveValidatedSupplierOrders(orders);
 
@@ -905,7 +986,8 @@ try{
   }
 }catch(e){}
 
-if(!silent) alert("Commande supprimée du récapitulatif.");
+try{ if(typeof v61SchedulePush === "function") v61SchedulePush(); }catch(e){}
+if(!silent) alert("Commande supprimée définitivement du récapitulatif et synchronisée.");
 }
   
   function resetSupplierData(supplierName){
@@ -1983,7 +2065,7 @@ function saveNewProduct(){
 function getCustomProducts(){
   try{
     const raw = JSON.parse(localStorage.getItem(CUSTOM_PRODUCTS_KEY) || "[]");
-    return Array.isArray(raw) ? raw.filter(p => p) : [];
+    return Array.isArray(raw) ? raw.filter(p => p && !isDeletedProduct(p)) : [];
   }catch(e){
     return [];
   }
@@ -2462,14 +2544,14 @@ function goSettings(){
     <div class="settings-section" data-settings-section="sync">
     <div class="card">
       <p class="title">Synchronisation cloud</p>
-      <p class="note">V66.10 : Supabase est l’unique base maître. Au démarrage, chaque appareil charge la dernière base. Ensuite seules les données modifiées sont synchronisées. Les appareils ouverts se mettent à jour en temps réel. La sauvegarde JSON manuelle reste disponible en secours.</p>
+      <p class="note">V66.11 : Supabase est l’unique base maître. Les suppressions confirmées sont définitives et synchronisées sur tous les appareils. Aucune corbeille ni restauration automatique n’est créée.</p>
       <div class="sync-card" style="margin-top:10px">
         <button class="btn neutral" style="width:auto;background:#0a8454;color:#fff;border-color:#0a8454" onclick="saveCloudNow()">Sauvegarder sur le cloud</button>
         <button class="btn neutral" style="width:auto" onclick="loadCloudNow()">Recharger depuis le cloud</button>
       </div>
       <div id="syncStatus" class="sync-status">Prêt.</div>
       <div class="note" style="margin-top:8px">V66 : synchronisation maître sécurisée avec restaurations ciblées. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
-      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V66.10 : initialisation automatique des appareils vides, synchronisation différentielle, temps réel et suppressions d’historique synchronisées.</div>
+      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V66.11 : synchronisation différentielle, temps réel et suppressions définitives synchronisées.</div>
       <div class="card" style="margin-top:12px;background:#f8fafc">
         <p class="title">Historique des sauvegardes</p>
         <p class="note">Les 20 dernières sauvegardes cloud. Tu peux restaurer une version précédente si besoin.</p>
@@ -3535,7 +3617,7 @@ function toggleHistoryGroup(id){
 
 const RML_HISTORY_TOMBSTONES_KEY = "rml_history_deleted_v668";
 function rmlHistoryDeleteFingerprint(o){
-  // V66.10 : identifiant STABLE de commande. Ne dépend plus du contenu des lignes,
+  // V66.11 : identifiant STABLE de commande. Ne dépend plus du contenu des lignes,
   // qui peut être reconstruit différemment d'un appareil à l'autre.
   if(!o||typeof o!=="object") return "";
   const supplier=String(o.supplier||((o.groups||[])[0]||{}).supplier||"").trim().toUpperCase();
@@ -3574,42 +3656,7 @@ function rmlFilterDeletedHistoryNow(){
   return 0;
 }
 
-function getHistoryDeleteBackup(){
-  try{ return JSON.parse(localStorage.getItem(HISTORY_DELETE_BACKUP_KEY) || "null"); }
-  catch(e){ return null; }
-}
-
-async function restoreLastHistoryDeletion(){
-  const backup = getHistoryDeleteBackup();
-  if(!backup){ alert("Aucune suppression récente à restaurer."); return; }
-  if(!confirm("Restaurer la dernière suppression de l'historique ?")) return;
-
-  if(backup.type === "all" && Array.isArray(backup.history)){
-    backup.history.forEach(rmlUnmarkHistoryDeleted);
-    saveHistory(backup.history);
-  }else if(backup.type === "single" && backup.entry){
-    rmlUnmarkHistoryDeleted(backup.entry);
-    const history = getHistory();
-    const fp=rmlHistoryDeleteFingerprint(backup.entry);
-    const alreadyThere = history.some(e => rmlHistoryDeleteFingerprint(e)===fp);
-    if(!alreadyThere){
-      const pos = Math.max(0, Math.min(Number(backup.index || 0), history.length));
-      history.splice(pos, 0, backup.entry);
-      history.sort((a,b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-      saveHistory(history);
-    }
-  }
-  try{
-    window.V668_TOMBSTONES_REPLACE_ONCE=true;
-    if(typeof v66WriteDelta==="function") await v66WriteDelta(RML_HISTORY_TOMBSTONES_KEY);
-    if(typeof v66WriteDelta==="function") await v66WriteDelta(HISTORY_KEY);
-    if(typeof V66_CHANGED_KEYS!=="undefined"){V66_CHANGED_KEYS.delete(RML_HISTORY_TOMBSTONES_KEY);V66_CHANGED_KEYS.delete(HISTORY_KEY);}
-  }catch(e){console.warn("V66.10 restauration historique cloud",e);}
-  try{ localStorage.removeItem(HISTORY_DELETE_BACKUP_KEY); }catch(e){}
-  try{ await syncHistoryToDropbox(); }catch(e){}
-  showHistory();
-  alert("Historique restauré et synchronisé.");
-}
+function getHistoryDeleteBackup(){ return null; }
 
 function v667HistoryDisplayText(entry){
   const raw = String((entry && entry.text) || "").trim();
@@ -3726,7 +3773,6 @@ function showHistory(){
   el.innerHTML = `
     <div class="toolbar">
       <button class="btn neutral" onclick="goHome()">← Retour</button>
-      ${backup ? '<button class="btn neutral" onclick="restoreLastHistoryDeletion()">↩ Restaurer la dernière suppression</button>' : ''}
     </div>
     <div class="section-title">Historique des commandes</div>
     <div class="note" style="margin-bottom:12px">Classement par année puis par mois. Ouvre uniquement la période que tu souhaites consulter.</div>
@@ -3734,7 +3780,7 @@ function showHistory(){
     ${history.length ? `
       <div class="history-danger-zone">
         <div class="title">Zone protégée</div>
-        <div class="note" style="margin-bottom:10px">La suppression complète demande une confirmation écrite et une sauvegarde locale de secours est créée avant l'effacement.</div>
+        <div class="note" style="margin-bottom:10px">La suppression complète demande une confirmation écrite et devient définitive sur tous les appareils.</div>
         <button class="btn danger" onclick="historyClearAll()">Vider tout l'historique</button>
       </div>` : ''}
     <div class="footer-space"></div>
@@ -3900,12 +3946,10 @@ async function historyDelete(index){
   const entry = history[index];
   const num = String(entry && entry.orderNumber || "").trim() || "sans numéro";
   const date = String(entry && entry.date || "").trim();
-  if(!confirm(`Supprimer la commande ${num}${date ? " du " + date : ""} de l'historique ?\n\nUne sauvegarde de secours sera conservée.`)) return;
+  if(!confirm(`Supprimer définitivement la commande ${num}${date ? " du " + date : ""} de l'historique ?`)) return;
   const validation = prompt('Sécurité : tape SUPPRIMER pour confirmer cette suppression.');
   if(String(validation || "").trim().toUpperCase() !== "SUPPRIMER"){ alert("Suppression annulée."); return; }
-  try{localStorage.setItem(HISTORY_DELETE_BACKUP_KEY,JSON.stringify({type:"single",deletedAt:new Date().toISOString(),index,entry:JSON.parse(JSON.stringify(entry))}));}catch(e){}
-
-  // V66.10 : mémorise la suppression volontaire AVANT de modifier l'historique.
+  // V66.11 : mémorise uniquement le marqueur de suppression dans Supabase.
   // Ainsi aucun autre appareil ni ancienne copie cloud ne peut réinjecter la commande.
   rmlMarkHistoryDeleted(entry);
   history.splice(index,1);
@@ -3916,7 +3960,7 @@ async function historyDelete(index){
     if(typeof v66WriteDelta==="function") await v66WriteDelta(RML_HISTORY_TOMBSTONES_KEY);
     if(typeof v66WriteDelta==="function") await v66WriteDelta(HISTORY_KEY);
     if(typeof V66_CHANGED_KEYS!=="undefined"){V66_CHANGED_KEYS.delete(RML_HISTORY_TOMBSTONES_KEY);V66_CHANGED_KEYS.delete(HISTORY_KEY);}
-  }catch(e){console.warn("V66.10 suppression historique cloud",e);}
+  }catch(e){console.warn("V66.11 suppression historique cloud",e);}
   try{await syncHistoryToDropbox();}catch(e){}
   showHistory();
 }
@@ -3924,17 +3968,16 @@ async function historyDelete(index){
 async function historyClearAll(){
   const history=getHistory();
   if(!history.length){alert("L'historique est déjà vide.");return;}
-  if(!confirm(`ATTENTION : tu vas supprimer ${history.length} commande${history.length>1?'s':''} de l'historique.\n\nUne sauvegarde locale de secours sera créée avant l'effacement.`)) return;
+  if(!confirm(`ATTENTION : tu vas supprimer définitivement ${history.length} commande${history.length>1?'s':''} de l'historique.`)) return;
   const validation=prompt('Sécurité renforcée : tape exactement EFFACER HISTORIQUE pour continuer.');
   if(String(validation||"").trim().toUpperCase()!=="EFFACER HISTORIQUE"){alert("Effacement annulé.");return;}
-  try{localStorage.setItem(HISTORY_DELETE_BACKUP_KEY,JSON.stringify({type:"all",deletedAt:new Date().toISOString(),history:JSON.parse(JSON.stringify(history))}));}catch(e){}
   history.forEach(rmlMarkHistoryDeleted);
   saveHistory([]);
   try{
     if(typeof v66WriteDelta==="function") await v66WriteDelta(RML_HISTORY_TOMBSTONES_KEY);
     if(typeof v66WriteDelta==="function") await v66WriteDelta(HISTORY_KEY);
     if(typeof V66_CHANGED_KEYS!=="undefined"){V66_CHANGED_KEYS.delete(RML_HISTORY_TOMBSTONES_KEY);V66_CHANGED_KEYS.delete(HISTORY_KEY);}
-  }catch(e){console.warn("V66.10 effacement historique cloud",e);}
+  }catch(e){console.warn("V66.11 effacement historique cloud",e);}
   try{await syncHistoryToDropbox();}catch(e){}
   showHistory();
   alert("Historique supprimé. La suppression est synchronisée sur les autres appareils.");
@@ -3988,6 +4031,9 @@ function openPdfHistoryEntry(index){
 
 function deletePdfHistoryEntry(index){
   const history = getPdfHistory();
+  const entry = history[index];
+  if(!entry) return;
+  if(!confirm("Supprimer définitivement ce PDF de l'historique ?")) return;
   history.splice(index, 1);
   savePdfHistory(history);
   showPdfHistory();
@@ -3995,29 +4041,13 @@ function deletePdfHistoryEntry(index){
 
 
 function clearPdfHistory(){
-  try{
-    localStorage.setItem(PDF_HISTORY_KEY,"[]");
-    localStorage.removeItem(PDF_HISTORY_KEY);
-  }catch(e){}
-  const el = document.getElementById("pdfhistory");
-  if(el){
-    el.innerHTML = `
-      <div class="toolbar">
-        <button class="btn neutral" onclick="goHome()">← Retour</button>
-        <button class="btn neutral" onclick="clearPdfHistory()">Vider l’historique PDF</button>
-      </div>
-      <div class="empty">Aucun PDF enregistré.</div>
-      <div class="footer-space"></div>
-    `;
-  }
-  setTimeout(()=>{
-    try{
-      localStorage.setItem(PDF_HISTORY_KEY,"[]");
-      localStorage.removeItem(PDF_HISTORY_KEY);
-    }catch(e){}
-    alert("Historique PDF supprimé.");
-    showPdfHistory();
-  },80);
+  const history = getPdfHistory();
+  if(!history.length){ alert("L'historique PDF est déjà vide."); return; }
+  if(!confirm("Supprimer définitivement tout l'historique PDF ?")) return;
+  savePdfHistory([]);
+  try{ if(typeof v61SchedulePush === "function") v61SchedulePush(); }catch(e){}
+  alert("Historique PDF supprimé définitivement.");
+  showPdfHistory();
 }
 
 
@@ -5745,7 +5775,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    - dernier changement daté gagne en cas de conflit global
    ============================================================ */
 (function(){
-  const V61_VERSION = "V66.10-fast-start";
+  const V61_VERSION = "V66.11-fast-start";
   const V61_DEVICE_KEY = "v61_device_id";
   const V61_LOCAL_CHANGE_KEY = "v61_last_local_change_ms";
   const V61_PENDING_KEY = "v61_sync_pending";
@@ -5961,11 +5991,21 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
         localStorage.setItem(RML_HISTORY_TOMBSTONES_KEY,value);
       }
     }
+    // V66.11 : les listes de suppressions sont cumulatives. Un appareil resté
+    // ouvert avec une ancienne copie ne peut donc pas effacer un marqueur récent.
+    if([DELETED_PRODUCTS_KEY,DELETED_SUPPLIERS_KEY,DELETED_VALIDATED_ORDERS_KEY].includes(key) && old && old.data){
+      let localList=[], cloudList=[];
+      try{ localList=JSON.parse(value||"[]"); }catch(e){}
+      try{ cloudList=JSON.parse(old.data.v66Value||"[]"); }catch(e){}
+      const merged=[...new Set([...(Array.isArray(cloudList)?cloudList:[]),...(Array.isArray(localList)?localList:[])])];
+      value=JSON.stringify(merged.slice(-2000));
+      localStorage.setItem(key,value);
+    }
     if(key===HISTORY_KEY && old && old.data){
       value=v665MergeHistoryRaw(value,old.data.v66Value);
       localStorage.setItem(HISTORY_KEY,value);
     }
-    const packet={app:"RML GOUTTIERE ALU",version:"V66.10",sharedKey:CLOUD_SHARED_KEY,v66Type:V66_DELTA_TAG,
+    const packet={app:"RML GOUTTIERE ALU",version:"V66.11",sharedKey:CLOUD_SHARED_KEY,v66Type:V66_DELTA_TAG,
       v66Key:String(key),v66Value:value===null?null:String(value),savedAt:new Date().toISOString(),deviceId:v61DeviceId()};
     if(old&&old.id){
       const {error}=await supabaseCloud.from(CLOUD_TABLE).update({data:packet,updated_at:packet.savedAt}).eq("id",old.id);
@@ -6641,7 +6681,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
         // Puis seulement les petits deltas, y compris l'historique récent.
         v61SetIndicator("syncing","mise à jour des dernières modifications");
         const n=await v662LoadDeltas();
-        const repairedHistory=0; // V66.10 : ne recrée plus de faux historiques depuis le récapitulatif
+        const repairedHistory=0; // V66.11 : ne recrée plus de faux historiques depuis le récapitulatif
         try{ v61RefreshUiFromStorage(); }catch(e){}
         v64BootstrapComplete=true;
         nativeSetItem.call(localStorage,V64_BOOTSTRAP_KEY,new Date().toISOString());
@@ -6701,7 +6741,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V66.10";
+  const PRO_VERSION = "V66.11";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
@@ -6751,14 +6791,13 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     const host=document.createElement('div'); host.id='v61ProPanel'; host.className='v61pro-panel';
     host.onclick=e=>{if(e.target===host) host.classList.remove('show');};
     host.innerHTML=`<div class="v61pro-card">
-      <div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><div><div class="title">V61 PRO</div><div class="note">Synchronisation, corbeille, journal et sauvegardes de sécurité</div></div><button class="btn neutral" style="width:auto" onclick="closeV61ProPanel()">Fermer</button></div>
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><div><div class="title">V61 PRO</div><div class="note">Synchronisation et journal des modifications</div></div><button class="btn neutral" style="width:auto" onclick="closeV61ProPanel()">Fermer</button></div>
       <div class="v61pro-grid" style="margin-top:14px">
         <button class="btn neutral" onclick="v61SyncNow && v61SyncNow()">Synchroniser maintenant</button>
         <button class="btn neutral" onclick="v61CheckRemote && v61CheckRemote(false)">Vérifier le cloud</button>
         <button class="btn neutral" onclick="showHistory();closeV61ProPanel()">Historique commandes</button>
         <button class="btn neutral" onclick="v61ProDailyBackup(true)">Sauvegarde cloud maintenant</button>
       </div>
-      <div class="section-title">Corbeille</div><div id="v61ProTrash"></div>
       <div class="section-title">Journal des modifications</div><div id="v61ProJournal"></div>
     </div>`;
     document.body.appendChild(host);
@@ -6767,23 +6806,16 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
   window.closeV61ProPanel=function(){ document.getElementById('v61ProPanel')?.classList.remove('show'); };
 
   function renderProPanel(){
-    const t=document.getElementById('v61ProTrash'), j=document.getElementById('v61ProJournal');
-    if(t){
-      const ps=jget(PRO_TRASH_PRODUCTS_KEY,[]), ss=jget(PRO_TRASH_SUPPLIERS_KEY,[]);
-      const items=[];
-      ss.forEach((x,i)=>items.push(`<div class="v61pro-item"><b>Fournisseur :</b> ${escHtml(x.name)}<br><span class="note">Supprimé le ${new Date(x.deletedAt).toLocaleString()}</span><div class="toolbar" style="margin-top:7px"><button class="btn neutral" style="width:auto;padding:8px 12px" onclick="restoreProSupplier(${i})">Restaurer</button></div></div>`));
-      ps.forEach((x,i)=>items.push(`<div class="v61pro-item"><b>Produit :</b> ${escHtml(x.product?.name||'')} <span class="note">(${escHtml(x.product?.supplier||'')})</span><br><span class="note">Supprimé le ${new Date(x.deletedAt).toLocaleString()}</span><div class="toolbar" style="margin-top:7px"><button class="btn neutral" style="width:auto;padding:8px 12px" onclick="restoreProProduct(${i})">Restaurer</button></div></div>`));
-      t.innerHTML=items.join('')||'<div class="empty">Corbeille vide.</div>';
-    }
+    const j=document.getElementById('v61ProJournal');
     if(j){
       const logs=jget(PRO_JOURNAL_KEY,[]).slice(0,80);
       j.innerHTML=logs.map(x=>`<div class="v61pro-item"><b>${escHtml(x.action)}</b> — ${escHtml(x.detail)}<br><span class="note">${new Date(x.at).toLocaleString()} • ${escHtml(x.device)}</span></div>`).join('')||'<div class="empty">Aucune modification enregistrée.</div>';
     }
   }
 
-  // Corbeille fournisseurs : capture du fournisseur + produits + coordonnées avant suppression.
+  // V66.11 : aucune corbeille. Une suppression confirmée est définitive.
   const oldDeleteSupplier = window.deleteSupplier;
-  if(typeof oldDeleteSupplier==='function'){
+  if(false && typeof oldDeleteSupplier==='function'){
     window.deleteSupplier=function(name){
       const clean=typeof normalizeSupplierName==='function'?normalizeSupplierName(name):String(name||'').trim();
       if(clean && !(typeof DEFAULT_SUPPLIER_OPTIONS!=='undefined' && DEFAULT_SUPPLIER_OPTIONS.includes(clean))){
@@ -6802,7 +6834,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
   }
 
   const oldDeleteProduct = window.deleteCustomProductById;
-  if(typeof oldDeleteProduct==='function'){
+  if(false && typeof oldDeleteProduct==='function'){
     window.deleteCustomProductById=function(productId){
       try{
         const idx=typeof getCustomProductIndexById==='function'?getCustomProductIndexById(productId):-1;
@@ -6848,9 +6880,9 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     }catch(e){ alert('Restauration impossible : '+(e.message||e)); }
   };
 
-  // Sauvegarde locale avant toute application d'un snapshot distant.
+  // V66.11 : ne plus créer de copie locale automatique avant une réception cloud.
   const oldApplyCloud = window.applyCloudPayload;
-  if(typeof oldApplyCloud==='function'){
+  if(false && typeof oldApplyCloud==='function'){
     window.applyCloudPayload=function(payload){
       try{
         const snap={at:new Date().toISOString(),storage:{}};
@@ -6876,14 +6908,15 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
   }
 
   async function dailyBackup(force){
+    if(!force) return false;
     if(!navigator.onLine || typeof supabaseCloud==='undefined' || !supabaseCloud || typeof saveCloudHistoryEntry!=='function' || typeof window.buildCloudPayload!=='function') return false;
     const today=new Date().toISOString().slice(0,10);
     if(!force && localStorage.getItem(PRO_DAILY_BACKUP_KEY)===today) return false;
     try{
       const payload=window.buildCloudPayload();
-      await saveCloudHistoryEntry(payload,force?'Sauvegarde V64 manuelle':'Sauvegarde automatique quotidienne V64');
+      await saveCloudHistoryEntry(payload,'Sauvegarde V66.11 manuelle');
       localStorage.setItem(PRO_DAILY_BACKUP_KEY,today);
-      proLog('Sauvegarde cloud',force?'Sauvegarde manuelle créée':'Sauvegarde quotidienne créée');
+      proLog('Sauvegarde cloud','Sauvegarde manuelle créée');
       try{ if(typeof loadCloudHistoryIntoPanel==='function') loadCloudHistoryIntoPanel(); }catch(e){}
       if(force) alert('Sauvegarde cloud V64 créée.');
       return true;
@@ -6898,10 +6931,13 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
   });
 
   window.addEventListener('load',()=>{
+    // Efface les anciennes copies de suppression des versions précédentes.
+    try{ localStorage.removeItem(PRO_TRASH_PRODUCTS_KEY); }catch(e){}
+    try{ localStorage.removeItem(PRO_TRASH_SUPPLIERS_KEY); }catch(e){}
+    try{ localStorage.removeItem(PRO_LAST_CONFLICT_BACKUP); }catch(e){}
+    try{ localStorage.removeItem(HISTORY_DELETE_BACKUP_KEY); }catch(e){}
     installVersion(); installPanel(); installProButton();
     proLog('Ouverture application',PRO_VERSION);
-    setTimeout(()=>dailyBackup(false),3500);
-    setInterval(()=>dailyBackup(false),60*60*1000);
   });
 })();
 </script>
