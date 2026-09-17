@@ -354,7 +354,7 @@ const DATA = {
 };
 const STORAGE_KEY = "commande_fournisseur_boutons_ronds_v2";
 const HISTORY_KEY = "commande_fournisseur_history_v1";
-const HISTORY_DELETE_BACKUP_KEY = "commande_fournisseur_history_delete_backup_v62_1"; // ancien format, purgé en V66.11
+const HISTORY_DELETE_BACKUP_KEY = "commande_fournisseur_history_delete_backup_v62_1"; // ancien format, purgé en V66.12
 const PDF_HISTORY_KEY = "commande_fournisseur_pdf_history_v1";
 const DROPBOX_TOKEN_KEY = "dropbox_access_token_v1";
 const DROPBOX_HISTORY_PATH = "/COMMANDES_MICOULEAU/commande_history.json";
@@ -791,7 +791,7 @@ function deleteSupplier(name){
     localStorage.setItem(SUPPLIER_COLORS_KEY, JSON.stringify(colors));
   }catch(e){}
 
-  // V66.11 : supprimer réellement les produits du fournisseur au lieu de les
+  // V66.12 : supprimer réellement les produits du fournisseur au lieu de les
   // déplacer vers un autre fournisseur. Les marqueurs empêchent leur retour.
   const allProducts = getCustomProducts();
   const removedProducts = allProducts.filter(p => normalizeSupplierName((p && p.supplier) || DEFAULT_SUPPLIER) === clean);
@@ -943,8 +943,8 @@ save();
     console.error("V66.6 historique validation", e);
   }
 
-  // V66.11 : affichage LOCAL immédiat. Le récapitulatif ne doit jamais attendre Supabase.
-  try{ goRecap(); }catch(e){ console.error("V66.11 affichage récapitulatif", e); }
+  // V66.12 : affichage LOCAL immédiat. Le récapitulatif ne doit jamais attendre Supabase.
+  try{ goRecap(); }catch(e){ console.error("V66.12 affichage récapitulatif", e); }
 
   // La synchronisation cloud se poursuit ensuite en arrière-plan.
   try{
@@ -1063,6 +1063,8 @@ async function syncHistoryFromDropbox(){
     const text = await blob.text();
     const parsed = JSON.parse(text || "[]");
     saveHistory(Array.isArray(parsed) ? parsed : []);
+    // V66.12 : une ancienne copie Dropbox ne peut pas réinjecter une commande supprimée.
+    try{ if(typeof rmlFilterDeletedHistoryNow === "function") rmlFilterDeletedHistoryNow(); }catch(e){}
     return true;
   }catch(e){
     return false;
@@ -2544,14 +2546,14 @@ function goSettings(){
     <div class="settings-section" data-settings-section="sync">
     <div class="card">
       <p class="title">Synchronisation cloud</p>
-      <p class="note">V66.11 : Supabase est l’unique base maître. Les suppressions confirmées sont définitives et synchronisées sur tous les appareils. Aucune corbeille ni restauration automatique n’est créée.</p>
+      <p class="note">V66.12 : Supabase est l’unique base maître. Une seule suppression efface toutes les copies identiques d’une commande et les bloque sur tous les appareils.</p>
       <div class="sync-card" style="margin-top:10px">
         <button class="btn neutral" style="width:auto;background:#0a8454;color:#fff;border-color:#0a8454" onclick="saveCloudNow()">Sauvegarder sur le cloud</button>
         <button class="btn neutral" style="width:auto" onclick="loadCloudNow()">Recharger depuis le cloud</button>
       </div>
       <div id="syncStatus" class="sync-status">Prêt.</div>
       <div class="note" style="margin-top:8px">V66 : synchronisation maître sécurisée avec restaurations ciblées. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
-      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V66.11 : synchronisation différentielle, temps réel et suppressions définitives synchronisées.</div>
+      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V66.12 : suppression groupée des doublons d’historique et blocage définitif synchronisé.</div>
       <div class="card" style="margin-top:12px;background:#f8fafc">
         <p class="title">Historique des sauvegardes</p>
         <p class="note">Les 20 dernières sauvegardes cloud. Tu peux restaurer une version précédente si besoin.</p>
@@ -3617,7 +3619,7 @@ function toggleHistoryGroup(id){
 
 const RML_HISTORY_TOMBSTONES_KEY = "rml_history_deleted_v668";
 function rmlHistoryDeleteFingerprint(o){
-  // V66.11 : identifiant STABLE de commande. Ne dépend plus du contenu des lignes,
+  // V66.12 : identifiant technique stable d'une copie de commande.
   // qui peut être reconstruit différemment d'un appareil à l'autre.
   if(!o||typeof o!=="object") return "";
   const supplier=String(o.supplier||((o.groups||[])[0]||{}).supplier||"").trim().toUpperCase();
@@ -3629,6 +3631,21 @@ function rmlHistoryDeleteFingerprint(o){
   let groups=""; try{groups=JSON.stringify(o.groups||[]);}catch(e){}
   return supplier+"|"+groups;
 }
+function rmlHistoryLogicalFingerprint(o){
+  // Identifie toutes les copies d'une même commande, même si leur createdAt diffère.
+  if(!o||typeof o!=="object") return "";
+  const supplier=String(o.supplier||((o.groups||[])[0]||{}).supplier||"").trim().toUpperCase();
+  const num=String(o.orderNumber||"").trim().toUpperCase();
+  const date=String(o.date||"").trim();
+  const user=String(o.orderUser||"").trim().toUpperCase();
+  const message=String(o.orderMessage||"").trim().replace(/\s+/g," ").toUpperCase();
+  let content="";
+  try{
+    const groups=Array.isArray(o.groups)?o.groups:[];
+    content=groups.length?JSON.stringify(groups):String(o.text||"").trim().replace(/\s+/g," ");
+  }catch(e){ content=String(o.text||"").trim().replace(/\s+/g," "); }
+  return [supplier,num,date,user,message,content].join("|");
+}
 function rmlGetHistoryTombstones(){
   try{const a=JSON.parse(localStorage.getItem(RML_HISTORY_TOMBSTONES_KEY)||"[]");return Array.isArray(a)?a:[];}catch(e){return [];}
 }
@@ -3639,19 +3656,23 @@ function rmlSaveHistoryTombstones(a){
 }
 function rmlMarkHistoryDeleted(entry){
   const fp=rmlHistoryDeleteFingerprint(entry); if(!fp) return;
-  const a=rmlGetHistoryTombstones().filter(x=>x&&x.fp!==fp);
-  a.push({fp,deletedAt:new Date().toISOString()});
-  rmlSaveHistoryTombstones(a.slice(-500));
+  const logical="L|"+rmlHistoryLogicalFingerprint(entry);
+  const now=new Date().toISOString();
+  const a=rmlGetHistoryTombstones().filter(x=>x&&x.fp!==fp&&x.fp!==logical);
+  a.push({fp,deletedAt:now});
+  if(logical!=="L|") a.push({fp:logical,deletedAt:now});
+  rmlSaveHistoryTombstones(a.slice(-1000));
 }
 function rmlUnmarkHistoryDeleted(entry){
   const fp=rmlHistoryDeleteFingerprint(entry); if(!fp) return;
-  rmlSaveHistoryTombstones(rmlGetHistoryTombstones().filter(x=>x&&x.fp!==fp));
+  const logical="L|"+rmlHistoryLogicalFingerprint(entry);
+  rmlSaveHistoryTombstones(rmlGetHistoryTombstones().filter(x=>x&&x.fp!==fp&&x.fp!==logical));
 }
 function rmlFilterDeletedHistoryNow(){
   const deleted=new Set(rmlGetHistoryTombstones().map(x=>x&&x.fp).filter(Boolean));
   if(!deleted.size) return 0;
   const before=getHistory();
-  const after=before.filter(e=>!deleted.has(rmlHistoryDeleteFingerprint(e)));
+  const after=before.filter(e=>!deleted.has(rmlHistoryDeleteFingerprint(e))&&!deleted.has("L|"+rmlHistoryLogicalFingerprint(e)));
   if(after.length!==before.length){localStorage.setItem(HISTORY_KEY,JSON.stringify(after));return before.length-after.length;}
   return 0;
 }
@@ -3949,20 +3970,22 @@ async function historyDelete(index){
   if(!confirm(`Supprimer définitivement la commande ${num}${date ? " du " + date : ""} de l'historique ?`)) return;
   const validation = prompt('Sécurité : tape SUPPRIMER pour confirmer cette suppression.');
   if(String(validation || "").trim().toUpperCase() !== "SUPPRIMER"){ alert("Suppression annulée."); return; }
-  // V66.11 : mémorise uniquement le marqueur de suppression dans Supabase.
-  // Ainsi aucun autre appareil ni ancienne copie cloud ne peut réinjecter la commande.
-  rmlMarkHistoryDeleted(entry);
-  history.splice(index,1);
-  saveHistory(history);
+  // V66.12 : supprime en une seule fois toutes les copies identiques déjà présentes.
+  const logicalFp=rmlHistoryLogicalFingerprint(entry);
+  const copies=history.filter(item=>rmlHistoryLogicalFingerprint(item)===logicalFp);
+  copies.forEach(rmlMarkHistoryDeleted);
+  const remaining=history.filter(item=>rmlHistoryLogicalFingerprint(item)!==logicalFp);
+  saveHistory(remaining);
   rmlFilterDeletedHistoryNow();
   showHistory();
   try{
     if(typeof v66WriteDelta==="function") await v66WriteDelta(RML_HISTORY_TOMBSTONES_KEY);
     if(typeof v66WriteDelta==="function") await v66WriteDelta(HISTORY_KEY);
     if(typeof V66_CHANGED_KEYS!=="undefined"){V66_CHANGED_KEYS.delete(RML_HISTORY_TOMBSTONES_KEY);V66_CHANGED_KEYS.delete(HISTORY_KEY);}
-  }catch(e){console.warn("V66.11 suppression historique cloud",e);}
+  }catch(e){console.warn("V66.12 suppression historique cloud",e);}
   try{await syncHistoryToDropbox();}catch(e){}
   showHistory();
+  if(copies.length>1) alert(copies.length+" copies de cette commande ont été supprimées définitivement.");
 }
 
 async function historyClearAll(){
@@ -3977,7 +4000,7 @@ async function historyClearAll(){
     if(typeof v66WriteDelta==="function") await v66WriteDelta(RML_HISTORY_TOMBSTONES_KEY);
     if(typeof v66WriteDelta==="function") await v66WriteDelta(HISTORY_KEY);
     if(typeof V66_CHANGED_KEYS!=="undefined"){V66_CHANGED_KEYS.delete(RML_HISTORY_TOMBSTONES_KEY);V66_CHANGED_KEYS.delete(HISTORY_KEY);}
-  }catch(e){console.warn("V66.11 effacement historique cloud",e);}
+  }catch(e){console.warn("V66.12 effacement historique cloud",e);}
   try{await syncHistoryToDropbox();}catch(e){}
   showHistory();
   alert("Historique supprimé. La suppression est synchronisée sur les autres appareils.");
@@ -5775,7 +5798,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    - dernier changement daté gagne en cas de conflit global
    ============================================================ */
 (function(){
-  const V61_VERSION = "V66.11-fast-start";
+  const V61_VERSION = "V66.12-fast-start";
   const V61_DEVICE_KEY = "v61_device_id";
   const V61_LOCAL_CHANGE_KEY = "v61_last_local_change_ms";
   const V61_PENDING_KEY = "v61_sync_pending";
@@ -5947,7 +5970,8 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     const deleted=new Set(rmlGetHistoryTombstones().map(x=>x&&x.fp).filter(Boolean));
     for(const o of all){
       const fp=v665OrderFingerprint(o);
-      if(!fp || deleted.has(fp) || seen.has(fp)) continue;
+      const logical="L|"+rmlHistoryLogicalFingerprint(o);
+      if(!fp || deleted.has(fp) || deleted.has(logical) || seen.has(fp)) continue;
       seen.add(fp); out.push(o);
     }
     out.sort((a,b)=>new Date(b.createdAt||b.validatedAt||0)-new Date(a.createdAt||a.validatedAt||0));
@@ -5991,7 +6015,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
         localStorage.setItem(RML_HISTORY_TOMBSTONES_KEY,value);
       }
     }
-    // V66.11 : les listes de suppressions sont cumulatives. Un appareil resté
+    // V66.12 : les listes de suppressions sont cumulatives. Un appareil resté
     // ouvert avec une ancienne copie ne peut donc pas effacer un marqueur récent.
     if([DELETED_PRODUCTS_KEY,DELETED_SUPPLIERS_KEY,DELETED_VALIDATED_ORDERS_KEY].includes(key) && old && old.data){
       let localList=[], cloudList=[];
@@ -6005,7 +6029,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       value=v665MergeHistoryRaw(value,old.data.v66Value);
       localStorage.setItem(HISTORY_KEY,value);
     }
-    const packet={app:"RML GOUTTIERE ALU",version:"V66.11",sharedKey:CLOUD_SHARED_KEY,v66Type:V66_DELTA_TAG,
+    const packet={app:"RML GOUTTIERE ALU",version:"V66.12",sharedKey:CLOUD_SHARED_KEY,v66Type:V66_DELTA_TAG,
       v66Key:String(key),v66Value:value===null?null:String(value),savedAt:new Date().toISOString(),deviceId:v61DeviceId()};
     if(old&&old.id){
       const {error}=await supabaseCloud.from(CLOUD_TABLE).update({data:packet,updated_at:packet.savedAt}).eq("id",old.id);
@@ -6681,7 +6705,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
         // Puis seulement les petits deltas, y compris l'historique récent.
         v61SetIndicator("syncing","mise à jour des dernières modifications");
         const n=await v662LoadDeltas();
-        const repairedHistory=0; // V66.11 : ne recrée plus de faux historiques depuis le récapitulatif
+        const repairedHistory=0; // V66.12 : ne recrée plus de faux historiques depuis le récapitulatif
         try{ v61RefreshUiFromStorage(); }catch(e){}
         v64BootstrapComplete=true;
         nativeSetItem.call(localStorage,V64_BOOTSTRAP_KEY,new Date().toISOString());
@@ -6741,7 +6765,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V66.11";
+  const PRO_VERSION = "V66.12";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
@@ -6813,7 +6837,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     }
   }
 
-  // V66.11 : aucune corbeille. Une suppression confirmée est définitive.
+  // V66.12 : aucune corbeille. Une suppression confirmée est définitive.
   const oldDeleteSupplier = window.deleteSupplier;
   if(false && typeof oldDeleteSupplier==='function'){
     window.deleteSupplier=function(name){
@@ -6880,7 +6904,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     }catch(e){ alert('Restauration impossible : '+(e.message||e)); }
   };
 
-  // V66.11 : ne plus créer de copie locale automatique avant une réception cloud.
+  // V66.12 : ne plus créer de copie locale automatique avant une réception cloud.
   const oldApplyCloud = window.applyCloudPayload;
   if(false && typeof oldApplyCloud==='function'){
     window.applyCloudPayload=function(payload){
@@ -6914,7 +6938,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     if(!force && localStorage.getItem(PRO_DAILY_BACKUP_KEY)===today) return false;
     try{
       const payload=window.buildCloudPayload();
-      await saveCloudHistoryEntry(payload,'Sauvegarde V66.11 manuelle');
+      await saveCloudHistoryEntry(payload,'Sauvegarde V66.12 manuelle');
       localStorage.setItem(PRO_DAILY_BACKUP_KEY,today);
       proLog('Sauvegarde cloud','Sauvegarde manuelle créée');
       try{ if(typeof loadCloudHistoryIntoPanel==='function') loadCloudHistoryIntoPanel(); }catch(e){}
