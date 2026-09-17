@@ -2556,14 +2556,14 @@ function goSettings(){
     <div class="settings-section" data-settings-section="sync">
     <div class="card">
       <p class="title">Synchronisation cloud</p>
-      <p class="note">V66.14 : chaque commande possède un identifiant unique. Une nouvelle commande identique à une ancienne ne peut plus être confondue avec une commande supprimée.</p>
+      <p class="note">V66.15 : Supabase reste la source synchronisée. Dropbox ne recharge plus automatiquement un ancien historique au démarrage.</p>
       <div class="sync-card" style="margin-top:10px">
         <button class="btn neutral" style="width:auto;background:#0a8454;color:#fff;border-color:#0a8454" onclick="saveCloudNow()">Sauvegarder sur le cloud</button>
         <button class="btn neutral" style="width:auto" onclick="loadCloudNow()">Recharger depuis le cloud</button>
       </div>
       <div id="syncStatus" class="sync-status">Prêt.</div>
       <div class="note" style="margin-top:8px">V66 : synchronisation maître sécurisée avec restaurations ciblées. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
-      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V66.14 : historique sécurisé par identifiant unique et récupération depuis le récapitulatif.</div>
+      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V66.15 : suppression définitive des anciennes commandes restaurées et aucune restauration Dropbox automatique.</div>
       <div class="card" style="margin-top:12px;background:#f8fafc">
         <p class="title">Historique des sauvegardes</p>
         <p class="note">Les 20 dernières sauvegardes cloud. Tu peux restaurer une version précédente si besoin.</p>
@@ -3670,10 +3670,14 @@ function rmlMarkHistoryDeleted(entry){
   const fp=rmlHistoryDeleteFingerprint(entry); if(!fp) return;
   const logical="L|"+rmlHistoryLogicalFingerprint(entry);
   const now=new Date().toISOString();
-  const a=rmlGetHistoryTombstones().filter(x=>x&&x.fp!==fp&&(entry.historyId||x.fp!==logical));
+  const historyId=String((entry&&entry.historyId)||"");
+  // Les commandes importées/restaurées peuvent exister sous plusieurs identifiants.
+  // On bloque donc aussi leurs anciennes copies par leur contenu, sans empêcher
+  // une vraie nouvelle commande identique créée après la suppression.
+  const blockLegacyCopies=!historyId||historyId.startsWith("RESTORE|")||historyId.startsWith("RECUP-");
+  const a=rmlGetHistoryTombstones().filter(x=>x&&x.fp!==fp&&(!blockLegacyCopies||x.fp!==logical));
   a.push({fp,deletedAt:now});
-  // Un marqueur logique n'est utile que pour les anciennes commandes sans identifiant.
-  if(!entry.historyId && logical!=="L|") a.push({fp:logical,deletedAt:now});
+  if(blockLegacyCopies && logical!=="L|") a.push({fp:logical,deletedAt:now});
   rmlSaveHistoryTombstones(a.slice(-1000));
 }
 function rmlUnmarkHistoryDeleted(entry){
@@ -3692,9 +3696,11 @@ function rmlFilterDeletedHistoryNow(){
   const before=getHistory();
   const after=before.filter(e=>{
     if(deleted.has(rmlHistoryDeleteFingerprint(e))) return false;
-    // Les anciens marqueurs logiques ne concernent que les anciennes copies
-    // créées avant leur suppression. Une nouvelle commande identique reste valide.
-    if(e&&e.historyId) return true;
+    const historyId=String((e&&e.historyId)||"");
+    const legacyCopy=!historyId||historyId.startsWith("RESTORE|")||historyId.startsWith("RECUP-");
+    // Les marqueurs logiques concernent les anciennes copies importées/restaurées.
+    // Une vraie nouvelle commande identique créée après la suppression reste valide.
+    if(!legacyCopy) return true;
     const logical="L|"+rmlHistoryLogicalFingerprint(e);
     if(!logicalDeletedAt.has(logical)) return true;
     const entryAt=Date.parse((e&&e.createdAt)||(e&&e.validatedAt)||"")||0;
@@ -4449,9 +4455,9 @@ async function startApp(){
   applyHeaderBg(getHeaderBg());
   refreshHeaderBranding();
   migrateUnits();
-  if(getDropboxToken()){
-    await syncHistoryFromDropbox();
-  }
+  // V66.15 : ne jamais recharger automatiquement une ancienne sauvegarde Dropbox.
+  // Le cloud Supabase reste la source synchronisée ; Dropbox est réservé aux
+  // restaurations déclenchées volontairement depuis les réglages.
 
   goHome();
   updateUserDisplay();
@@ -5879,7 +5885,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    - dernier changement daté gagne en cas de conflit global
    ============================================================ */
 (function(){
-  const V61_VERSION = "V66.14-fast-start";
+  const V61_VERSION = "V66.15-no-auto-dropbox";
   const V61_DEVICE_KEY = "v61_device_id";
   const V61_LOCAL_CHANGE_KEY = "v61_last_local_change_ms";
   const V61_PENDING_KEY = "v61_sync_pending";
@@ -6071,7 +6077,9 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       const fp=v665OrderFingerprint(o);
       const logical="L|"+rmlHistoryLogicalFingerprint(o);
       if(!fp || deleted.has(fp) || seen.has(fp)) continue;
-      if(!o.historyId && logicalDeletedAt.has(logical)){
+      const historyId=String((o&&o.historyId)||"");
+      const legacyCopy=!historyId||historyId.startsWith("RESTORE|")||historyId.startsWith("RECUP-");
+      if(legacyCopy && logicalDeletedAt.has(logical)){
         const entryAt=Date.parse(o.createdAt||o.validatedAt||"")||0;
         const deletedAt=logicalDeletedAt.get(logical)||0;
         if(!entryAt || entryAt<=deletedAt) continue;
@@ -6133,7 +6141,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       value=v665MergeHistoryRaw(value,old.data.v66Value);
       localStorage.setItem(HISTORY_KEY,value);
     }
-    const packet={app:"RML GOUTTIERE ALU",version:"V66.14",sharedKey:CLOUD_SHARED_KEY,v66Type:V66_DELTA_TAG,
+    const packet={app:"RML GOUTTIERE ALU",version:"V66.15",sharedKey:CLOUD_SHARED_KEY,v66Type:V66_DELTA_TAG,
       v66Key:String(key),v66Value:value===null?null:String(value),savedAt:new Date().toISOString(),deviceId:v61DeviceId()};
     if(old&&old.id){
       const {error}=await supabaseCloud.from(CLOUD_TABLE).update({data:packet,updated_at:packet.savedAt}).eq("id",old.id);
@@ -6882,7 +6890,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V66.14";
+  const PRO_VERSION = "V66.15";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
@@ -7055,7 +7063,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     if(!force && localStorage.getItem(PRO_DAILY_BACKUP_KEY)===today) return false;
     try{
       const payload=window.buildCloudPayload();
-      await saveCloudHistoryEntry(payload,'Sauvegarde V66.14 manuelle');
+      await saveCloudHistoryEntry(payload,'Sauvegarde V66.15 manuelle');
       localStorage.setItem(PRO_DAILY_BACKUP_KEY,today);
       proLog('Sauvegarde cloud','Sauvegarde manuelle créée');
       try{ if(typeof loadCloudHistoryIntoPanel==='function') loadCloudHistoryIntoPanel(); }catch(e){}
