@@ -829,7 +829,11 @@ const VALIDATED_SUPPLIER_ORDERS_KEY = "rml_validated_supplier_orders_v1";
 const DELETED_VALIDATED_ORDERS_KEY = "rml_deleted_validated_orders_v6611";
 
 function validatedOrderFingerprint(supplierName, order){
-  return normalizeSupplierName(supplierName) + "|" + String((order && order.validatedAt) || "");
+  let identity=String((order && (order.validatedAt||order.createdAt)) || "");
+  if(!identity){
+    try{ identity="LEGACY|"+JSON.stringify((order&&order.groups)||[]); }catch(e){ identity="LEGACY"; }
+  }
+  return normalizeSupplierName(supplierName) + "|" + identity;
 }
 function getDeletedValidatedOrders(){
   try{
@@ -839,7 +843,7 @@ function getDeletedValidatedOrders(){
 }
 function markValidatedOrderDeleted(supplierName, order){
   const fp = validatedOrderFingerprint(supplierName, order);
-  if(!fp || fp.endsWith("|")) return;
+  if(!fp) return;
   const list = getDeletedValidatedOrders().filter(v => v !== fp);
   list.push(fp);
   localStorage.setItem(DELETED_VALIDATED_ORDERS_KEY, JSON.stringify(list.slice(-500)));
@@ -2570,14 +2574,14 @@ function goSettings(){
     <div class="settings-section" data-settings-section="sync">
     <div class="card">
       <p class="title">Synchronisation cloud</p>
-      <p class="note">V66.17 : produits et commandes historiques disparaissent en une seule suppression, avec confirmation simple.</p>
+      <p class="note">V66.18 : suppressions récapitulatif, fournisseur et historique centralisées avec une confirmation visible.</p>
       <div class="sync-card" style="margin-top:10px">
         <button class="btn neutral" style="width:auto;background:#0a8454;color:#fff;border-color:#0a8454" onclick="saveCloudNow()">Sauvegarder sur le cloud</button>
         <button class="btn neutral" style="width:auto" onclick="loadCloudNow()">Recharger depuis le cloud</button>
       </div>
       <div id="syncStatus" class="sync-status">Prêt.</div>
       <div class="note" style="margin-top:8px">V66 : synchronisation maître sécurisée avec restaurations ciblées. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
-      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V66.17 : suppression unique, doublons retirés et synchronisation cloud immédiate.</div>
+      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V66.18 : disparition immédiate en une tentative et synchronisation cloud renforcée.</div>
       <div class="card" style="margin-top:12px;background:#f8fafc">
         <p class="title">Historique des sauvegardes</p>
         <p class="note">Les 20 dernières sauvegardes cloud. Tu peux restaurer une version précédente si besoin.</p>
@@ -5885,7 +5889,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    - dernier changement daté gagne en cas de conflit global
    ============================================================ */
 (function(){
-  const V61_VERSION = "V66.17-one-click-delete";
+  const V61_VERSION = "V66.18-central-delete";
   const V61_DEVICE_KEY = "v61_device_id";
   const V61_LOCAL_CHANGE_KEY = "v61_last_local_change_ms";
   const V61_PENDING_KEY = "v61_sync_pending";
@@ -6139,7 +6143,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       value=v665MergeHistoryRaw(value,old.data.v66Value);
       localStorage.setItem(HISTORY_KEY,value);
     }
-    const packet={app:"RML GOUTTIERE ALU",version:"V66.17",sharedKey:CLOUD_SHARED_KEY,v66Type:V66_DELTA_TAG,
+    const packet={app:"RML GOUTTIERE ALU",version:"V66.18",sharedKey:CLOUD_SHARED_KEY,v66Type:V66_DELTA_TAG,
       v66Key:String(key),v66Value:value===null?null:String(value),savedAt:new Date().toISOString(),deviceId:v61DeviceId()};
     if(old&&old.id){
       const {error}=await supabaseCloud.from(CLOUD_TABLE).update({data:packet,updated_at:packet.savedAt}).eq("id",old.id);
@@ -6199,6 +6203,21 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     V66_CHANGED_KEYS.delete(DELETED_PRODUCTS_KEY);
     V66_CHANGED_KEYS.delete(CUSTOM_PRODUCTS_KEY);
     v61SetIndicator("ok","suppression produit synchronisée");
+    return true;
+  };
+
+  window.rmlSyncRecapDeletionNow = async function(){
+    if(!supabaseCloud || !navigator.onLine){
+      v61SetIndicator("offline","suppression récap enregistrée • envoi en attente");
+      return false;
+    }
+    await v66WriteDelta(DELETED_VALIDATED_ORDERS_KEY);
+    await v66WriteDelta(VALIDATED_SUPPLIER_ORDERS_KEY);
+    await v66WriteDelta(STORAGE_KEY);
+    V66_CHANGED_KEYS.delete(DELETED_VALIDATED_ORDERS_KEY);
+    V66_CHANGED_KEYS.delete(VALIDATED_SUPPLIER_ORDERS_KEY);
+    V66_CHANGED_KEYS.delete(STORAGE_KEY);
+    v61SetIndicator("ok","suppression du récapitulatif synchronisée");
     return true;
   };
 
@@ -6918,7 +6937,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V66.17";
+  const PRO_VERSION = "V66.18";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
@@ -7091,7 +7110,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     if(!force && localStorage.getItem(PRO_DAILY_BACKUP_KEY)===today) return false;
     try{
       const payload=window.buildCloudPayload();
-      await saveCloudHistoryEntry(payload,'Sauvegarde V66.17 manuelle');
+      await saveCloudHistoryEntry(payload,'Sauvegarde V66.18 manuelle');
       localStorage.setItem(PRO_DAILY_BACKUP_KEY,today);
       proLog('Sauvegarde cloud','Sauvegarde manuelle créée');
       try{ if(typeof loadCloudHistoryIntoPanel==='function') loadCloudHistoryIntoPanel(); }catch(e){}
@@ -7753,6 +7772,136 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     }catch(e){ console.warn('V63 nettoyage cache',e); }
   }
   window.addEventListener('load',()=>setTimeout(cleanOldAppCache,1200));
+})();
+</script>
+<script>
+/* V66.18 — point final unique pour toutes les suppressions */
+(function(){
+  function clean(v){ return String(v==null?'':v).replace(/\s+/g,' ').trim(); }
+  function upper(v){ return clean(v).toUpperCase(); }
+
+  window.rmlAskDeleteConfirmation=function(message){
+    return new Promise(resolve=>{
+      const previous=document.getElementById('rmlDeleteConfirmV6618');
+      if(previous) previous.remove();
+      const overlay=document.createElement('div');
+      overlay.id='rmlDeleteConfirmV6618';
+      overlay.style.cssText='position:fixed;inset:0;z-index:20000;background:rgba(15,23,42,.62);display:flex;align-items:center;justify-content:center;padding:18px';
+      const box=document.createElement('div');
+      box.style.cssText='width:min(430px,100%);background:#fff;border-radius:20px;padding:22px;box-shadow:0 24px 80px rgba(0,0,0,.35);text-align:center';
+      const title=document.createElement('div');
+      title.textContent='CONFIRMATION';
+      title.style.cssText='font-size:20px;font-weight:900;color:#991b1b;margin-bottom:12px';
+      const text=document.createElement('div');
+      text.textContent=String(message||'Voulez-vous vraiment supprimer ?');
+      text.style.cssText='font-size:16px;font-weight:700;line-height:1.45;color:#1e293b;margin-bottom:20px';
+      const actions=document.createElement('div');
+      actions.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:10px';
+      const cancel=document.createElement('button');
+      cancel.className='btn neutral'; cancel.textContent='ANNULER';
+      const accept=document.createElement('button');
+      accept.className='btn'; accept.textContent='OUI, SUPPRIMER';
+      accept.style.cssText='background:#b91c1c;color:#fff;border-color:#b91c1c';
+      let done=false;
+      function close(value){ if(done)return; done=true; overlay.remove(); resolve(value); }
+      cancel.onclick=()=>close(false); accept.onclick=()=>close(true);
+      overlay.onclick=e=>{ if(e.target===overlay) close(false); };
+      actions.append(cancel,accept); box.append(title,text,actions); overlay.appendChild(box); document.body.appendChild(overlay);
+    });
+  };
+
+  function rawProducts(){
+    try{ const a=JSON.parse(localStorage.getItem(CUSTOM_PRODUCTS_KEY)||'[]'); return Array.isArray(a)?a:[]; }catch(e){ return []; }
+  }
+  function productSignature(p){
+    return [upper(p&&p.supplier||DEFAULT_SUPPLIER),upper(p&&(p.family_label||p.family_name)),upper(p&&p.name),
+      upper(p&&p.unit||'U'),upper(p&&p.product_color),upper(p&&p.supplier_ref)].join('||');
+  }
+
+  // Cette définition est placée après toutes les anciennes couches : aucune
+  // autre fonction ne peut la remplacer ensuite.
+  window.deleteCustomProductById=async function(productId){
+    const list=rawProducts();
+    const target=list.find(p=>String(p&&p.id||'')===String(productId||''));
+    if(!target) return false;
+    const signature=productSignature(target);
+    const removed=list.filter(p=>String(p&&p.id||'')===String(productId||'')||productSignature(p)===signature);
+    removed.forEach(p=>{ try{markDeletedProduct(p)}catch(e){} });
+    saveCustomProducts(list.filter(p=>!removed.includes(p)));
+    try{
+      const family=clean(target.family_label||target.family_name);
+      const label=clean(target.name);
+      const stateKey=keyOf(family,label);
+      if(state&&state[stateKey]) delete state[stateKey];
+      save();
+    }catch(e){}
+    try{if(typeof syncCustomProductPricesToState==='function')syncCustomProductPricesToState()}catch(e){}
+    try{goSettings();setSettingsSection('fournisseurs')}catch(e){}
+    try{if(typeof window.rmlSyncProductDeletionNow==='function')await window.rmlSyncProductDeletionNow()}catch(e){console.warn('V66.18 suppression produit',e)}
+    return true;
+  };
+  window.confirmDeleteProductById=async function(productId){
+    const list=rawProducts();
+    const target=list.find(p=>String(p&&p.id||'')===String(productId||''));
+    if(!target) return;
+    const ok=await window.rmlAskDeleteConfirmation('Voulez-vous vraiment supprimer le produit « '+clean(target.name)+' » ?');
+    if(ok) await window.deleteCustomProductById(productId);
+  };
+
+  function weakHistoryKey(e){
+    return [upper(e&&e.supplier||((e&&e.groups||[])[0]||{}).supplier),upper(e&&e.orderNumber),clean(e&&e.date)].join('|');
+  }
+  window.historyDelete=async function(index){
+    const history=getHistory();
+    if(index<0||index>=history.length) return;
+    const entry=history[index];
+    const num=clean(entry&&entry.orderNumber)||'sans numéro';
+    const date=clean(entry&&entry.date);
+    const ok=await window.rmlAskDeleteConfirmation('Voulez-vous vraiment supprimer de l’historique la commande '+num+(date?' du '+date:'')+' ?');
+    if(!ok) return;
+    const historyId=clean(entry&&entry.historyId);
+    const logical=rmlHistoryLogicalFingerprint(entry);
+    const weak=weakHistoryKey(entry);
+    const noDetails=!(Array.isArray(entry&&entry.groups)&&entry.groups.length);
+    const copies=history.filter(item=>{
+      if(historyId&&clean(item&&item.historyId)===historyId) return true;
+      if(rmlHistoryLogicalFingerprint(item)===logical) return true;
+      const itemNoDetails=!(Array.isArray(item&&item.groups)&&item.groups.length);
+      return (noDetails||itemNoDetails)&&weakHistoryKey(item)===weak;
+    });
+    copies.forEach(rmlMarkHistoryDeleted);
+    const removed=new Set(copies);
+    saveHistory(history.filter(item=>!removed.has(item)));
+    rmlFilterDeletedHistoryNow();
+    showHistory();
+    try{if(typeof window.rmlSyncHistoryDeletionNow==='function')await window.rmlSyncHistoryDeletionNow()}catch(e){console.warn('V66.18 suppression historique',e)}
+    try{await syncHistoryToDropbox()}catch(e){}
+    showHistory();
+  };
+
+  window.deleteValidatedSupplierOrder=async function(supplierName,silent){
+    const requested=clean(supplierName); if(!requested)return;
+    if(!silent){
+      const ok=await window.rmlAskDeleteConfirmation('Voulez-vous vraiment supprimer la commande de « '+requested+' » du récapitulatif ?');
+      if(!ok)return;
+    }
+    try{syncInputs()}catch(e){}
+    const orders=getValidatedSupplierOrders();
+    const matching=Object.keys(orders).filter(k=>upper(k)===upper(requested));
+    matching.forEach(k=>{ try{markValidatedOrderDeleted(k,orders[k])}catch(e){}; delete orders[k]; });
+    saveValidatedSupplierOrders(orders);
+    try{
+      const supplier=getSuppliers().find(s=>upper(s&&s.name)===upper(requested));
+      if(supplier) (supplier.families||[]).forEach(obj=>{
+        const fam=obj.fam;
+        (fam.items||[]).forEach(it=>{ const k=keyOf(fam.name,it.label); if(state&&state[k])delete state[k]; });
+      });
+      save();
+    }catch(e){}
+    goRecap();
+    try{if(typeof window.rmlSyncRecapDeletionNow==='function')await window.rmlSyncRecapDeletionNow()}catch(e){console.warn('V66.18 suppression récap',e)}
+    goRecap();
+  };
 })();
 </script>
 </body>
