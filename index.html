@@ -1574,7 +1574,7 @@ function saveDeletedProducts(list){
   }catch(e){}
 }
 
-function makeDeletedProductKey(product){
+function makeDeletedProductLegacyKey(product){
   if(!product) return "";
   const supplier = String((product.supplier || DEFAULT_SUPPLIER || "")).trim();
   const name = String((product.name || "")).trim();
@@ -1584,10 +1584,22 @@ function makeDeletedProductKey(product){
   return [supplier, name, unit, productColor, supplierRef].join("||");
 }
 
+function makeDeletedProductKey(product){
+  if(!product) return "";
+  const supplier = String((product.supplier || DEFAULT_SUPPLIER || "")).trim().toUpperCase();
+  const family = String((product.family_label || product.family_name || "")).trim().toUpperCase();
+  const name = String((product.name || "")).trim().toUpperCase();
+  const unit = String((product.unit || "U")).trim().toUpperCase() === "ML" ? "ML" : "U";
+  const productColor = String((product.product_color || "")).trim().toUpperCase();
+  const supplierRef = String((product.supplier_ref || "")).trim().toUpperCase();
+  return [supplier, family, name, unit, productColor, supplierRef].join("||");
+}
+
 function isDeletedProduct(product){
   const key = makeDeletedProductKey(product);
   if(!key) return false;
-  return getDeletedProducts().includes(key);
+  const deleted=getDeletedProducts();
+  return deleted.includes(key) || deleted.includes(makeDeletedProductLegacyKey(product));
 }
 
 function markDeletedProduct(product){
@@ -1658,12 +1670,13 @@ function deleteCustomProductById(productId){
 
   const list = getCustomProducts();
   const product = list[idx];
-  list.splice(idx, 1);
-  saveCustomProducts(list);
+  // V66.17 : une seule action retire toutes les anciennes copies strictement
+  // équivalentes, même lorsqu'elles ont reçu des identifiants différents.
+  const signature=makeDeletedProductKey(product);
+  const removed=list.filter(p=>String((p&&p.id)||"")===String(productId||"") || makeDeletedProductKey(p)===signature);
+  saveCustomProducts(list.filter(p=>!removed.includes(p)));
 
-  try{
-    markDeletedProduct(product);
-  }catch(e){}
+  removed.forEach(p=>{ try{ markDeletedProduct(p); }catch(e){} });
 
   try{
     const productName = String((product && product.name) || "").trim();
@@ -1685,6 +1698,7 @@ function deleteCustomProductById(productId){
 
   goSettings();
   setSettingsSection("fournisseurs");
+  try{ if(typeof window.rmlSyncProductDeletionNow==="function") window.rmlSyncProductDeletionNow(); }catch(e){}
 }
 function isRemovedSupplierFamily(fam){
   const txt = ((fam && fam.name) || "") + " " + ((fam && fam.family_label) || "");
@@ -2556,14 +2570,14 @@ function goSettings(){
     <div class="settings-section" data-settings-section="sync">
     <div class="card">
       <p class="title">Synchronisation cloud</p>
-      <p class="note">V66.16 : la suppression bloque toutes les copies cloud d’une ancienne commande, même si leurs identifiants sont différents.</p>
+      <p class="note">V66.17 : produits et commandes historiques disparaissent en une seule suppression, avec confirmation simple.</p>
       <div class="sync-card" style="margin-top:10px">
         <button class="btn neutral" style="width:auto;background:#0a8454;color:#fff;border-color:#0a8454" onclick="saveCloudNow()">Sauvegarder sur le cloud</button>
         <button class="btn neutral" style="width:auto" onclick="loadCloudNow()">Recharger depuis le cloud</button>
       </div>
       <div id="syncStatus" class="sync-status">Prêt.</div>
       <div class="note" style="margin-top:8px">V66 : synchronisation maître sécurisée avec restaurations ciblées. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
-      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V66.16 : suppression cloud immédiate et blocage définitif des copies restaurées.</div>
+      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V66.17 : suppression unique, doublons retirés et synchronisation cloud immédiate.</div>
       <div class="card" style="margin-top:12px;background:#f8fafc">
         <p class="title">Historique des sauvegardes</p>
         <p class="note">Les 20 dernières sauvegardes cloud. Tu peux restaurer une version précédente si besoin.</p>
@@ -3871,8 +3885,8 @@ function showHistory(){
     ${content}
     ${history.length ? `
       <div class="history-danger-zone">
-        <div class="title">Zone protégée</div>
-        <div class="note" style="margin-bottom:10px">La suppression complète demande une confirmation écrite et devient définitive sur tous les appareils.</div>
+        <div class="title">Suppression de l’historique</div>
+        <div class="note" style="margin-bottom:10px">Une simple confirmation sera demandée avant la suppression définitive sur tous les appareils.</div>
         <button class="btn danger" onclick="historyClearAll()">Vider tout l'historique</button>
       </div>` : ''}
     <div class="footer-space"></div>
@@ -4038,9 +4052,7 @@ async function historyDelete(index){
   const entry = history[index];
   const num = String(entry && entry.orderNumber || "").trim() || "sans numéro";
   const date = String(entry && entry.date || "").trim();
-  if(!confirm(`Supprimer définitivement la commande ${num}${date ? " du " + date : ""} de l'historique ?`)) return;
-  const validation = prompt('Sécurité : tape SUPPRIMER pour confirmer cette suppression.');
-  if(String(validation || "").trim().toUpperCase() !== "SUPPRIMER"){ alert("Suppression annulée."); return; }
+  if(!confirm(`VOULEZ-VOUS VRAIMENT SUPPRIMER DE L’HISTORIQUE LA COMMANDE ${num}${date ? " DU " + date : ""} ?`)) return;
   // V66.16 : supprimer toutes les copies logiques, même si Supabase leur a
   // attribué des identifiants différents lors d'une ancienne restauration.
   const historyId=String(entry.historyId||"").trim();
@@ -4064,9 +4076,7 @@ async function historyDelete(index){
 async function historyClearAll(){
   const history=getHistory();
   if(!history.length){alert("L'historique est déjà vide.");return;}
-  if(!confirm(`ATTENTION : tu vas supprimer définitivement ${history.length} commande${history.length>1?'s':''} de l'historique.`)) return;
-  const validation=prompt('Sécurité renforcée : tape exactement EFFACER HISTORIQUE pour continuer.');
-  if(String(validation||"").trim().toUpperCase()!=="EFFACER HISTORIQUE"){alert("Effacement annulé.");return;}
+  if(!confirm(`VOULEZ-VOUS VRAIMENT SUPPRIMER TOUT L’HISTORIQUE (${history.length} commande${history.length>1?'s':''}) ?`)) return;
   history.forEach(rmlMarkHistoryDeleted);
   saveHistory([]);
   try{
@@ -5875,7 +5885,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    - dernier changement daté gagne en cas de conflit global
    ============================================================ */
 (function(){
-  const V61_VERSION = "V66.16-final-history-delete";
+  const V61_VERSION = "V66.17-one-click-delete";
   const V61_DEVICE_KEY = "v61_device_id";
   const V61_LOCAL_CHANGE_KEY = "v61_last_local_change_ms";
   const V61_PENDING_KEY = "v61_sync_pending";
@@ -6129,7 +6139,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       value=v665MergeHistoryRaw(value,old.data.v66Value);
       localStorage.setItem(HISTORY_KEY,value);
     }
-    const packet={app:"RML GOUTTIERE ALU",version:"V66.16",sharedKey:CLOUD_SHARED_KEY,v66Type:V66_DELTA_TAG,
+    const packet={app:"RML GOUTTIERE ALU",version:"V66.17",sharedKey:CLOUD_SHARED_KEY,v66Type:V66_DELTA_TAG,
       v66Key:String(key),v66Value:value===null?null:String(value),savedAt:new Date().toISOString(),deviceId:v61DeviceId()};
     if(old&&old.id){
       const {error}=await supabaseCloud.from(CLOUD_TABLE).update({data:packet,updated_at:packet.savedAt}).eq("id",old.id);
@@ -6175,6 +6185,20 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     V66_CHANGED_KEYS.delete(RML_HISTORY_TOMBSTONES_KEY);
     V66_CHANGED_KEYS.delete(HISTORY_KEY);
     v61SetIndicator("ok","suppression définitive synchronisée");
+    return true;
+  };
+
+  window.rmlSyncProductDeletionNow = async function(){
+    if(!supabaseCloud || !navigator.onLine){
+      v61SetIndicator("offline","suppression produit enregistrée • envoi en attente");
+      return false;
+    }
+    // Le marqueur est toujours envoyé avant le catalogue nettoyé.
+    await v66WriteDelta(DELETED_PRODUCTS_KEY);
+    await v66WriteDelta(CUSTOM_PRODUCTS_KEY);
+    V66_CHANGED_KEYS.delete(DELETED_PRODUCTS_KEY);
+    V66_CHANGED_KEYS.delete(CUSTOM_PRODUCTS_KEY);
+    v61SetIndicator("ok","suppression produit synchronisée");
     return true;
   };
 
@@ -6894,7 +6918,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V66.16";
+  const PRO_VERSION = "V66.17";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
@@ -7067,7 +7091,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     if(!force && localStorage.getItem(PRO_DAILY_BACKUP_KEY)===today) return false;
     try{
       const payload=window.buildCloudPayload();
-      await saveCloudHistoryEntry(payload,'Sauvegarde V66.16 manuelle');
+      await saveCloudHistoryEntry(payload,'Sauvegarde V66.17 manuelle');
       localStorage.setItem(PRO_DAILY_BACKUP_KEY,today);
       proLog('Sauvegarde cloud','Sauvegarde manuelle créée');
       try{ if(typeof loadCloudHistoryIntoPanel==='function') loadCloudHistoryIntoPanel(); }catch(e){}
@@ -7649,8 +7673,10 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
   const prevDeleteProduct=window.deleteCustomProductById;
   if(typeof prevDeleteProduct==='function'){
     window.deleteCustomProductById=function(productId){
-      let supplier=''; try{ const p=parseProducts().find(x=>String(x&&x.id)===String(productId)); supplier=p&&p.supplier||''; }catch(e){}
-      const r=prevDeleteProduct.apply(this,arguments); if(supplier) setMeta(supplier,'product-delete'); forcePush(); return r;
+      // V66.17 : la suppression individuelle utilise son propre marqueur produit.
+      // Ne pas incrémenter la génération de tout le fournisseur, ce qui pouvait
+      // provoquer plusieurs restaurations/suppressions successives du catalogue.
+      const r=prevDeleteProduct.apply(this,arguments); forcePush(); return r;
     };
   }
   window.deleteImportedProductsBySupplier=function(supplierName){
