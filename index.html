@@ -241,6 +241,12 @@ th{background:#f8fafc}
 .history-danger-zone{margin-top:28px;padding:14px;border:1px solid #fecaca;background:#fff7f7;border-radius:18px}
 .history-danger-zone .note{color:#991b1b}
 .history-delete-btn{border-color:#ef4444 !important;color:#b91c1c !important}
+#history .history-actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:12px 0 14px}
+#history .history-actions .btn{width:100%;min-width:0;min-height:44px;padding:10px 3px;font-size:clamp(10px,2.8vw,14px);line-height:1.2;white-space:nowrap;border-radius:10px;color:#fff!important;box-sizing:border-box}
+#history .history-actions .history-download-btn{background:#2563eb!important;border-color:#2563eb!important}
+#history .history-actions .history-copy-btn{background:#475569!important;border-color:#475569!important}
+#history .history-actions .history-restore-btn{background:#15803d!important;border-color:#15803d!important}
+#history .history-actions .history-delete-btn{background:#b91c1c!important;border-color:#b91c1c!important}
 
 </style>
 
@@ -2574,14 +2580,14 @@ function goSettings(){
     <div class="settings-section" data-settings-section="sync">
     <div class="card">
       <p class="title">Synchronisation cloud</p>
-      <p class="note">V66.19 : le bouton Supprimer la commande vide toutes les quantités du fournisseur en une seule fois.</p>
+      <p class="note">V66.20 : les boutons de l’historique sont alignés sur une ligne et colorés selon leur action.</p>
       <div class="sync-card" style="margin-top:10px">
         <button class="btn neutral" style="width:auto;background:#0a8454;color:#fff;border-color:#0a8454" onclick="saveCloudNow()">Sauvegarder sur le cloud</button>
         <button class="btn neutral" style="width:auto" onclick="loadCloudNow()">Recharger depuis le cloud</button>
       </div>
       <div id="syncStatus" class="sync-status">Prêt.</div>
       <div class="note" style="margin-top:8px">V66 : synchronisation maître sécurisée avec restaurations ciblées. Un nouvel appareil ne peut jamais remplacer le cloud par une base locale vide.</div>
-      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V66.19 : vidage fournisseur complet, verrouillé et synchronisé immédiatement.</div>
+      <div id="v649Diagnostic" class="note" style="margin-top:6px;font-weight:700;color:#475569">Diagnostic V66.20 : boutons historiques alignés, confirmation de suppression conservée.</div>
       <div class="card" style="margin-top:12px;background:#f8fafc">
         <p class="title">Historique des sauvegardes</p>
         <p class="note">Les 20 dernières sauvegardes cloud. Tu peux restaurer une version précédente si besoin.</p>
@@ -3848,10 +3854,10 @@ function showHistory(){
           <div class="summary" style="margin-bottom:12px">
             <p class="title">Commande n° ${esc(entry.orderNumber || "")}</p>
             <p class="meta">Date : ${esc(entry.date || "")}${entry.supplier ? " · " + esc(entry.supplier) : ""}</p>
-            <div class="toolbar">
-              <button class="btn neutral" onclick="historyDownload(${globalIndex})">Télécharger</button>
-              <button class="btn neutral" onclick="historyCopy(${globalIndex})">Copier</button>
-              <button class="btn neutral" onclick="historyRestore(${globalIndex})">Restaurer</button>
+            <div class="toolbar history-actions">
+              <button class="btn neutral history-download-btn" onclick="historyDownload(${globalIndex})">Télécharger</button>
+              <button class="btn neutral history-copy-btn" onclick="historyCopy(${globalIndex})">Copier</button>
+              <button class="btn neutral history-restore-btn" onclick="historyRestore(${globalIndex})">Restaurer</button>
               <button class="btn neutral history-delete-btn" onclick="historyDelete(${globalIndex})">Supprimer</button>
             </div>
             <pre style="white-space:pre-wrap;font-family:inherit;font-size:13px;color:#334155;margin:0">${esc(v667HistoryDisplayText(entry))}</pre>
@@ -5889,7 +5895,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    - dernier changement daté gagne en cas de conflit global
    ============================================================ */
 (function(){
-  const V61_VERSION = "V66.19-supplier-reset";
+  const V61_VERSION = "V66.20-history-buttons";
   const V61_DEVICE_KEY = "v61_device_id";
   const V61_LOCAL_CHANGE_KEY = "v61_last_local_change_ms";
   const V61_PENDING_KEY = "v61_sync_pending";
@@ -6143,7 +6149,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
       value=v665MergeHistoryRaw(value,old.data.v66Value);
       localStorage.setItem(HISTORY_KEY,value);
     }
-    const packet={app:"RML GOUTTIERE ALU",version:"V66.19",sharedKey:CLOUD_SHARED_KEY,v66Type:V66_DELTA_TAG,
+    const packet={app:"RML GOUTTIERE ALU",version:"V66.20",sharedKey:CLOUD_SHARED_KEY,v66Type:V66_DELTA_TAG,
       v66Key:String(key),v66Value:value===null?null:String(value),savedAt:new Date().toISOString(),deviceId:v61DeviceId()};
     if(old&&old.id){
       const {error}=await supabaseCloud.from(CLOUD_TABLE).update({data:packet,updated_at:packet.savedAt}).eq("id",old.id);
@@ -6953,7 +6959,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
    Couche de fiabilisation au-dessus de V61 SYNC AUTO
    ============================================================ */
 (function(){
-  const PRO_VERSION = "V66.19";
+  const PRO_VERSION = "V66.20";
   const PRO_JOURNAL_KEY = "rml_pro_change_journal_v1";
   const PRO_TRASH_PRODUCTS_KEY = "rml_pro_trash_products_v1";
   const PRO_TRASH_SUPPLIERS_KEY = "rml_pro_trash_suppliers_v1";
@@ -7126,7 +7132,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeCo
     if(!force && localStorage.getItem(PRO_DAILY_BACKUP_KEY)===today) return false;
     try{
       const payload=window.buildCloudPayload();
-      await saveCloudHistoryEntry(payload,'Sauvegarde V66.19 manuelle');
+      await saveCloudHistoryEntry(payload,'Sauvegarde V66.20 manuelle');
       localStorage.setItem(PRO_DAILY_BACKUP_KEY,today);
       proLog('Sauvegarde cloud','Sauvegarde manuelle créée');
       try{ if(typeof loadCloudHistoryIntoPanel==='function') loadCloudHistoryIntoPanel(); }catch(e){}
